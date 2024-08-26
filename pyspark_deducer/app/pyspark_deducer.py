@@ -30,14 +30,14 @@ Execution:
     - move to directory containing this script (and as of writing, containing the data as well)
     - Launch script "python3 pyspark_deducer.py"
 TODO:
-    - Writing output according to expectations
     - Enabling data file selection through command line argument
-    - Integrate into Docker image
     - Address terminal warnings and context messages appearing on terminal
 """
 
 
 ##Imports
+import argparse
+
 #pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, udf, col, explode, array_repeat
@@ -56,22 +56,7 @@ import deduce
 from deduce.person import Person
 
 ##Setting up SparkSession
-#This line can help suppress extremely verbose logs (somehow the default is set to DEBUG)
 import logging
-logger = logging.getLogger("py4j")
-logger.setLevel("ERROR") #Default seems to be DEBUG, good alternative might be WARNING
-
-n_threads = 3#max(2, (os.cpu_count() -1)) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
-
-spark = SparkSession.builder.master("local[" + str(n_threads) + "]").appName("DeduceApp").getOrCreate()
-spark.sparkContext.setLogLevel("WARN")
-spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
-
-#broadcasting this class instance does not work (serialization issue)
-filename = "ECD_dummy_dataset_20240502_161537"
-filename = "input"
-
-deducer = deduce.Deduce()
 
 ##Function definitions
 def pseudonymize(unique_names):
@@ -149,43 +134,64 @@ def replace_patient_tag(text, new_value, tag = "[PATIENT]"):
     return str.replace(text, "[PATIENT]", new_value)
 
 
-#An informed decision can be made with the data size and system properties
-#- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
-#- partitions should fit in memory on nodes (recommended is around 256MB)
-##Amplify for testing purposes
-n_repeats = 1000
-psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + filename + ".csv")\
-.withColumn("Cliëntnaam", explode(array_repeat("Cliëntnaam", n_repeats)))
-psdf.printSchema()
-psdf_rowcount = psdf.count()
-n_partitions = psdf_rowcount // 3000 + 1
-psdf = psdf.repartition(n_partitions)
+def main():
+    #This can help suppress extremely verbose logs (somehow the default is set to DEBUG)
+    logger = logging.getLogger("py4j")
+    logger.setLevel("ERROR") #Default seems to be DEBUG, good alternative might be WARNING
 
-print("count: " + str(psdf_rowcount))
-print("partitions: " + str(psdf.rdd.getNumPartitions()))
+    n_threads = 3#max(2, (os.cpu_count() -1)) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
 
-##Turn names into dictionary of randomized IDs
-name_map = pseudonymize(psdf.select("Cliëntnaam").distinct().toPandas()["Cliëntnaam"])
-name_map_bc = spark.sparkContext.broadcast(name_map)
-with open(("/tmp/" + "name_map.json"), "w") as outfile:
-    json.dump(name_map, outfile)
-outfile.close()
+    spark = SparkSession.builder.master("local[" + str(n_threads) + "]").appName("DeduceApp").getOrCreate()
+    spark.sparkContext.setLogLevel("WARN")
+    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 
-start_t = time.time()
-##Define transformations, trigger execution by writing output to disk
-psdf = psdf.withColumn("ClientID", map_dictionary("Cliëntnaam"))\
-.withColumn("rapport", deduce_with_id("rapport", "Cliëntnaam"))\
-.withColumn("rapport", replace_patient_tag("rapport", "ClientID"))\
-.select("ClientID", "Tijdstip", "Zorgverlener ID", "rapport")
-psdf.write.mode("overwrite").csv("../data/output/" + filename + "_processed")
-#coalesceing is single-threaded, only do when necessary
-#psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
-psdf_row_count = psdf.count()
-end_t = time.time() #timeit.timeit()
-print(f"time passed with n_threads = {n_threads} and row count = {psdf_rowcount}: {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
-psdf.printSchema()
-print(psdf.take(10))
+    filename = "ECD_dummy_dataset_20240502_161537"
+    filename = "input"
+
+    #broadcasting this class instance does not work (serialization issue)
+    deducer = deduce.Deduce()
 
 
-#Close shop
-spark.stop()
+    #An informed decision can be made with the data size and system properties
+    #- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
+    #- partitions should fit in memory on nodes (recommended is around 256MB)
+    ##Amplify for testing purposes
+    n_repeats = 1
+    psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + filename + ".csv")\
+    .withColumn("Cliëntnaam", explode(array_repeat("Cliëntnaam", n_repeats)))
+    psdf.printSchema()
+    psdf_rowcount = psdf.count()
+    n_partitions = psdf_rowcount // 3000 + 1
+    psdf = psdf.repartition(n_partitions)
+
+    print("count: " + str(psdf_rowcount))
+    print("partitions: " + str(psdf.rdd.getNumPartitions()))
+
+    ##Turn names into dictionary of randomized IDs
+    name_map = pseudonymize(psdf.select("Cliëntnaam").distinct().toPandas()["Cliëntnaam"])
+    name_map_bc = spark.sparkContext.broadcast(name_map)
+    with open(("../data/output/" + "name_map.json"), "w") as outfile:
+        json.dump(name_map, outfile)
+    outfile.close()
+
+    start_t = time.time()
+    ##Define transformations, trigger execution by writing output to disk
+    psdf = psdf.withColumn("ClientID", map_dictionary("Cliëntnaam"))\
+    .withColumn("rapport", deduce_with_id("rapport", "Cliëntnaam"))\
+    .withColumn("rapport", replace_patient_tag("rapport", "ClientID"))\
+    .select("ClientID", "Tijdstip", "Zorgverlener ID", "rapport")
+    psdf.write.mode("overwrite").csv("../data/output/" + filename + "_processed")
+    #coalesceing is single-threaded, only do when necessary
+    #psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
+    psdf_row_count = psdf.count()
+    end_t = time.time() #timeit.timeit()
+    print(f"time passed with n_threads = {n_threads} and row count = {psdf_rowcount}: {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
+    psdf.printSchema()
+    print(psdf.take(10))
+
+
+    #Close shop
+    spark.stop()
+
+if __name__ == "__main__":
+    main()
