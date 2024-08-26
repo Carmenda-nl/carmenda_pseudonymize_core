@@ -55,86 +55,86 @@ import time
 import deduce
 from deduce.person import Person
 
-##Setting up SparkSession
 import logging
-
-##Function definitions
-def pseudonymize(unique_names):
-    """
-    Purpose:
-        Turn a list of unique names into a dictionary, mapping each to a randomized string. Uniqueness of input isresponsibility of caller, but if the generated output is not of the same length (can also occur if not enough unique strings were generated) it raises an assertionError.
-    Parameters:
-        unique_names (list): list of unique strings.
-    Returns:
-        Dictionary: keys are the original names, values are the randomized strings.
-    """
-    name_map = {}
-    for name in unique_names:
-        found_new = False
-        i = 0
-        while (found_new == False and i < 10):
-            i += 1
-            randomization = "".join(random.choices(string.ascii_uppercase+string.digits, k=12))
-            if randomization not in name_map:
-                found_new == True
-                name_map[name] = randomization
-    assert len(unique_names) == len(name_map.items()), "Pseudonymization function safeguard: unique_names (input) and name_map (output) don't have same length"
-    return name_map
-
-
-@udf
-def deduce_with_id(rapport, patient):
-    """
-    Purpose:
-        Apply the Deduce algorithm
-    Parameters:
-        rapport (string): Text entry to apply on.
-        patient (string): Patient name to enhance the algorithm performance
-    Returns:
-        rapport_deid (string): Deidentified version of rapport input
-    """
-    patient_name = str.split(patient, " ", maxsplit = 1)
-    patient_initials = "".join([x[0] for x in patient_name])
-    
-    #Difficult to predict person metadata exactly. I.e. in case of multiple spaces does this indicate multitude of first names or a composed last name?
-    #Best will be if input data contains columns for first names, surname, initials
-    #patient = Person(first_names = [patient_name[0:-1]], surname = patient_name[-1], initials = patient_initials)
-    patient = Person(first_names = [patient_name[0]], surname = patient_name[1], initials = patient_initials)
-    rapport_deid = deducer.deidentify(rapport, metadata={'patient': patient})
-    rapport_deid = getattr(rapport_deid, "deidentified_text")
-    return rapport_deid
-
-
-@udf
-def map_dictionary(name):
-    """
-    Purpose:
-        Obtain randomized string corresponding to name
-    Parameters:
-        name (string): person name
-        name_map_bc (dict, global environment): dictionary of person names (keys, string) and randomized IDs (values, string)
-    Returns:
-        Value from name_map_bc corresponding to input name
-    """
-    return name_map_bc.value.get(name)
-
-
-@udf
-def replace_patient_tag(text, new_value, tag = "[PATIENT]"):
-    """
-    Purpose:
-        Deduce labels occurences of patient name in text with a [PATIENT] tag. This function replaces that with the randomized ID.
-    Parameters:
-        text (string): the text possibly containing tag to replace
-        new_value (string): text to replace tag with
-        tag (string, default = "[PATIENT]): Formatted string indicating tag to replace
-    Returns:
-        text from text but with tag replaced by new_value
-    """
-    return str.replace(text, "[PATIENT]", new_value)
 
 
 def main():
+    ##Function definitions
+    def pseudonymize(unique_names):
+        """
+        Purpose:
+            Turn a list of unique names into a dictionary, mapping each to a randomized string. Uniqueness of input isresponsibility of caller, but if the generated output is not of the same length (can also occur if not enough unique strings were generated) it raises an assertionError.
+        Parameters:
+            unique_names (list): list of unique strings.
+        Returns:
+            Dictionary: keys are the original names, values are the randomized strings.
+        """
+        name_map = {}
+        for name in unique_names:
+            found_new = False
+            i = 0
+            while (found_new == False and i < 10):
+                i += 1
+                randomization = "".join(random.choices(string.ascii_uppercase+string.digits, k=12))
+                if randomization not in name_map:
+                    found_new == True
+                    name_map[name] = randomization
+        assert len(unique_names) == len(name_map.items()), "Pseudonymization function safeguard: unique_names (input) and name_map (output) don't have same length"
+        return name_map
+
+
+    @udf
+    def deduce_with_id(rapport, patient):
+        """
+        Purpose:
+            Apply the Deduce algorithm
+        Parameters:
+            rapport (string): Text entry to apply on.
+            patient (string): Patient name to enhance the algorithm performance
+        Returns:
+            rapport_deid (string): Deidentified version of rapport input
+        """
+        patient_name = str.split(patient, " ", maxsplit = 1)
+        patient_initials = "".join([x[0] for x in patient_name])
+        
+        #Difficult to predict person metadata exactly. I.e. in case of multiple spaces does this indicate multitude of first names or a composed last name?
+        #Best will be if input data contains columns for first names, surname, initials
+        #patient = Person(first_names = [patient_name[0:-1]], surname = patient_name[-1], initials = patient_initials)
+        patient = Person(first_names = [patient_name[0]], surname = patient_name[1], initials = patient_initials)
+        rapport_deid = deducer.deidentify(rapport, metadata={'patient': patient})
+        rapport_deid = getattr(rapport_deid, "deidentified_text")
+        return rapport_deid
+
+
+    @udf
+    def map_dictionary(name):
+        """
+        Purpose:
+            Obtain randomized string corresponding to name
+        Parameters:
+            name (string): person name
+            name_map_bc (dict, global environment): dictionary of person names (keys, string) and randomized IDs (values, string)
+        Returns:
+            Value from name_map_bc corresponding to input name
+        """
+        return name_map_bc.value.get(name)
+
+
+    @udf
+    def replace_patient_tag(text, new_value, tag = "[PATIENT]"):
+        """
+        Purpose:
+            Deduce labels occurences of patient name in text with a [PATIENT] tag. This function replaces that with the randomized ID.
+        Parameters:
+            text (string): the text possibly containing tag to replace
+            new_value (string): text to replace tag with
+            tag (string, default = "[PATIENT]): Formatted string indicating tag to replace
+        Returns:
+            text from text but with tag replaced by new_value
+        """
+        return str.replace(text, "[PATIENT]", new_value)
+
+    
     #This can help suppress extremely verbose logs (somehow the default is set to DEBUG)
     logger = logging.getLogger("py4j")
     logger.setLevel("ERROR") #Default seems to be DEBUG, good alternative might be WARNING
