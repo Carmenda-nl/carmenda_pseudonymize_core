@@ -58,7 +58,7 @@ from deduce.person import Person
 import logging
 
 
-def main():
+def main(input_file):
     ##Function definitions
     def pseudonymize(unique_names):
         """
@@ -145,22 +145,20 @@ def main():
     spark.sparkContext.setLogLevel("WARN")
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 
-    filename = "ECD_dummy_dataset_20240502_161537"
-    filename = "input"
+    n_concat = 1
+    psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + input_file)\
+    .withColumn("Cliëntnaam", explode(array_repeat("Cliëntnaam", n_concat)))
+    psdf.printSchema()
+    psdf_rowcount = psdf.count()
+    print("Row count: " + str(psdf_rowcount))
 
     #broadcasting this class instance does not work (serialization issue)
     deducer = deduce.Deduce()
-
 
     #An informed decision can be made with the data size and system properties
     #- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
     #- partitions should fit in memory on nodes (recommended is around 256MB)
     ##Amplify for testing purposes
-    n_repeats = 1
-    psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + filename + ".csv")\
-    .withColumn("Cliëntnaam", explode(array_repeat("Cliëntnaam", n_repeats)))
-    psdf.printSchema()
-    psdf_rowcount = psdf.count()
     n_partitions = psdf_rowcount // 3000 + 1
     psdf = psdf.repartition(n_partitions)
 
@@ -180,7 +178,9 @@ def main():
     .withColumn("rapport", deduce_with_id("rapport", "Cliëntnaam"))\
     .withColumn("rapport", replace_patient_tag("rapport", "ClientID"))\
     .select("ClientID", "Tijdstip", "Zorgverlener ID", "rapport")
-    psdf.write.mode("overwrite").csv("../data/output/" + filename + "_processed")
+
+    output_file = "../data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed.csv"
+    psdf.write.mode("overwrite").csv(output_file)
     #coalesceing is single-threaded, only do when necessary
     #psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
     psdf_row_count = psdf.count()
@@ -194,4 +194,8 @@ def main():
     spark.stop()
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description = "reading python program input parameters.")
+    parser.add_argument("input_file", nargs="?", default="input.csv", help="Name of the input file")
+
+    args = parser.parse_args()
+    main(args.input_file)

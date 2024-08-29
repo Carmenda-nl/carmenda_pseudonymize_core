@@ -14,4 +14,4 @@ COPY data/input/ECD_dummy_dataset_20240502_161537.csv /data/input/ECD_dummy_data
 
 EXPOSE 4040
 
-CMD ["python", "pyspark_deducer.py"]
+ENTRYPOINT ["python", "pyspark_deducer.py"]
