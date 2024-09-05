@@ -37,3 +37,7 @@ CMD ["input.csv"]
 ## Interactive terminal, binding down to a specific file (second -v), calling a specific image version using :latest tag
 
 #docker run -it -v deducerVol:/data -v ${pwd}/data/input.csv:/data/input/input.csv --entrypoint /bin/bash pyspark_deducer_app:latest
+
+## For help with the python script
+
+#docker run --entrypoint python pyspark_deducer_app pyspark_deducer.py --help
