@@ -205,7 +205,7 @@ if __name__ == "__main__":
     parser.add_argument("--custom_cols", 
                         nargs="?", 
                         help="Column names as a single string of format \"patientName=foo, time=bar, caretakerName=foobar, report=barfoo\". Whitespaces are removed, so column currently can't contain them.", 
-                        default="patientName=patientName, time=time, caretakerName=caretakerName, report=report")
+                        default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport")
 
     def parse_custom_cols(mapping_str):
         return dict(item.strip().split("=") for item in mapping_str.split(","))

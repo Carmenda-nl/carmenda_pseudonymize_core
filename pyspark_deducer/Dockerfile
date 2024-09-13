@@ -13,7 +13,7 @@ RUN mkdir -p /data/output
 EXPOSE 4040
 
 ENTRYPOINT ["python", "pyspark_deducer.py"]
-CMD ["input.csv"]
+#CMD ["--input_file input.csv"]
 
 
 ## Use following commands in terminal to build and run container
