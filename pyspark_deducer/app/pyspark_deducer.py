@@ -75,16 +75,16 @@ def main(input_file, custom_cols, pseudonym_key):
         else:
             print("Building from existing pseudonym_key")
         for name in unique_names:
-            found_new = False
-            i = 0
-            while (found_new == False and i < 10):
-                i += 1
-                randomization = "".join(random.choices(string.ascii_uppercase+string.digits, k=12))
-                if name not in pseudonym_key:
-                    found_new == True
-                    pseudonym_key[name] = randomization
+            if name not in pseudonym_key:
+                found_new = False
+                i = 0
+                while (found_new == False and i < 15):
+                    i += 1
+                    pseudonym_candidate = "".join(random.choices(string.ascii_uppercase+string.ascii_lowercase+string.digits, k=14))
+                    if pseudonym_candidate not in pseudonym_key.values():
+                        found_new == True
+                        pseudonym_key[name] = pseudonym_candidate
         assert len(unique_names) == len(pseudonym_key.items()), "Pseudonymization function safeguard: unique_names (input) and pseudonym_key (output) don't have same length"
-        print(pseudonym_key)
         return pseudonym_key
 
 
@@ -158,8 +158,7 @@ def main(input_file, custom_cols, pseudonym_key):
     psdf_rowcount = psdf.count()
     print("Row count: " + str(psdf_rowcount))
 
-    #broadcasting this class instance does not work (serialization issue)
-    print("Deduce will now be initialized, which unfortunately has to be redone (for now) when running inside container.")
+    #broadcasting this deduce class instance does not work (serialization issue)
     deducer = deduce.Deduce()
 
     #An informed decision can be made with the data size and system properties
