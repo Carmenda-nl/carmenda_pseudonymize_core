@@ -58,9 +58,9 @@ from deduce.person import Person
 import logging
 
 
-def main(input_file, custom_cols):
+def main(input_file, custom_cols, pseudonym_key):
     ##Function definitions
-    def pseudonymize(unique_names):
+    def pseudonymize(unique_names, pseudonym_key = None):
         """
         Purpose:
             Turn a list of unique names into a dictionary, mapping each to a randomized string. Uniqueness of input isresponsibility of caller, but if the generated output is not of the same length (can also occur if not enough unique strings were generated) it raises an assertionError.
@@ -69,22 +69,27 @@ def main(input_file, custom_cols):
         Returns:
             Dictionary: keys are the original names, values are the randomized strings.
         """
-        name_map = {}
+        if pseudonym_key == None:
+            print("Building new pseudonym_key because argument was None")
+            pseudonym_key = {}
+        else:
+            print("Building from existing pseudonym_key")
         for name in unique_names:
             found_new = False
             i = 0
             while (found_new == False and i < 10):
                 i += 1
                 randomization = "".join(random.choices(string.ascii_uppercase+string.digits, k=12))
-                if randomization not in name_map:
+                if name not in pseudonym_key:
                     found_new == True
-                    name_map[name] = randomization
-        assert len(unique_names) == len(name_map.items()), "Pseudonymization function safeguard: unique_names (input) and name_map (output) don't have same length"
-        return name_map
+                    pseudonym_key[name] = randomization
+        assert len(unique_names) == len(pseudonym_key.items()), "Pseudonymization function safeguard: unique_names (input) and pseudonym_key (output) don't have same length"
+        print(pseudonym_key)
+        return pseudonym_key
 
 
     @udf
-    def deduce_with_id(report, patient):
+    def deduce_with_id(report, patient, caretaker=False):
         """
         Purpose:
             Apply the Deduce algorithm
@@ -113,11 +118,11 @@ def main(input_file, custom_cols):
             Obtain randomized string corresponding to name
         Parameters:
             name (string): person name
-            name_map_bc (dict, global environment): dictionary of person names (keys, string) and randomized IDs (values, string)
+            pseudonym_key_bc (dict, global environment): dictionary of person names (keys, string) and randomized IDs (values, string)
         Returns:
-            Value from name_map_bc corresponding to input name
+            Value from pseudonym_key_bc corresponding to input name
         """
-        return name_map_bc.value.get(name)
+        return pseudonym_key_bc.value.get(name)
     
     @udf
     def replace_patient_tag(text, new_value, tag = "[PATIENT]"):
@@ -168,10 +173,15 @@ def main(input_file, custom_cols):
     print("partitions: " + str(psdf.rdd.getNumPartitions()))
 
     ##Turn names into dictionary of randomized IDs
-    name_map = pseudonymize(psdf.select(custom_cols["patientName"]).distinct().toPandas()[custom_cols["patientName"]])
-    name_map_bc = spark.sparkContext.broadcast(name_map)
-    with open(("../data/output/" + "name_map.json"), "w") as outfile:
-        json.dump(name_map, outfile)
+    print(pseudonym_key)
+    if pseudonym_key != None:
+        pseudonym_key = json.load(open("../data/input/" + pseudonym_key))
+        print(pseudonym_key)
+    pseudonym_key = pseudonymize(psdf.select(custom_cols["patientName"]).distinct().toPandas()[custom_cols["patientName"]],
+                                 pseudonym_key)
+    pseudonym_key_bc = spark.sparkContext.broadcast(pseudonym_key)
+    with open(("../data/output/" + "pseudonym_key.json"), "w") as outfile:
+        json.dump(pseudonym_key, outfile)
     outfile.close()
 
     start_t = time.time()
@@ -206,6 +216,10 @@ if __name__ == "__main__":
                         nargs="?", 
                         help="Column names as a single string of format \"patientName=foo, time=bar, caretakerName=foobar, report=barfoo\". Whitespaces are removed, so column currently can't contain them.", 
                         default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport")
+    parser.add_argument("--pseudonym_key",
+                        nargs="?",
+                        default=None,
+                        help = "Existing pseudonymization key to expand. Supply as JSON file with format {\"name\": \"pseudonym\"}.")
 
     def parse_custom_cols(mapping_str):
         return dict(item.strip().split("=") for item in mapping_str.split(","))
@@ -214,4 +228,4 @@ if __name__ == "__main__":
     args.custom_cols = parse_custom_cols(args.custom_cols)
     print(args.custom_cols)
 
-    main(args.input_file, args.custom_cols)
+    main(args.input_file, args.custom_cols, args.pseudonym_key)
