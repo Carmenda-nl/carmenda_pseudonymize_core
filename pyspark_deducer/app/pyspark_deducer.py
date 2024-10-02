@@ -58,7 +58,7 @@ from deduce.person import Person
 import logging
 
 
-def main(input_file, custom_cols, pseudonym_key):
+def main(input_file, custom_cols, pseudonym_key, max_n_processes):
     ##Function definitions
     def pseudonymize(unique_names, pseudonym_key = None):
         """
@@ -143,14 +143,18 @@ def main(input_file, custom_cols, pseudonym_key):
     logger = logging.getLogger("py4j")
     logger.setLevel("ERROR") #Default seems to be DEBUG, good alternative might be WARNING
 
-    n_threads = 3#max(2, (os.cpu_count() -1)) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
+    n_processes = min(max_n_processes, max(1, (os.cpu_count() -1))) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
 
-    spark = SparkSession.builder.master("local[" + str(n_threads) + "]").appName("DeduceApp").getOrCreate()
+    spark = SparkSession.builder.master("local[" + str(n_processes) + "]").appName("DeduceApp").getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
+    spark.conf.set("spark.sql.files.maxPartitionBytes", 128 * 1024 * 1024)
 
-    psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + input_file)\
-    
+
+    input_file_size = os.stat("../data/input/" + input_file).st_size
+    print("input file size: " + str(input_file_size))
+    psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + input_file)
+
     #If you want to amplify data, usually for performance testing purposes
     n_concat = 1
     psdf = psdf.withColumn(custom_cols["patientName"], explode(array_repeat(custom_cols["patientName"], n_concat)))
@@ -158,19 +162,14 @@ def main(input_file, custom_cols, pseudonym_key):
     psdf_rowcount = psdf.count()
     print("Row count: " + str(psdf_rowcount))
 
-    #broadcasting this deduce class instance does not work (serialization issue)
-    deducer = deduce.Deduce()
-
-    #An informed decision can be made with the data size and system properties
-    #- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
-    #- partitions should fit in memory on nodes (recommended is around 256MB)
-    ##Amplify for testing purposes
-    n_partitions = psdf_rowcount // 3000 + 1
+    ##An informed decision can be made with the data size and system properties
+    ##- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
+    ##- partitions should fit in memory on nodes (recommended is around 256MB)
+    n_partitions = input_file_size * n_concat // (1024**2 * 128) + 1
+    #n_partitions = psdf_rowcount // 3000 + 1
     psdf = psdf.repartition(n_partitions)
-
-    print("count: " + str(psdf_rowcount))
     print("partitions: " + str(psdf.rdd.getNumPartitions()))
-
+    
     ##Turn names into dictionary of randomized IDs
     print(pseudonym_key)
     if pseudonym_key != None:
@@ -182,6 +181,10 @@ def main(input_file, custom_cols, pseudonym_key):
     with open(("../data/output/" + "pseudonym_key.json"), "w") as outfile:
         json.dump(pseudonym_key, outfile)
     outfile.close()
+
+
+    #broadcasting this deduce class instance does not work (serialization issue)
+    deducer = deduce.Deduce()
 
     start_t = time.time()
     ##Define transformations, trigger execution by writing output to disk
@@ -196,7 +199,7 @@ def main(input_file, custom_cols, pseudonym_key):
     #psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
     psdf_row_count = psdf.count()
     end_t = time.time() #timeit.timeit()
-    print(f"time passed with n_threads = {n_threads} and row count = {psdf_rowcount}: {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
+    print(f"time passed with n_processes = {n_processes} and row count = {psdf_rowcount}: {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
     psdf.printSchema()
     print(psdf.take(10))
 
@@ -213,12 +216,16 @@ if __name__ == "__main__":
                         help="Name of the input file")
     parser.add_argument("--custom_cols", 
                         nargs="?", 
-                        help="Column names as a single string of format \"patientName=foo, time=bar, caretakerName=foobar, report=barfoo\". Whitespaces are removed, so column currently can't contain them.", 
+                        help="Column names as a single string of format \"patientName=foo, time=bar, caretakerName=foobar, report=barfoo\". Whitespaces are removed, so column names currently can't contain them.", 
                         default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport")
     parser.add_argument("--pseudonym_key",
                         nargs="?",
                         default=None,
                         help = "Existing pseudonymization key to expand. Supply as JSON file with format {\"name\": \"pseudonym\"}.")
+    parser.add_argument("--max_n_processes",
+                        nargs="?",
+                        default=os.cpu_count(),
+                        help = "Maximum number of processes. Default behavior is to detect the number of cores on the system and subtract 1. Going above the number of available cores has no benefit.")
 
     def parse_custom_cols(mapping_str):
         return dict(item.strip().split("=") for item in mapping_str.split(","))
@@ -227,4 +234,4 @@ if __name__ == "__main__":
     args.custom_cols = parse_custom_cols(args.custom_cols)
     print(args.custom_cols)
 
-    main(args.input_file, args.custom_cols, args.pseudonym_key)
+    main(args.input_file, args.custom_cols, args.pseudonym_key, args.max_n_processes)
