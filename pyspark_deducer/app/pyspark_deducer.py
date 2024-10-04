@@ -40,7 +40,7 @@ import argparse
 
 #pyspark
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import pandas_udf, udf, col, explode, array_repeat
+from pyspark.sql.functions import pandas_udf, udf, col, explode, array_repeat, coalesce
 
 #standard modules
 import os
@@ -50,6 +50,7 @@ import numpy as np
 import random
 import string
 import time
+import warnings
 
 #deduce
 import deduce
@@ -58,7 +59,7 @@ from deduce.person import Person
 import logging
 
 
-def main(input_file, custom_cols, pseudonym_key, max_n_processes):
+def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extention, partition_n, coalesce_n):
     ##Function definitions
     def pseudonymize(unique_names, pseudonym_key = None):
         """
@@ -146,14 +147,19 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes):
     n_processes = min(max_n_processes, max(1, (os.cpu_count() -1))) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
 
     spark = SparkSession.builder.master("local[" + str(n_processes) + "]").appName("DeduceApp").getOrCreate()
-    spark.sparkContext.setLogLevel("WARN")
+    #spark.sparkContext.setLogLevel("WARN")
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
-    spark.conf.set("spark.sql.files.maxPartitionBytes", 128 * 1024 * 1024)
+    ##maxPartitionBytes doesn't seem to work for csv input and for parquet the default seems best.
+    #spark.conf.set("spark.sql.files.maxPartitionBytes", 128 * 1024 * 1024)
 
+    input_ext = os.path.splitext("../data/input/" + input_file)[-1]
+    if input_ext == ".csv":
+        input_file_size = os.stat("../data/input/" + input_file).st_size
+        print("CSV input file of size: " + str(input_file_size))
+        psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + input_file)
+    else:
+        psdf = spark.read.parquet("../data/input/" + input_file)
 
-    input_file_size = os.stat("../data/input/" + input_file).st_size
-    print("input file size: " + str(input_file_size))
-    psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + input_file)
 
     #If you want to amplify data, usually for performance testing purposes
     n_concat = 1
@@ -165,9 +171,10 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes):
     ##An informed decision can be made with the data size and system properties
     ##- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
     ##- partitions should fit in memory on nodes (recommended is around 256MB)
-    n_partitions = input_file_size * n_concat // (1024**2 * 128) + 1
-    #n_partitions = psdf_rowcount // 3000 + 1
-    psdf = psdf.repartition(n_partitions)
+    if partition_n == None and input_ext == ".csv":
+        partition_n = input_file_size * n_concat // (1024**2 * 128) + 1
+        #partition_n = psdf_rowcount // 3000 + 1
+    psdf = psdf.repartition(partition_n)
     print("partitions: " + str(psdf.rdd.getNumPartitions()))
     
     ##Turn names into dictionary of randomized IDs
@@ -193,8 +200,17 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes):
     .withColumn(custom_cols["report"], replace_patient_tag(custom_cols["report"], "patientID"))\
     .select("patientID", custom_cols["time"], custom_cols["caretakerName"], custom_cols["report"])
 
-    output_file = "../data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed.csv"
-    psdf.write.mode("overwrite").csv(output_file)
+    if coalesce_n != None:
+        psdf = psdf.coalesce(coalesce_n)
+        
+    if output_extention == ".csv":
+        output_file = "../data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed.csv"
+        psdf.write.mode("overwrite").csv(output_file)
+    else:
+        if output_extention != ".parquet":
+            warnings.warn("Selected output extention not supported, using parquet.")
+        output_file = "../data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed.parquet"
+        psdf.write.mode("overwrite").parquet(output_file)
     #coalesceing is single-threaded, only do when necessary
     #psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
     psdf_row_count = psdf.count()
@@ -226,12 +242,28 @@ if __name__ == "__main__":
                         nargs="?",
                         default=os.cpu_count(),
                         help = "Maximum number of processes. Default behavior is to detect the number of cores on the system and subtract 1. Going above the number of available cores has no benefit.")
+    parser.add_argument("--output_extention",
+                        nargs="?",
+                        default = ".parquet",
+                        help = "Select output format, currently only parquet (default) and csv are supported.")
+    parser.add_argument("--partition_n",
+                        nargs = "?",
+                        default = None,
+                        help = "Manually set number of partitions during processing phase. The default makes an estimation based on file size for .csv input or used default settings for .parquet.")
+    parser.add_argument("--coalesce_n",
+                        nargs="?",
+                        default = None,
+                        help = "Should you want to control the number of partitions of the output this option can be used. Default is None because coalesceing and output writing to single file is slow. Because coalesce is different from reshuffle, this argument cannot be larger than partition_n")
 
     def parse_custom_cols(mapping_str):
         return dict(item.strip().split("=") for item in mapping_str.split(","))
     
     args = parser.parse_args()
     args.custom_cols = parse_custom_cols(args.custom_cols)
-    print(args.custom_cols)
+    if args.partition_n != None:
+        args.partition_n = int(args.partition_n)
+    if args.coalesce_n != None:
+        args.coalesce_n = int(args.coalesce_n) 
+    print(args)
 
-    main(args.input_file, args.custom_cols, args.pseudonym_key, args.max_n_processes)
+    main(args.input_file, args.custom_cols, args.pseudonym_key, args.max_n_processes, args.output_extention, args.partition_n, args.coalesce_n)
