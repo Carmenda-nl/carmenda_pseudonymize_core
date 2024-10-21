@@ -232,7 +232,7 @@ if __name__ == "__main__":
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--input_file", 
                         nargs="?", 
-                        default="input.csv", 
+                        default="dummy_input.csv", 
                         help="Name of the input file")
     parser.add_argument("--custom_cols", 
                         nargs="?", 

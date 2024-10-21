@@ -1,1 +1,7 @@
-data/
+#Ignore all in data except a few test files
+data/*
+
+!data/input/dummy_input.csv
+!data/output/dummy_input_processed.parquet
+!data/input/pseudonym_key_partial.json
+!data/output/pseudonym_key.json
