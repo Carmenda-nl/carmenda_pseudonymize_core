@@ -197,8 +197,12 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
     ##Define transformations, trigger execution by writing output to disk
     psdf = psdf.withColumn("patientID", map_dictionary(custom_cols["patientName"]))\
     .withColumn(custom_cols["report"], deduce_with_id(custom_cols["report"], custom_cols["patientName"]))\
-    .withColumn(custom_cols["report"], replace_patient_tag(custom_cols["report"], "patientID"))\
-    .select("patientID", custom_cols["time"], custom_cols["caretakerName"], custom_cols["report"])
+    .withColumn(custom_cols["report"], replace_patient_tag(custom_cols["report"], "patientID"))
+
+    existing_cols = psdf.columns
+    select_cols = ["patientID", custom_cols["time"], custom_cols["caretakerName"], custom_cols["report"]]
+    select_cols = [col for col in select_cols if col in existing_cols]
+    psdf = psdf.select(select_cols)
 
     if coalesce_n != None:
         psdf = psdf.coalesce(coalesce_n)
