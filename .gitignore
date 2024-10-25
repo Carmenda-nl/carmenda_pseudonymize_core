@@ -1,0 +1,4 @@
+pyspark_deducer/data/input/*
+pyspark_deducer/data/output/*
+
+.env
