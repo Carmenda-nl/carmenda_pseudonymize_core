@@ -24,4 +24,4 @@ This project is licensed under the Creative Commons Attribution 4.0 Internationa
 
 ## Contact
 
-If you have any questions or need further assistance, please reach out to us at support@carmenda.com.
+If you have any questions or need further assistance, please reach out to us at support@carmenda.nl.
