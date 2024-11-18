@@ -40,4 +40,4 @@ ENTRYPOINT ["python", "pyspark_deducer.py"]
 
 ## For help with the python script
 
-#docker run --entrypoint python pyspark_deducer_app pyspark_deducer.py --help
+#docker run --entrypoint python carmenda/pseudonymizer:latest pyspark_deducer.py --help
