@@ -1,6 +1,0 @@
-#Ignore all in data except a few test files
-data/input/*
-data/output/*
-
-!data/input/dummy_input.csv
-!data/input/dummy_pseudonym_key.json
