@@ -40,7 +40,8 @@ import argparse
 
 #pyspark
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import pandas_udf, udf, col, explode, array_repeat, coalesce, struct
+from pyspark.sql.functions import pandas_udf, udf, col, explode, array_repeat, coalesce, struct, concat_ws
+from functools import reduce
 
 #standard modules
 import os
@@ -59,48 +60,50 @@ from deduce.person import Person
 import logging
 
 
-def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extention, partition_n, coalesce_n):
-    ##Function definitions
-    def pseudonymize(unique_names, pseudonym_key = None):
-        """
-        Purpose:
-            Turn a list of unique names into a dictionary, mapping each to a randomized string. Uniqueness of input isresponsibility of caller, but if the generated output is not of the same length (can also occur if not enough unique strings were generated) it raises an assertionError.
-        Parameters:
-            unique_names (list): list of unique strings.
-        Returns:
-            Dictionary: keys are the original names, values are the randomized strings.
-        """
-        if pseudonym_key == None:
-            logger_main.info("Building new pseudonym_key because argument was None")
-            pseudonym_key = {}
-        else:
-            logger_main.info("Building from existing pseudonym_key")
-        for name in unique_names:
-            if name not in pseudonym_key:
-                found_new = False
-                i = 0
-                while (found_new == False and i < 15):
-                    i += 1
-                    pseudonym_candidate = "".join(random.choices(string.ascii_uppercase+string.ascii_lowercase+string.digits, k=14))
-                    if pseudonym_candidate not in pseudonym_key.values():
-                        found_new == True
-                        pseudonym_key[name] = pseudonym_candidate
-        assert len(unique_names) == len(pseudonym_key.items()), "Pseudonymization function safeguard: unique_names (input) and pseudonym_key (output) don't have same length"
-        return pseudonym_key
+def pseudonymize(unique_names, pseudonym_key = None, droplist = []):
+    """
+    Purpose:
+        Turn a list of unique names into a dictionary, mapping each to a randomized string. Uniqueness of input isresponsibility of caller, but if the generated output is not of the same length (can also occur if not enough unique strings were generated) it raises an assertionError.
+    Parameters:
+        unique_names (list): list of unique strings.
+    Returns:
+        Dictionary: keys are the original names, values are the randomized strings.
+    """
+    unique_names = [name for name in unique_names if name not in droplist]
+    if pseudonym_key == None:
+        logger_main.info("Building new pseudonym_key because argument was None")
+        pseudonym_key = {}
+    else:
+        logger_main.info("Building from existing pseudonym_key")
+    for name in unique_names:
+        if name not in pseudonym_key:
+            found_new = False
+            i = 0
+            while (found_new == False and i < 15):
+                i += 1
+                pseudonym_candidate = "".join(random.choices(string.ascii_uppercase+string.ascii_lowercase+string.digits, k=14))
+                if pseudonym_candidate not in pseudonym_key.values():
+                    found_new == True
+                    pseudonym_key[name] = pseudonym_candidate
+    assert len(unique_names) == len(pseudonym_key.items()), "Pseudonymization function safeguard: unique_names (input) and pseudonym_key (output) don't have same length"
+    pseudonym_key[None] = None
+    return pseudonym_key
 
 
-    @udf
-    def deduce_with_id(row):
-        """
-        Purpose:
-            Apply the Deduce algorithm
-        Parameters:
-            report (string): Text entry to apply on.
-            patient (string): Patient name to enhance the algorithm performance
-        Returns:
-            report_deid (string): Deidentified version of report input
-        """
+def deduce_with_id_func(custom_cols_bc):
+    """
+    Purpose:
+        Apply the Deduce algorithm
+    Parameters:
+        report (string): Text entry to apply on.
+        patient (string): Patient name to enhance the algorithm performance
+    Returns:
+        report_deid (string): Deidentified version of report input
+    """
+    deduce_instance = deduce.Deduce()
+    def inner_func(row):
         try:
+            custom_cols = custom_cols_bc.value
             patient_name = str.split(row[custom_cols["patientName"]], " ", maxsplit = 1)
             patient_initials = "".join([x[0] for x in patient_name])
             
@@ -108,16 +111,16 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
             #Best will be if input data contains columns for first names, surname, initials
             #patient = Person(first_names = [patient_name[0:-1]], surname = patient_name[-1], initials = patient_initials)
             deduce_patient = Person(first_names = [patient_name[0]], surname = patient_name[1], initials = patient_initials)
-            report_deid = deducer.deidentify(row[custom_cols["report"]], metadata={'patient': deduce_patient})
+            report_deid = deduce_instance.deidentify(row[custom_cols["report"]], metadata={'patient': deduce_patient})
             report_deid = getattr(report_deid, "deidentified_text")
             return report_deid
         except Exception as e:
-            print(f"Following row failed to process in function deduce_with_id, returning None:\n{row}")
+            #print(f"Following row failed to process in function deduce_with_id, returning None:\n{row}")
             return None
-
-
-    @udf
-    def map_dictionary(name):
+    return inner_func
+        
+def map_dictionary_func(pseudonym_key_bc):
+    def inner_func(name):
         """
         Purpose:
             Obtain randomized string corresponding to name
@@ -127,25 +130,33 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
         Returns:
             Value from pseudonym_key_bc corresponding to input name
         """
-        return pseudonym_key_bc.value.get(name)
-    
-    @udf
-    def replace_patient_tag(text, new_value, tag = "[PATIENT]"):
-        """
-        Purpose:
-            Deduce labels occurences of patient name in text with a [PATIENT] tag. This function replaces that with the randomized ID.
-        Parameters:
-            text (string): the text possibly containing tag to replace
-            new_value (string): text to replace tag with
-            tag (string, default = "[PATIENT]): Formatted string indicating tag to replace
-        Returns:
-            text from text but with tag replaced by new_value
-        """
         try:
-            return str.replace(text, "[PATIENT]", new_value)
-        except Exception as e:
-            print(f"Following text failed to process in fucntion replace_patient_tag, returning None:\n{text}")
+            return pseudonym_key_bc.value.get(name)
+        except:
             return None
+    return inner_func
+    
+@udf
+def replace_tags_udf(text, new_value, tag = "[PATIENT]"):
+    """
+    Purpose:
+        Deduce labels occurences of patient name in text with a [PATIENT] tag. This function replaces that with the randomized ID.
+    Parameters:
+        text (string): the text possibly containing tag to replace
+        new_value (string): text to replace tag with
+        tag (string, default = "[PATIENT]): Formatted string indicating tag to replace
+    Returns:
+        text from text but with tag replaced by new_value
+    """
+    try:
+        return str.replace(text, "[PATIENT]", new_value)
+    except Exception as e:
+        #print(f"Following text failed to process in fucntion replace_patient_tag, returning None:\n{text}")
+        return None
+
+
+
+def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extention, partition_n, coalesce_n):
 
     n_processes = min(max_n_processes, max(1, (os.cpu_count() -1))) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
 
@@ -155,19 +166,20 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
     ##maxPartitionBytes doesn't seem to work for csv input and for parquet the default seems best.
     #spark.conf.set("spark.sql.files.maxPartitionBytes", 128 * 1024 * 1024)
 
-    input_ext = os.path.splitext("../data/input/" + input_file)[-1]
+    input_ext = os.path.splitext("/data/input/" + input_file)[-1]
     if input_ext == ".csv":
-        input_file_size = os.stat("../data/input/" + input_file).st_size
+        input_file_size = os.stat("/data/input/" + input_file).st_size
         logger_main.info("CSV input file of size: " + str(input_file_size))
-        psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("../data/input/" + input_file)
+        psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("/data/input/" + input_file)
     else:
-        psdf = spark.read.parquet("../data/input/" + input_file)
-
+        psdf = spark.read.parquet("/data/input/" + input_file)
 
     #If you want to amplify data, usually for performance testing purposes
     n_concat = 1
     psdf = psdf.withColumn(custom_cols["patientName"], explode(array_repeat(custom_cols["patientName"], n_concat)))
     psdf.printSchema()
+    #For debugging
+    psdf = psdf.limit(100)
     psdf_rowcount = psdf.count()
     logger_main.info("Row count: " + str(psdf_rowcount))
 
@@ -175,55 +187,81 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
     ##- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
     ##- partitions should fit in memory on nodes (recommended is around 256MB)
     if partition_n == None and input_ext == ".csv":
-        partition_n = input_file_size * n_concat // (1024**2 * 128) + 1
-        #partition_n = psdf_rowcount // 3000 + 1
+        partition_n = max(
+            input_file_size * n_concat // (1024**2 * 128) + 1,
+            psdf_rowcount // 1000 + 1
+        )
     psdf = psdf.repartition(partition_n)
     logger_main.info("partitions: " + str(psdf.rdd.getNumPartitions()))
     
     ##Turn names into dictionary of randomized IDs
     logger_main.info(f"Searching for pseudonym key: {pseudonym_key}")
     if pseudonym_key != None:
-        pseudonym_key = json.load(open("../data/input/" + pseudonym_key))
+        pseudonym_key = json.load(open("/data/input/" + pseudonym_key))
     pseudonym_key = pseudonymize(psdf.select(custom_cols["patientName"]).distinct().toPandas()[custom_cols["patientName"]],
                                  pseudonym_key)
-    pseudonym_key_bc = spark.sparkContext.broadcast(pseudonym_key)
-    with open(("../data/output/" + "pseudonym_key.json"), "w") as outfile:
+    with open(("/data/output/" + "pseudonym_key.json"), "w") as outfile:
         json.dump(pseudonym_key, outfile)
     outfile.close()
+    pseudonym_key_bc = spark.sparkContext.broadcast(pseudonym_key)
+    custom_cols_bc = spark.sparkContext.broadcast(custom_cols)
 
-
-    #broadcasting this deduce class instance does not work (serialization issue)
-    deducer = deduce.Deduce()
-
+    map_dictionary_udf = udf(map_dictionary_func(pseudonym_key_bc))
+    deduce_with_id_udf = udf(deduce_with_id_func(custom_cols_bc))
+    
     start_t = time.time()
     ##Define transformations, trigger execution by writing output to disk
-    psdf = psdf.withColumn("patientID", map_dictionary(custom_cols["patientName"]))\
-    .withColumn(custom_cols["report"], deduce_with_id(struct(*psdf.columns)))\
-    .withColumn(custom_cols["report"], replace_patient_tag(custom_cols["report"], "patientID"))
-
-    issue_rows = psdf.filter(psdf[custom_cols["report"]].isNull())
-    logger_main.info(f"Row count with issues: {issue_rows.count()}")
-    issue_rows = issue_rows.collect()
-    for row in issue_rows:
-        logger_issues.error(row)
-    psdf = psdf.filter(psdf[custom_cols["report"]].isNotNull())
-    logger_main.info(f"Remaining rows: {psdf.count()}")
+    psdf = psdf.withColumn("patientID", map_dictionary_udf(custom_cols["patientName"]))\
+    .withColumn(custom_cols["report"], deduce_with_id_udf(struct(*psdf.columns)))\
+    .withColumn(custom_cols["report"], replace_tags_udf(custom_cols["report"], "patientID"))
 
     existing_cols = psdf.columns
     select_cols = ["patientID", custom_cols["time"], custom_cols["caretakerName"], custom_cols["report"]]
     select_cols = [col for col in select_cols if col in existing_cols]
     psdf = psdf.select(select_cols)
+    logger_main.info(f"Output columns: {psdf.columns}")
+
+
+    ##Handling of irregularities
+    filter_condition = reduce(lambda x, y: x | y, [col(c).isNull() for c in psdf.columns])
+    #To avoid some redundancy
+    #psdf.cache()
+    if 1 == 0:
+        try:
+            psdf_with_nulls = psdf.filter(filter_condition)
+            logger_main.info(f"Row count with problems: {psdf_with_nulls.count()}")
+            logger_main.info(f"Attempting to write dataframe of rows with nulls to file.")
+            output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_with_nulls"
+            psdf_with_nulls.write.mode("overwrite").csv(output_file)
+            psdf_with_nulls.unpersist()
+        except Exception as e:
+            logger_main.error(f"Some rows are so messed up that pyspark couldn't write them to file.\n\
+                        In order not to lose progress on good rows, program will continue for those.\n\
+                        Caught Exception:\n\
+                        {e}")
+            try:
+                psdf_with_nulls.unpersist()
+            except:
+                pass
+    #Keep the rows without nulls
+    psdf = psdf.filter(~filter_condition)
+    psdf.show(10)
+    logger_main.info(f"Remaining rows after filtering rows with empty values (which are usually indicative of exceptions that happened during processing): {psdf.count()}")
 
     if coalesce_n != None:
         psdf = psdf.coalesce(coalesce_n)
         
     if output_extention == ".csv":
-        output_file = "../data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
+        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
         psdf.write.mode("overwrite").csv(output_file)
+    elif output_extention == ".txt":
+        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
+        psdf = psdf.select(concat_ws(', ', *psdf.columns).alias("value"))
+        psdf.write.mode("overwrite").text(output_file)
     else:
         if output_extention != ".parquet":
             warnings.warn("Selected output extention not supported, using parquet.")
-        output_file = "../data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
+        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
         psdf.write.mode("overwrite").parquet(output_file)
     #coalesceing is single-threaded, only do when necessary
     #psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
@@ -242,20 +280,20 @@ if __name__ == "__main__":
     
     logger_main = logging.getLogger(__name__)
     logger_main.setLevel(logging.INFO)
-    handler_main = logging.FileHandler("../data/output/logger_main.log")
+    handler_main = logging.FileHandler("/data/output/logger_main.log")
     handler_main.setFormatter(formatter)
     logger_main.addHandler(handler_main)
 
-    logger_issues = logging.getLogger("issues")
-    logger_issues.setLevel(logging.WARNING)
-    handler_issues = logging.FileHandler("../data/output/logger_issues.log")
-    handler_issues.setFormatter(formatter)
-    logger_issues.addHandler(handler_issues)
+    # logger_issues = logging.getLogger("issues")
+    # logger_issues.setLevel(logging.WARNING)
+    # handler_issues = logging.FileHandler("/data/output/logger_issues.log")
+    # handler_issues.setFormatter(formatter)
+    # logger_issues.addHandler(handler_issues)
 
     #This can help suppress extremely verbose logs (somehow the default is set to DEBUG)
     logger_py4j = logging.getLogger("py4j")
     logger_py4j.setLevel("ERROR") #Default seems to be DEBUG, good alternative might be WARNING
-    logger_py4j.addHandler(logging.FileHandler("../data/output/logger_py4j.log"))
+    logger_py4j.addHandler(logging.FileHandler("/data/output/logger_py4j.log"))
 
     parser = argparse.ArgumentParser(description = "Input parameters for the python programme.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -278,11 +316,11 @@ if __name__ == "__main__":
     parser.add_argument("--output_extention",
                         nargs="?",
                         default = ".parquet",
-                        help = "Select output format, currently only parquet (default) and csv are supported.")
+                        help = "Select output format, currently only parquet (default), csv and txt are supported.")
     parser.add_argument("--partition_n",
                         nargs = "?",
                         default = None,
-                        help = "Manually set number of partitions during processing phase. The default makes an estimation based on file size for .csv input or used default settings for .parquet.")
+                        help = "Manually set number of partitions during processing phase. The default makes an estimation based on file size and row count for .csv input or used default settings for .parquet.")
     parser.add_argument("--coalesce_n",
                         nargs="?",
                         default = None,
