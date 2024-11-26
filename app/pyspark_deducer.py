@@ -156,7 +156,7 @@ def replace_tags_udf(text, new_value, tag = "[PATIENT]"):
 
 
 
-def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extention, partition_n, coalesce_n):
+def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extention, partition_n, coalesce_n):
 
     n_processes = min(max_n_processes, max(1, (os.cpu_count() -1))) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
 
@@ -166,20 +166,20 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
     ##maxPartitionBytes doesn't seem to work for csv input and for parquet the default seems best.
     #spark.conf.set("spark.sql.files.maxPartitionBytes", 128 * 1024 * 1024)
 
-    input_ext = os.path.splitext("/data/input/" + input_file)[-1]
+    input_ext = os.path.splitext("/data/input/" + input_fofi)[-1]
     if input_ext == ".csv":
-        input_file_size = os.stat("/data/input/" + input_file).st_size
-        logger_main.info("CSV input file of size: " + str(input_file_size))
-        psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("/data/input/" + input_file)
+        input_fofi_size = os.stat("/data/input/" + input_fofi).st_size
+        logger_main.info("CSV input file of size: " + str(input_fofi_size))
+        psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("/data/input/" + input_fofi)
     else:
-        psdf = spark.read.parquet("/data/input/" + input_file)
+        psdf = spark.read.parquet("/data/input/" + input_fofi)
 
     #If you want to amplify data, usually for performance testing purposes
     n_concat = 1
     psdf = psdf.withColumn(custom_cols["patientName"], explode(array_repeat(custom_cols["patientName"], n_concat)))
     psdf.printSchema()
     #For debugging
-    psdf = psdf.limit(100)
+    #psdf = psdf.limit(100)
     psdf_rowcount = psdf.count()
     logger_main.info("Row count: " + str(psdf_rowcount))
 
@@ -188,10 +188,12 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
     ##- partitions should fit in memory on nodes (recommended is around 256MB)
     if partition_n == None and input_ext == ".csv":
         partition_n = max(
-            input_file_size * n_concat // (1024**2 * 128) + 1,
+            input_fofi_size * n_concat // (1024**2 * 128) + 1,
             psdf_rowcount // 1000 + 1
         )
-    psdf = psdf.repartition(partition_n)
+    if partition_n != None:
+        logger_main.info("Repartitioning")
+        psdf = psdf.repartition(partition_n)
     logger_main.info("partitions: " + str(psdf.rdd.getNumPartitions()))
     
     ##Turn names into dictionary of randomized IDs
@@ -224,25 +226,25 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
 
     ##Handling of irregularities
     filter_condition = reduce(lambda x, y: x | y, [col(c).isNull() for c in psdf.columns])
+    print(filter_condition)
     #To avoid some redundancy
     #psdf.cache()
-    if 1 == 0:
+    try:
+        psdf_with_nulls = psdf.filter(filter_condition)
+        logger_main.info(f"Row count with problems: {psdf_with_nulls.count()}")
+        logger_main.info(f"Attempting to write dataframe of rows with nulls to file.")
+        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_with_nulls"
+        psdf_with_nulls.write.mode("overwrite").csv(output_file)
+        psdf_with_nulls.unpersist()
+    except Exception as e:
+        logger_main.error(f"Some rows are so messed up that pyspark couldn't write them to file.\n\
+                    In order not to lose progress on good rows, program will continue for those.\n\
+                    Caught Exception:\n\
+                    {e}")
         try:
-            psdf_with_nulls = psdf.filter(filter_condition)
-            logger_main.info(f"Row count with problems: {psdf_with_nulls.count()}")
-            logger_main.info(f"Attempting to write dataframe of rows with nulls to file.")
-            output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_with_nulls"
-            psdf_with_nulls.write.mode("overwrite").csv(output_file)
             psdf_with_nulls.unpersist()
-        except Exception as e:
-            logger_main.error(f"Some rows are so messed up that pyspark couldn't write them to file.\n\
-                        In order not to lose progress on good rows, program will continue for those.\n\
-                        Caught Exception:\n\
-                        {e}")
-            try:
-                psdf_with_nulls.unpersist()
-            except:
-                pass
+        except:
+            pass
     #Keep the rows without nulls
     psdf = psdf.filter(~filter_condition)
     psdf.show(10)
@@ -252,25 +254,23 @@ def main(input_file, custom_cols, pseudonym_key, max_n_processes, output_extenti
         psdf = psdf.coalesce(coalesce_n)
         
     if output_extention == ".csv":
-        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
+        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
         psdf.write.mode("overwrite").csv(output_file)
     elif output_extention == ".txt":
-        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
+        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
         psdf = psdf.select(concat_ws(', ', *psdf.columns).alias("value"))
         psdf.write.mode("overwrite").text(output_file)
     else:
         if output_extention != ".parquet":
             warnings.warn("Selected output extention not supported, using parquet.")
-        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_file))[0] + "_processed"
+        output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
         psdf.write.mode("overwrite").parquet(output_file)
     #coalesceing is single-threaded, only do when necessary
     #psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
-    psdf_row_count = psdf.count()
     end_t = time.time() #timeit.timeit()
-    logger_main.info(f"time passed with n_processes = {n_processes} and row count = {psdf_rowcount}: {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
+    logger_main.info(f"time passed with n_processes = {n_processes} and row count (start, end) = ({psdf_rowcount}, {psdf.count()}): {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
     psdf.printSchema()
     #logger_main.info(psdf.take(10))
-
 
     #Close shop
     spark.stop()
@@ -297,10 +297,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description = "Input parameters for the python programme.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--input_file", 
+    parser.add_argument("--input_fofi", 
                         nargs="?", 
                         default="dummy_input.csv", 
-                        help="Name of the input file")
+                        help="Name of the input folder or file. Currently csv file and parquet file or folder are supported.")
     parser.add_argument("--custom_cols", 
                         nargs="?", 
                         help="Column names as a single string of format \"patientName=foo, time=bar, caretakerName=foobar, report=barfoo\". Whitespaces are removed, so column names currently can't contain them.", 
@@ -335,6 +335,7 @@ if __name__ == "__main__":
         args.partition_n = int(args.partition_n)
     if args.coalesce_n != None:
         args.coalesce_n = int(args.coalesce_n) 
+    args.max_n_processes = int(args.max_n_processes)
     logger_main.info(args)
 
-    main(args.input_file, args.custom_cols, args.pseudonym_key, args.max_n_processes, args.output_extention, args.partition_n, args.coalesce_n)
+    main(args.input_fofi, args.custom_cols, args.pseudonym_key, args.max_n_processes, args.output_extention, args.partition_n, args.coalesce_n)
