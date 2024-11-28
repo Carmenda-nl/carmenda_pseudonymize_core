@@ -237,7 +237,7 @@ def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extenti
         psdf_with_nulls.write.mode("overwrite").csv(output_file)
         psdf_with_nulls.unpersist()
     except Exception as e:
-        logger_main.error(f"Some rows are so messed up that pyspark couldn't write them to file.\n\
+        logger_main.error(f"Some rows are so problematic that pyspark couldn't write them to file.\n\
                     In order not to lose progress on good rows, program will continue for those.\n\
                     Caught Exception:\n\
                     {e}")
@@ -311,7 +311,7 @@ if __name__ == "__main__":
                         help = "Existing pseudonymization key to expand. Supply as JSON file with format {\"name\": \"pseudonym\"}.")
     parser.add_argument("--max_n_processes",
                         nargs="?",
-                        default=os.cpu_count(),
+                        default= 4,# Used to be os.cpu_count() but that doesn't work nice in Docker containers.
                         help = "Maximum number of processes. Default behavior is to detect the number of cores on the system and subtract 1. Going above the number of available cores has no benefit.")
     parser.add_argument("--output_extention",
                         nargs="?",
