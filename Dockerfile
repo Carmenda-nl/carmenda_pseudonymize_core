@@ -51,7 +51,7 @@ ENTRYPOINT ["python", "pyspark_deducer_baked.py"]
 
 ## For help with the python script
 
-#docker run --entrypoint python pyspark_deducer_app pyspark_deducer.py --help
+#docker run --entrypoint python carmenda/pseudonymizer:latest pyspark_deducer.py --help
 
 ## For mounting the app directory and running a custom script:
 # docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input -v ${pwd}/app:/app --entrypoint python image_name your_script.py
