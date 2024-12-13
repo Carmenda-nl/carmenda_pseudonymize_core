@@ -156,7 +156,7 @@ def replace_tags_udf(text, new_value, tag = "[PATIENT]"):
 
 
 
-def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extention, partition_n, coalesce_n):
+def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extension, partition_n, coalesce_n):
 
     n_processes = min(max_n_processes, max(1, (os.cpu_count() -1))) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
 
@@ -218,7 +218,7 @@ def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extenti
     .withColumn(custom_cols["report"], replace_tags_udf(custom_cols["report"], "patientID"))
 
     existing_cols = psdf.columns
-    select_cols = ["patientID", custom_cols["time"], custom_cols["caretakerName"], custom_cols["report"]]
+    select_cols = ["patietID"] + list(custom_cols.values())
     select_cols = [col for col in select_cols if col in existing_cols]
     psdf = psdf.select(select_cols)
     logger_main.info(f"Output columns: {psdf.columns}")
@@ -253,16 +253,16 @@ def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extenti
     if coalesce_n != None:
         psdf = psdf.coalesce(coalesce_n)
         
-    if output_extention == ".csv":
+    if output_extension == ".csv":
         output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
         psdf.write.mode("overwrite").csv(output_file)
-    elif output_extention == ".txt":
+    elif output_extension == ".txt":
         output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
         psdf = psdf.select(concat_ws(', ', *psdf.columns).alias("value"))
         psdf.write.mode("overwrite").text(output_file)
     else:
-        if output_extention != ".parquet":
-            warnings.warn("Selected output extention not supported, using parquet.")
+        if output_extension != ".parquet":
+            warnings.warn("Selected output extension not supported, using parquet.")
         output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
         psdf.write.mode("overwrite").parquet(output_file)
     #coalesceing is single-threaded, only do when necessary
@@ -303,7 +303,7 @@ if __name__ == "__main__":
                         help="Name of the input folder or file. Currently csv file and parquet file or folder are supported.")
     parser.add_argument("--custom_cols", 
                         nargs="?", 
-                        help="Column names as a single string of format \"patientName=foo, time=bar, caretakerName=foobar, report=barfoo\". Whitespaces are removed, so column names currently can't contain them.", 
+                        help="Column names as a single string of format \"patientName=foo, report = bar, ...=foobar\". Whitespaces are removed, so column names currently can't contain them. patientName and report are essential. Any optional columns specified will be passed on to output unprocessed.", 
                         default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport")
     parser.add_argument("--pseudonym_key",
                         nargs="?",
@@ -313,7 +313,7 @@ if __name__ == "__main__":
                         nargs="?",
                         default= 4,# Used to be os.cpu_count() but that doesn't work nice in Docker containers.
                         help = "Maximum number of processes. Default behavior is to detect the number of cores on the system and subtract 1. Going above the number of available cores has no benefit.")
-    parser.add_argument("--output_extention",
+    parser.add_argument("--output_extension",
                         nargs="?",
                         default = ".parquet",
                         help = "Select output format, currently only parquet (default), csv and txt are supported.")
@@ -338,4 +338,4 @@ if __name__ == "__main__":
     args.max_n_processes = int(args.max_n_processes)
     logger_main.info(args)
 
-    main(args.input_fofi, args.custom_cols, args.pseudonym_key, args.max_n_processes, args.output_extention, args.partition_n, args.coalesce_n)
+    main(args.input_fofi, args.custom_cols, args.pseudonym_key, args.max_n_processes, args.output_extension, args.partition_n, args.coalesce_n)
