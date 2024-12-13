@@ -311,12 +311,12 @@ if __name__ == "__main__":
                         help = "Existing pseudonymization key to expand. Supply as JSON file with format {\"name\": \"pseudonym\"}.")
     parser.add_argument("--max_n_processes",
                         nargs="?",
-                        default= 4,# Used to be os.cpu_count() but that doesn't work nice in Docker containers.
+                        default= 2,# Used to be os.cpu_count() but that doesn't work nice in Docker containers.
                         help = "Maximum number of processes. Default behavior is to detect the number of cores on the system and subtract 1. Going above the number of available cores has no benefit.")
     parser.add_argument("--output_extension",
                         nargs="?",
                         default = ".parquet",
-                        help = "Select output format, currently only parquet (default), csv and txt are supported.")
+                        help = "Select output format, currently only parquet (default), csv and txt are supported. CSV is supported to provide a human readable format, but is not recommended for (large) datasets with potential irregular fields (e.g. containing data that can be misinterpreted such as early string closure symbols followed by the separator symbol).")
     parser.add_argument("--partition_n",
                         nargs = "?",
                         default = None,
