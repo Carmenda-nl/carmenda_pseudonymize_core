@@ -28,9 +28,10 @@ ENTRYPOINT ["python", "pyspark_deducer_baked.py"]
 
 
 ## Use following commands in terminal to build and run container
+
 ## Build image from this Dockerfile (replace latest with other tag value if you want)
 
-#docker build -t pyspark_deducer_app:latest .
+#docker build -t img_name:latest .
 
 ## Run the image
 ## The first -v makes/connects a Docker Volume to the /data folder within the container 
@@ -43,15 +44,15 @@ ENTRYPOINT ["python", "pyspark_deducer_baked.py"]
 
 ##Normal, simple situation:
 
-#docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input  pyspark_deducer_app input.csv
+#docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input  img_name input.csv
 
 ## Interactive terminal, binding down to a specific file (second -v), calling a specific image version using :latest tag
 
-#docker run -it -v deducerVol:/data -v ${pwd}/data/input.csv:/data/input/input.csv --entrypoint /bin/bash pyspark_deducer_app:latest
+#docker run -it -v deducerVol:/data -v ${pwd}/data/input.csv:/data/input/input.csv --entrypoint /bin/bash img_name:latest
 
 ## For help with the python script
 
-#docker run --entrypoint python carmenda/pseudonymizer:latest pyspark_deducer.py --help
+#docker run --entrypoint python img_name pyspark_deducer_baked.py --help
 
 ## For mounting the app directory and running a custom script:
-# docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input -v ${pwd}/app:/app --entrypoint python image_name your_script.py
+# docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input -v ${pwd}/app:/app --entrypoint python img_name your_script.py
