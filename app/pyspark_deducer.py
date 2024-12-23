@@ -1,19 +1,15 @@
 """
 Script Name: pyspark_deducer.py
 Authors: Lars Spekschoor (lars.spekschoor@radboudumc.nl), Joep Tummers, Pim van Oirschot
-Date: 2024-08-12
-Version: 0.1.0
+Date: 2024-12-23
 Description:
     This script deidentifies Dutch raport texts (unstructured data) using Deduce (Menger et al. 2018, DOI: https://doi.org/10.1016/j.tele.2017.08.002., also on GitHub). 
-    It makes use of pyspark to speed up performance. This adds some dependencies and the goal is to handle this with a containerization image. For a python-only version, inquire with authors.
-    Performance is unlikely to ever achieve 100%, but there are several things that can be done to maximize it:
-    - Update name lookup lists with names occurring in data set. E.g. a health care institution can add a patient list.
-    - The current script already assumes a patient name column is present. This is parsed into first name, last name and initials. For special cases, more extensive parsing can be developed.
-    - We might add noise to obfuscate false negatives.
+    The column/field in source data marked as patient names is used to generate unique codes for each value. This makes it possible to use the same code across entries.
+    Pyspark allows for performance on large input data sizes. Dependencies are handled with containerization.
 Disclaimer:
-    This script applying Deduce is a best attempt to pseudonymize data and while we are dedicated to improve performance we cannot guarantee an absence of false negatives. 
-    We consider it useful to limit the chance that a researcher would recognize a name in a dataset (researcher knowing an individual combined with that individual not properly being deidentified).
-    Datasets should still be handled with care because individuals are likely (re-)identifiable through both false negatives and from context of the report texts.
+    This script applying Deduce is a best attempt to pseudonymize data and while we are dedicated to improve performance we cannot guarantee an absence of false negatives.
+    In the current state, we consider this method useful in that it reduces the chance of a scenario where a researcher recognizes a person in a dataset.
+    Datasets should always be handled with care because individuals are likely (re-)identifiable both through false negatives and from context in the unredacted parts of text.
 Script logic:
     - Load relevant module elements
     - Setup pyspark
@@ -23,15 +19,11 @@ Script logic:
         - Identify unique names based on patientName column and map them to randomized patientIDs.
         - Apply Deduce algorithm to report text column, making use of patientName to increase likelihood of at least de-identifying the main subject.
         - Replace the generated [PATIENT] tags with the new patientID
-    - Write output to disk (in development, currently writing to temp folder in Linux)
+    - Write output to disk
+        - There is some error handling and logging, but it's so far only been used for debugging.
 Execution:
     During development, pyspark only worked together with Deduce on Linux.
-    - Load correctly built environment (conda or venv), e.g. "source deduce_venv/bin/activate"
-    - move to directory containing this script (and as of writing, containing the data as well)
-    - Launch script "python3 pyspark_deducer.py"
-TODO:
-    - Enabling data file selection through command line argument
-    - Address terminal warnings and context messages appearing on terminal
+    For windows we therefore recommend using Docker.
 """
 
 
