@@ -210,7 +210,7 @@ def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extensi
     .withColumn(custom_cols["report"], replace_tags_udf(custom_cols["report"], "patientID"))
 
     existing_cols = psdf.columns
-    select_cols = ["patietID"] + list(custom_cols.values())
+    select_cols = ["patientID"] + list(custom_cols.values())
     select_cols = [col for col in select_cols if col in existing_cols]
     psdf = psdf.select(select_cols)
     logger_main.info(f"Output columns: {psdf.columns}")
