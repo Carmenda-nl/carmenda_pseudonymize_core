@@ -206,12 +206,10 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     start_t = time.time()
     ##Define transformations, trigger execution by writing output to disk
     psdf = psdf.withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
-    .withColumn(input_cols["report"], deduce_with_id_udf(struct(*psdf.columns)))\
-    .withColumn(input_cols["report"], replace_tags_udf(input_cols["report"], "patientID"))
+    .withColumn("processed_report", deduce_with_id_udf(struct(*psdf.columns)))\
+    .withColumn("processed_report", replace_tags_udf("processed_report", "patientID"))
 
-    existing_cols = psdf.columns
-    select_cols = list(output_cols.values())
-    select_cols = [col for col in select_cols if col in existing_cols]
+    select_cols = [col for col in output_cols.values() if col in psdf.columns]
     psdf = psdf.select(select_cols)
     logger_main.info(f"Output columns: {psdf.columns}")
 
@@ -299,8 +297,8 @@ if __name__ == "__main__":
                         default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport"),
     parser.add_argument("--output_cols",
                         nargs="?",
-                        help="Output column names as single string with comma separated values e.g. \"foo, bar\". Currently the input column targeted by the report key is overwritten to avoid doubling large data. This makes the original reports unavailable for output.),
-                        default="patientID, rapport"),
+                        help="Output column names with same structure as input_cols. Take care when adding the reports column from input_cols, as this likely results in doubling of large data.",
+                        default="patientID=patientID, processed_report=processed_report"),
     parser.add_argument("--pseudonym_key",
                         nargs="?",
                         default=None,
@@ -322,14 +320,14 @@ if __name__ == "__main__":
                         default = None,
                         help = "Should you want to control the number of partitions of the output this option can be used. Default is None because coalesceing and output writing to single file is slow. Because coalesce is different from reshuffle, this argument cannot be larger than partition_n")
 
-    def parse_input_cols(mapping_str):
+    def parse_dict_cols(mapping_str):
         return dict(item.strip().split("=") for item in mapping_str.split(","))
-    def parse_output_cols(mapping_str):
-        return list(item.strip() for item in mapping_str.split(","))
+    def parse_list_cols(mapping_str):
+        return [item.strip() for item in mapping_str.split(",")]
     
     args = parser.parse_args()
-    args.input_cols = parse_input_cols(args.input_cols)
-    args.output_cols = parse_output_cols(args.output_cols)
+    args.input_cols = parse_dict_cols(args.input_cols)
+    args.output_cols = parse_dict_cols(args.output_cols)
     if args.partition_n != None:
         args.partition_n = int(args.partition_n)
     if args.coalesce_n != None:
