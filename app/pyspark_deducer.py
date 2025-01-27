@@ -3,7 +3,7 @@ Script Name: pyspark_deducer.py
 Authors: Lars Spekschoor (lars.spekschoor@radboudumc.nl), Joep Tummers, Pim van Oirschot
 Date: 2024-12-23
 Description:
-    This script deidentifies Dutch raport texts (unstructured data) using Deduce (Menger et al. 2018, DOI: https://doi.org/10.1016/j.tele.2017.08.002., also on GitHub). 
+    This script deidentifies Dutch report texts (unstructured data) using Deduce (Menger et al. 2018, DOI: https://doi.org/10.1016/j.tele.2017.08.002., also on GitHub). 
     The column/field in source data marked as patient names is used to generate unique codes for each value. This makes it possible to use the same code across entries.
     Pyspark allows for performance on large input data sizes. Dependencies are handled with containerization.
 Disclaimer:
@@ -82,7 +82,7 @@ def pseudonymize(unique_names, pseudonym_key = None, droplist = []):
     return pseudonym_key
 
 
-def deduce_with_id_func(custom_cols_bc):
+def deduce_with_id_func(input_cols_bc):
     """
     Purpose:
         Apply the Deduce algorithm
@@ -95,15 +95,15 @@ def deduce_with_id_func(custom_cols_bc):
     deduce_instance = deduce.Deduce()
     def inner_func(row):
         try:
-            custom_cols = custom_cols_bc.value
-            patient_name = str.split(row[custom_cols["patientName"]], " ", maxsplit = 1)
+            input_cols = input_cols_bc.value
+            patient_name = str.split(row[input_cols["patientName"]], " ", maxsplit = 1)
             patient_initials = "".join([x[0] for x in patient_name])
             
             #Difficult to predict person metadata exactly. I.e. in case of multiple spaces does this indicate multitude of first names or a composed last name?
             #Best will be if input data contains columns for first names, surname, initials
             #patient = Person(first_names = [patient_name[0:-1]], surname = patient_name[-1], initials = patient_initials)
             deduce_patient = Person(first_names = [patient_name[0]], surname = patient_name[1], initials = patient_initials)
-            report_deid = deduce_instance.deidentify(row[custom_cols["report"]], metadata={'patient': deduce_patient})
+            report_deid = deduce_instance.deidentify(row[input_cols["report"]], metadata={'patient': deduce_patient})
             report_deid = getattr(report_deid, "deidentified_text")
             return report_deid
         except Exception as e:
@@ -148,7 +148,7 @@ def replace_tags_udf(text, new_value, tag = "[PATIENT]"):
 
 
 
-def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extension, partition_n, coalesce_n):
+def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, output_extension, partition_n, coalesce_n):
 
     n_processes = min(max_n_processes, max(1, (os.cpu_count() -1))) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
 
@@ -168,7 +168,7 @@ def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extensi
 
     #If you want to amplify data, usually for performance testing purposes
     n_concat = 1
-    psdf = psdf.withColumn(custom_cols["patientName"], explode(array_repeat(custom_cols["patientName"], n_concat)))
+    psdf = psdf.withColumn(input_cols["patientName"], explode(array_repeat(input_cols["patientName"], n_concat)))
     psdf.printSchema()
     #For debugging
     #psdf = psdf.limit(100)
@@ -192,26 +192,24 @@ def main(input_fofi, custom_cols, pseudonym_key, max_n_processes, output_extensi
     logger_main.info(f"Searching for pseudonym key: {pseudonym_key}")
     if pseudonym_key != None:
         pseudonym_key = json.load(open("/data/input/" + pseudonym_key))
-    pseudonym_key = pseudonymize(psdf.select(custom_cols["patientName"]).distinct().toPandas()[custom_cols["patientName"]],
+    pseudonym_key = pseudonymize(psdf.select(input_cols["patientName"]).distinct().toPandas()[input_cols["patientName"]],
                                  pseudonym_key)
     with open(("/data/output/" + "pseudonym_key.json"), "w") as outfile:
         json.dump(pseudonym_key, outfile)
     outfile.close()
     pseudonym_key_bc = spark.sparkContext.broadcast(pseudonym_key)
-    custom_cols_bc = spark.sparkContext.broadcast(custom_cols)
+    input_cols_bc = spark.sparkContext.broadcast(input_cols)
 
     map_dictionary_udf = udf(map_dictionary_func(pseudonym_key_bc))
-    deduce_with_id_udf = udf(deduce_with_id_func(custom_cols_bc))
+    deduce_with_id_udf = udf(deduce_with_id_func(input_cols_bc))
     
     start_t = time.time()
     ##Define transformations, trigger execution by writing output to disk
-    psdf = psdf.withColumn("patientID", map_dictionary_udf(custom_cols["patientName"]))\
-    .withColumn(custom_cols["report"], deduce_with_id_udf(struct(*psdf.columns)))\
-    .withColumn(custom_cols["report"], replace_tags_udf(custom_cols["report"], "patientID"))
+    psdf = psdf.withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
+    .withColumn("processed_report", deduce_with_id_udf(struct(*psdf.columns)))\
+    .withColumn("processed_report", replace_tags_udf("processed_report", "patientID"))
 
-    existing_cols = psdf.columns
-    select_cols = ["patientID"] + list(custom_cols.values())
-    select_cols = [col for col in select_cols if col in existing_cols]
+    select_cols = [col for col in output_cols.values() if col in psdf.columns]
     psdf = psdf.select(select_cols)
     logger_main.info(f"Output columns: {psdf.columns}")
 
@@ -293,10 +291,14 @@ if __name__ == "__main__":
                         nargs="?", 
                         default="dummy_input.csv", 
                         help="Name of the input folder or file. Currently csv file and parquet file or folder are supported.")
-    parser.add_argument("--custom_cols", 
+    parser.add_argument("--input_cols", 
                         nargs="?", 
-                        help="Column names as a single string of format \"patientName=foo, report = bar, ...=foobar\". Whitespaces are removed, so column names currently can't contain them. patientName and report are essential. Any optional columns specified will be passed on to output unprocessed.", 
-                        default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport")
+                        help="Input column names as a single string with comma separated key=value format e.g. \"patientName=foo, report=bar, ...=foobar\". Whitespaces are removed, so column names currently can't contain them. Keys patientName and report with values existing in the data are essential. Optional columns reflect functionality that may not have been implemented (yet)", 
+                        default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport"),
+    parser.add_argument("--output_cols",
+                        nargs="?",
+                        help="Output column names with same structure as input_cols. Take care when adding the reports column from input_cols, as this likely results in doubling of large data.",
+                        default="patientID=patientID, processed_report=processed_report"),
     parser.add_argument("--pseudonym_key",
                         nargs="?",
                         default=None,
@@ -318,11 +320,14 @@ if __name__ == "__main__":
                         default = None,
                         help = "Should you want to control the number of partitions of the output this option can be used. Default is None because coalesceing and output writing to single file is slow. Because coalesce is different from reshuffle, this argument cannot be larger than partition_n")
 
-    def parse_custom_cols(mapping_str):
+    def parse_dict_cols(mapping_str):
         return dict(item.strip().split("=") for item in mapping_str.split(","))
+    def parse_list_cols(mapping_str):
+        return [item.strip() for item in mapping_str.split(",")]
     
     args = parser.parse_args()
-    args.custom_cols = parse_custom_cols(args.custom_cols)
+    args.input_cols = parse_dict_cols(args.input_cols)
+    args.output_cols = parse_dict_cols(args.output_cols)
     if args.partition_n != None:
         args.partition_n = int(args.partition_n)
     if args.coalesce_n != None:
@@ -330,4 +335,4 @@ if __name__ == "__main__":
     args.max_n_processes = int(args.max_n_processes)
     logger_main.info(args)
 
-    main(args.input_fofi, args.custom_cols, args.pseudonym_key, args.max_n_processes, args.output_extension, args.partition_n, args.coalesce_n)
+    main(args.input_fofi, args.input_cols, args.output_cols, args.pseudonym_key, args.max_n_processes, args.output_extension, args.partition_n, args.coalesce_n)
