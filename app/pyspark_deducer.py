@@ -14,16 +14,17 @@ Script logic:
     - Load relevant module elements
     - Setup pyspark
     - Define functions
-    - Load data and when using dummy data, amplify to simulate real-world scenario
+    - Load data and when using small dummy data, optionally amplify to simulate real-world scenario
     - Apply transformations
         - Identify unique names based on patientName column and map them to randomized patientIDs.
-        - Apply Deduce algorithm to report text column, making use of patientName to increase likelihood of at least de-identifying the main subject.
+            - Option to use and/or extend existing map
+        - Apply Deduce algorithm to report column, making use of patient name column to increase likelihood of at least de-identifying the main subject.
         - Replace the generated [PATIENT] tags with the new patientID
     - Write output to disk
         - There is some error handling and logging, but it's so far only been used for debugging.
 Execution:
     During development, pyspark only worked together with Deduce on Linux.
-    For windows we therefore recommend using Docker.
+    On windows we recommend using Docker with a Linux image.
 """
 
 
@@ -52,56 +53,65 @@ from deduce.person import Person
 import logging
 
 
-def pseudonymize(unique_names, pseudonym_key = None, droplist = []):
+def pseudonymize(unique_names, pseudonym_map = None, droplist = []):
     """
     Purpose:
-        Turn a list of unique names into a dictionary, mapping each to a randomized string. Uniqueness of input isresponsibility of caller, but if the generated output is not of the same length (can also occur if not enough unique strings were generated) it raises an assertionError.
+        Turn a list of unique names into a dictionary, mapping each to a randomized string. Uniqueness of input is responsibility of caller, but if the generated output is not of the same length (can also occur if not enough unique strings were generated) it raises an assertionError.
     Parameters:
         unique_names (list): list of unique strings.
+        pseudonym_map (dict): optional pre-existing dictionary, same format as is returned.
+        droplist (list): option to exclude names from unique_names.
     Returns:
-        Dictionary: keys are the original names, values are the randomized strings.
+        pseudonym_map (dict): keys are the original names, values are the randomized strings.
+    TODO: Explicit typing, implementing standard hash/encryption solution.
     """
     unique_names = [name for name in unique_names if name not in droplist]
-    if pseudonym_key == None:
-        logger_main.info("Building new pseudonym_key because argument was None")
-        pseudonym_key = {}
+    if pseudonym_map == None:
+        logger_main.info("Building new pseudonym_map because argument was None")
+        pseudonym_map = {}
     else:
-        logger_main.info("Building from existing pseudonym_key")
+        logger_main.info("Building from existing pseudonym_map")
     for name in unique_names:
-        if name not in pseudonym_key:
+        if name not in pseudonym_map:
             found_new = False
             i = 0
             while (found_new == False and i < 15):
                 i += 1
                 pseudonym_candidate = "".join(random.choices(string.ascii_uppercase+string.ascii_lowercase+string.digits, k=14))
-                if pseudonym_candidate not in pseudonym_key.values():
+                if pseudonym_candidate not in pseudonym_map.values():
                     found_new == True
-                    pseudonym_key[name] = pseudonym_candidate
-    assert len(unique_names) == len(pseudonym_key.items()), "Pseudonymization function safeguard: unique_names (input) and pseudonym_key (output) don't have same length"
-    pseudonym_key[None] = None
-    return pseudonym_key
+                    pseudonym_map[name] = pseudonym_candidate
+    assert len(unique_names) == len(pseudonym_map.items()), "Pseudonymization function safeguard: unique_names (input) and pseudonym_map (output) don't have same length"
+    pseudonym_map[None] = None
+    return pseudonym_map
 
 
 def deduce_with_id_func(input_cols_bc):
     """
     Purpose:
-        Apply the Deduce algorithm
+        Setup a pyspark udf that can apply the Deduce algorithm.
     Parameters:
-        report (string): Text entry to apply on.
-        patient (string): Patient name to enhance the algorithm performance
+        input_cols_bc: Broadcast variable corresponding to dataframe schema, specified as dictionary. Expected keys are at least patientName and report.
     Returns:
-        report_deid (string): Deidentified version of report input
+        inner_func: The function that can apply Deduce.
+    TODO: Remove one layer of function wrapping by turning this function into udf factory.
     """
     deduce_instance = deduce.Deduce()
-    def inner_func(row):
+    def inner_func(row, input_cols_bc):
+        """
+        Purpose:
+            Parse a row to define a patient, apply deduce with patient info as metadata.
+        Parameters:
+            row: Dataset row with at least fields patientName and report.
+            input_cols_bc: broadcast variable defining dataframe schema.
+        """
         try:
             input_cols = input_cols_bc.value
-            patient_name = str.split(row[input_cols["patientName"]], " ", maxsplit = 1)
-            patient_initials = "".join([x[0] for x in patient_name])
-            
             #Difficult to predict person metadata exactly. I.e. in case of multiple spaces does this indicate multitude of first names or a composed last name?
             #Best will be if input data contains columns for first names, surname, initials
             #patient = Person(first_names = [patient_name[0:-1]], surname = patient_name[-1], initials = patient_initials)
+            patient_name = str.split(row[input_cols["patientName"]], " ", maxsplit = 1)
+            patient_initials = "".join([x[0] for x in patient_name])
             deduce_patient = Person(first_names = [patient_name[0]], surname = patient_name[1], initials = patient_initials)
             report_deid = deduce_instance.deidentify(row[input_cols["report"]], metadata={'patient': deduce_patient})
             report_deid = getattr(report_deid, "deidentified_text")
