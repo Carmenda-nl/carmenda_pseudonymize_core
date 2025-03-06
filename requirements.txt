@@ -9,3 +9,6 @@ django-environ==0.12.*
 pytz==2025.*
 tzdata==2025.*
 Markdown==3.7.*
+
+# package app requirements
+pyinstaller==6.12.*

@@ -5,13 +5,13 @@ from api import views
 
 
 router = routers.DefaultRouter()
-router.register(r'api', views.ApiViewSet, basename='api')
+router.register(r'v1/test', views.ApiViewSet, basename='api')
 
 # Wire up API using automatic URL routing.
 # Additionally, include login URLs for the browsable API.
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
     path('admin/', admin.site.urls),
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework'))
 ]

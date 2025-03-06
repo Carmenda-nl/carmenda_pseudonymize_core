@@ -74,11 +74,11 @@ WSGI_APPLICATION = 'main.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": env.str("DB_ENGINE", "django.db.backends.sqlite3"),
-        "NAME": env.str("DB_NAME", "db.sqlite3"),
-        "USER": env.str("DB_USER", ""),
-        "PASSWORD": env.str("DB_PASSWORD", ""),
+    'default': {
+        'ENGINE': env.str('DB_ENGINE', 'django.db.backends.sqlite3'),
+        'NAME': env.str('DB_NAME', 'db.sqlite3'),
+        'USER': env.str('DB_USER', ''),
+        'PASSWORD': env.str('DB_PASSWORD', ''),
     }
 }
 
