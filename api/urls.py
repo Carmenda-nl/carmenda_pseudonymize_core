@@ -4,7 +4,7 @@ from .views import DeidentificationJobViewSet
 
 
 router = DefaultRouter()
-router.register(r'jobs', DeidentificationJobViewSet)
+router.register(r'v1/jobs', DeidentificationJobViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
