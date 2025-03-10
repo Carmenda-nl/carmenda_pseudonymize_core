@@ -19,7 +19,7 @@ class DeidentificationJob(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     error_message = models.TextField(blank=True, null=True)
 
-    # metadata for colums
+    # metadata for columns
     patient_name_column = models.CharField(max_length=100, default='Cliëntnaam')
     time_column = models.CharField(max_length=100, default='Tijdstip')
     caretaker_name_column = models.CharField(max_length=100, default='Zorgverlener')

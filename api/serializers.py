@@ -6,9 +6,17 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeidentificationJob
         fields = [
-            'id', 'input_file', 'output_file', 'status', 'created_at',
-            'updated_at', 'error_message', 'patient_name_column', 'time_column',
-            'caretaker_name_column', 'report_column'
+            'id',
+            'input_file',
+            'output_file',
+            'status',
+            'created_at',
+            'updated_at',
+            'error_message',
+            'patient_name_column',
+            'time_column',
+            'caretaker_name_column',
+            'report_column'
         ]
 
         read_only_fields = [
