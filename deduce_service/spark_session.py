@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 import logging
-import os
+# import os
 
 
 # Configuratie voor Windows
@@ -12,9 +12,13 @@ import os
 def get_spark_session(app_name="DeduceApp", cores=3):
     """
     Creëert en retourneert een Spark-sessie, optimaal geconfigureerd voor Windows.
+    max(2, (os.cpu_count() -1)) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
     """
-    # Onderdruk de zeer uitgebreide logs
+
+    # This can help suppress extremely verbose logs (somehow the default is set to DEBUG)
     logger = logging.getLogger("py4j")
+
+    # Default seems to be DEBUG, good alternative might be WARNING
     logger.setLevel("ERROR")
 
     # Voor Windows, voeg winutils.exe toe aan het pad
@@ -32,7 +36,7 @@ def get_spark_session(app_name="DeduceApp", cores=3):
         .config("spark.jars.packages", "org.apache.hadoop:hadoop-client:3.3.1")
         .config("spark.driver.memory", "4g")
         .config("spark.executor.memory", "4g")
-        .config("spark.sql.execution.arrow.pyspark.enabled", "true")
+        .config("spark.sql.execution.arrow.pyspark.enabled", "false")  # <------------ ENABLE LATER
         .config("spark.driver.extraJavaOptions", "-Dlog4j.logLevel=WARN")
         .getOrCreate()
     )

@@ -132,31 +132,38 @@ def run_deidentification(input_filename, custom_cols):
     # Krijg een Spark sessie
     print('SPARK')
     spark = get_spark_session()
+    n_threads = 3
 
     print(spark)
 
     try:
         # Initialiseer deduce
+
+        # broadcasting this class instance does not work (serialization issue)
+        print("Deduce will now be initialized, which unfortunately has to be redone (for now) when running inside container.")
         deducer = deduce.Deduce()
 
         # Definieer UDFs voor PySpark
         @udf(StringType())
         def deduce_with_id(report, patient):
-            """Apply the Deduce algorithm"""
+            """
+            Purpose:
+                Apply the Deduce algorithm
+            Parameters:
+                report (string): Text entry to apply on.
+                patient (string): Patient name to enhance the algorithm performance
+            Returns:
+                report_deid (string): Deidentified version of report input
+            """
             try:
                 patient_name = str.split(patient, " ", maxsplit=1)
                 patient_initials = "".join([x[0] for x in patient_name])
 
-                # Maak Person object voor Deduce
-                if len(patient_name) > 1:
-                    patient_obj = Person(first_names=[
-                                         patient_name[0]], surname=patient_name[1], initials=patient_initials)
-                else:
-                    patient_obj = Person(
-                        first_names=[], surname=patient_name[0], initials=patient_initials)
-
-                report_deid = deducer.deidentify(
-                    report, metadata={'patient': patient_obj})
+                # Difficult to predict person metadata exactly. I.e. in case of multiple spaces does this indicate multitude of first names or a composed last name?
+                # Best will be if input data contains columns for first names, surname, initials
+                # patient = Person(first_names = [patient_name[0:-1]], surname = patient_name[-1], initials = patient_initials)
+                patient_obj = Person(first_names=[patient_name[0]], surname=patient_name[1], initials=patient_initials)
+                report_deid = deducer.deidentify(report, metadata={'patient': patient_obj})
                 report_deid = getattr(report_deid, "deidentified_text")
                 return report_deid
             except Exception as e:
@@ -165,58 +172,126 @@ def run_deidentification(input_filename, custom_cols):
 
         @udf(StringType())
         def map_dictionary(name):
-            """Lookup name in broadcast dictionary"""
+            """
+            Purpose:
+                Obtain randomized string corresponding to name
+            Parameters:
+                name (string): person name
+                name_map_bc (dict, global environment): dictionary of person names (keys, string) and randomized IDs (values, string)
+            Returns:
+                Value from name_map_bc corresponding to input name
+            """
             return name_map_bc.value.get(name)
 
         @udf(StringType())
         def replace_patient_tag(text, new_value, tag="[PATIENT]"):
-            """Replace [PATIENT] tags with pseudonymized IDs"""
-            return str.replace(text, tag, new_value)
+            """
+            Purpose:
+                Deduce labels occurences of patient name in text with a [PATIENT] tag. This function replaces that with the randomized ID.
+            Parameters:
+                text (string): the text possibly containing tag to replace
+                new_value (string): text to replace tag with
+                tag (string, default = "[PATIENT]): Formatted string indicating tag to replace
+            Returns:
+                text from text but with tag replaced by new_value
+            """
+            return str.replace(text, "[PATIENT]", new_value)
+
+
+
+
+
+
+
+
+
 
         # Lees het invoerbestand
         input_path = os.path.join(settings.DATA_INPUT_DIR, input_filename)
         psdf = spark.read.options(
             header=True, delimiter=",", multiline=True).csv(input_path)
 
-        # Controleer of de kolommen bestaan
-        for col_name in custom_cols.values():
-            if col_name not in psdf.columns:
-                raise ValueError(
-                    f"Column '{col_name}' not found in the input file")
 
-        # Consistente partitionering op basis van gegevensomvang
+
+
+
+
+
+
+
+
+
+
+        # If you want to amplify data, usually for performance testing purposes
+        n_concat = 1
+        psdf = psdf.withColumn(custom_cols["patientName"], explode(array_repeat(custom_cols["patientName"], n_concat)))
+        psdf.printSchema()
         psdf_rowcount = psdf.count()
-        n_partitions = max(1, psdf_rowcount // 3000 + 1)
+        print("Row count: " + str(psdf_rowcount))
+
+        # An informed decision can be made with the data size and system properties
+        # - more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
+        # - partitions should fit in memory on nodes (recommended is around 256MB)
+        # Amplify for testing purposes
+        n_partitions = psdf_rowcount // 3000 + 1
         psdf = psdf.repartition(n_partitions)
 
-        # Maak name_map en broadcast
-        name_map = pseudonymize(psdf.select(custom_cols["patientName"]).distinct(
-        ).toPandas()[custom_cols["patientName"]].tolist())
+        print("count: " + str(psdf_rowcount))
+        print("partitions: " + str(psdf.rdd.getNumPartitions()))
+
+        name_map = pseudonymize(psdf.select(custom_cols["patientName"]).distinct().toPandas()[custom_cols["patientName"]])
         name_map_bc = spark.sparkContext.broadcast(name_map)
-
-        # Sla name_map op (voor eventuele latere tracering)
-        with open(os.path.join(settings.DATA_OUTPUT_DIR, "name_map.json"), "w") as outfile:
+        with open(("data/output/" + "name_map.json"), "w") as outfile:
             json.dump(name_map, outfile)
+        outfile.close()
 
-        # Transformations
         start_t = time.time()
-        psdf = psdf.withColumn("patientID", map_dictionary(col(custom_cols["patientName"]))) \
-            .withColumn(custom_cols["report"], deduce_with_id(col(custom_cols["report"]), col(custom_cols["patientName"]))) \
-            .withColumn(custom_cols["report"], replace_patient_tag(col(custom_cols["report"]), col("patientID"))) \
-            .select("patientID", col(custom_cols["time"]), col(custom_cols["caretakerName"]), col(custom_cols["report"]))
+        # Define transformations, trigger execution by writing output to disk
+        psdf = psdf.withColumn("patientID", map_dictionary(custom_cols["patientName"]))\
+            .withColumn(custom_cols["report"], deduce_with_id(custom_cols["report"], custom_cols["patientName"]))\
+            .withColumn(custom_cols["report"], replace_patient_tag(custom_cols["report"], "patientID"))\
+            .select("patientID", custom_cols["time"], custom_cols["caretakerName"], custom_cols["report"])
+
+        pandas_df = psdf.toPandas()
+        output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "output")
+        os.makedirs(output_dir, exist_ok=True)
 
         # Schrijf output naar bestand
         output_filename = f"{os.path.splitext(input_filename)[0]}_processed.csv"
         output_path = os.path.join(settings.DATA_OUTPUT_DIR, output_filename)
 
-        psdf.write.mode("overwrite").csv(output_path)
 
-        end_t = time.time()
-        logging.info(
-            f"Processing completed in {end_t - start_t:.2f}s ({(end_t - start_t) / psdf_rowcount:.4f}s per row)")
+        # Bouw het outputpad op
+        # base_filename = os.path.splitext(os.path.basename(input_file))[0]
+        # output_file = os.path.join(output_dir, base_filename + "_processed.csv")
+
+        # Schrijf output naar bestand
+        # output_filename = f"{os.path.splitext(input_filename)[0]}_processed.csv"
+        output_path = os.path.join(settings.DATA_OUTPUT_DIR, output_filename)
+
+
+
+        # pandas_df.to_csv(output_file, index=False)
+        pandas_df.to_csv(output_path, index=False)
+
+
+        psdf_row_count = psdf.count()
+        end_t = time.time()  # timeit.timeit()
+        print(
+            f"time passed with n_threads = {n_threads} and row count = {psdf_rowcount}: {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
+        psdf.printSchema()
+        print(psdf.take(10))
 
         return output_path
 
+
+
+
+
+
+
+
     finally:
         # Stop de Spark sessie
+        print('!!!CLOSING SPARK!!!')
         spark.stop()
