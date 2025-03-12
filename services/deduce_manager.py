@@ -12,7 +12,7 @@ from pyspark.sql.types import StringType
 
 # Import je modellen
 from api.models import DeidentificationJob
-from deduce_service.spark_session import get_spark_session
+from services.spark_session import get_spark_session
 
 # Importeer deduce (zorg ervoor dat deze geïnstalleerd is)
 import deduce
@@ -26,7 +26,7 @@ def process_deidentification(job_id):
     """
     # Haal de job op uit de database
     try:
-        job = DeidentificationJob.objects.get(id=job_id)
+        job = DeidentificationJob.objects.get(job_id=job_id)
 
         # Update status naar processing
         job.status = 'processing'
@@ -50,11 +50,18 @@ def process_deidentification(job_id):
                 dst_file.write(src_file.read())
 
         # Maak custom_cols dictionary voor het script
+        # custom_cols = {
+        #     "patientName": job.patient_name_column,
+        #     "time": job.time_column,
+        #     "caretakerName": job.caretaker_name_column,
+        #     "report": job.report_column
+        # }
+
         custom_cols = {
-            "patientName": job.patient_name_column,
-            "time": job.time_column,
-            "caretakerName": job.caretaker_name_column,
-            "report": job.report_column
+            "patientName": "Cliëntnaam",
+            "time": "Tijdstip",
+            "caretakerName": "Zorgverlener",
+            "report": "rapport"
         }
 
         # Voer de-identificatie uit
