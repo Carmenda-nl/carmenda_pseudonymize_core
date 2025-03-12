@@ -3,24 +3,28 @@ from .models import DeidentificationJob
 
 
 class DeidentificationJobSerializer(serializers.ModelSerializer):
+    """
+    Model serializer set for REST api
+    """
     class Meta:
         model = DeidentificationJob
+
         fields = [
-            'id',
+            'job_id',
             'input_file',
             'output_file',
             'status',
             'created_at',
             'updated_at',
             'error_message',
-            'patient_name_column',
+            'patient_column',
             'time_column',
-            'caretaker_name_column',
+            'caretaker_column',
             'report_column'
         ]
 
         read_only_fields = [
-            'id',
+            'job_id',
             'output_file',
             'status',
             'created_at',
@@ -30,6 +34,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """
-        Create a new deidentificatie job and return.
+        Create a new deidentification job
         """
         return DeidentificationJob.objects.create(**validated_data)
