@@ -1,0 +1,3 @@
+#Ignore all in data except a few test files
+/data/*
+.env
