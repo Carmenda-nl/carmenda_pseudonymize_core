@@ -1,6 +1,14 @@
 from django.db import models
+from django.conf import settings
 import uuid
 import os
+
+
+def get_upload_to(instance, filename):
+    """
+    Build a path for the job files, based on the `job_id`
+    """
+    return os.path.join(str(instance.job_id), filename)
 
 
 class DeidentificationJob(models.Model):
@@ -17,8 +25,8 @@ class DeidentificationJob(models.Model):
     )
 
     job_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    input_file = models.FileField(upload_to='uploads')
-    output_file = models.FileField(upload_to='results', null=True, blank=True)
+    input_file = models.FileField(upload_to=get_upload_to)
+    output_file = models.FileField(upload_to=get_upload_to, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -37,31 +45,33 @@ class DeidentificationJob(models.Model):
         """
         Absolute path for input file
         """
-        return os.path.join('media', self.input_file.name)
+        return os.path.join(settings.MEDIA_ROOT, self.input_file.name)
 
     def get_output_file_path(self):
         """
-        Absolute path for input file
+        Absolute path for output file
         """
         if self.output_file:
-            return os.path.join('media', self.output_file.name)
+            return os.path.join(settings.MEDIA_ROOT, self.output_file.name)
         return None
 
     def failed(self):
         """
         Delete files and job if checks fail
         """
-        if self.input_file:
-            input_path = self.input_file.path
+        input_path = self.get_input_file_path()
+        output_path = self.get_output_file_path()
+        job_folder = os.path.dirname(input_path)
 
-            if os.path.exists(input_path):
-                os.remove(input_path)
+        if os.path.exists(input_path):
+            os.remove(input_path)
 
-        if self.output_file:
-            output_path = self.output_file.path
+        if output_path and os.path.exists(output_path):
+            os.remove(output_path)
 
-            if os.path.exists(output_path):
-                os.remove(output_path)
+        # remove job folder when empty
+        if os.path.exists(job_folder) and not os.listdir(job_folder):
+            os.rmdir(job_folder)
 
         # remove job after files cleanup
         self.delete()

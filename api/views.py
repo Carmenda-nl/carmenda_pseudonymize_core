@@ -38,7 +38,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         # get file columns and check if they are proper
         try:
-            input_file_path = job.get_input_file_path()
+            input_file_path = os.path.abspath(job.get_input_file_path())
 
             if file_extension == '.csv':
                 df = pandas.read_csv(input_file_path, nrows=1)  # only read the first row
