@@ -17,10 +17,10 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'error_message',
-            'patient_column',
-            'time_column',
-            'caretaker_column',
-            'report_column'
+            # 'patient_column',
+            # 'time_column',
+            # 'caretaker_column',
+            # 'report_column'
         ]
 
         read_only_fields = [

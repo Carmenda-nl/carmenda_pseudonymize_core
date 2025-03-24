@@ -33,10 +33,10 @@ class DeidentificationJob(models.Model):
     error_message = models.TextField(blank=True, null=True)
 
     # metadata for columns
-    patient_column = models.CharField(max_length=100, default='patient')
-    time_column = models.CharField(max_length=100, default='time')
-    caretaker_column = models.CharField(max_length=100, default='caretaker')
-    report_column = models.CharField(max_length=100, default='report')
+    # patient_column = models.CharField(max_length=100, default='patient')
+    # time_column = models.CharField(max_length=100, default='time')
+    # caretaker_column = models.CharField(max_length=100, default='caretaker')
+    # report_column = models.CharField(max_length=100, default='report')
 
     def __str__(self):
         return f'Job {self.job_id} - {self.status}'

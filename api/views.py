@@ -8,7 +8,9 @@ import os
 import pandas
 
 import threading
-from services.deduce_manager import process_deidentification
+from services.manager import process_deidentification
+from services.pyspark_deducer import main
+# from services.deduce_manager_v1 import process_deidentification
 
 
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
@@ -32,28 +34,28 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         if file_extension not in allowed_extensions:
             job.failed()
             return Response(
-                {f'Het bestandstype {file_extension} wordt niet ondersteund. Probeer het met een ander type bestand.'},
+                {f'The file type {file_extension} is not supported. Try another file type.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # get file columns and check if they are proper
         try:
-            input_file_path = os.path.abspath(job.get_input_file_path())
+            # input_file_path = os.path.abspath(job.get_input_file_path())
 
-            if file_extension == '.csv':
-                df = pandas.read_csv(input_file_path, nrows=1)  # only read the first row
-            elif file_extension == '.parquet':
-                df = pandas.read_parquet(input_file_path, engine='pyarrow')
+            # if file_extension == '.csv':
+            #     df = pandas.read_csv(input_file_path, nrows=1)  # only read the first row
+            # elif file_extension == '.parquet':
+            #     df = pandas.read_parquet(input_file_path, engine='pyarrow')
 
-            required_columns = 4
-            if len(df.columns) < required_columns or any(col.strip() == '' for col in df.columns[:required_columns]):
-                job.failed()
-                return Response({'File must contain at least 4 named columns.'}, status=status.HTTP_400_BAD_REQUEST)
+            # required_columns = 4
+            # if len(df.columns) < required_columns or any(col.strip() == '' for col in df.columns[:required_columns]):
+            #     job.failed()
+            #     return Response({'File must contain at least 4 named columns.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            job.patient_column = df.columns[0]
-            job.time_column = df.columns[1]
-            job.caretaker_column = df.columns[2]
-            job.report_column = df.columns[3]
+            # job.patient_column = df.columns[0]
+            # job.time_column = df.columns[1]
+            # job.caretaker_column = df.columns[2]
+            # job.report_column = df.columns[3]
 
             job.save()
 
@@ -66,8 +68,22 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         #     target=process_deidentification,
         #     args=(job.job_id,)
         # )
-        # thread.daemon = True
-        # thread.start()
+        thread = threading.Thread(
+            target=main,
+            args=(
+                # job.input_file.path,                  # input_path
+                f"/tmp/deidentified_{job.job_id}.csv",  # output_path
+                ["patient_id", "timestamp", "caregiver", "report"],  # input_cols
+                ["anon_patient", "timestamp", "anon_caregiver", "report"],  # output_cols
+                "my_secret_key",  # pseudonym_key
+                4,  # max_n_processes
+                "csv",  # output_extension
+                1,  # partition_n
+                1   # coalesce_n
+            )
+        )
+        thread.daemon = True
+        thread.start()
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
