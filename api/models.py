@@ -1,14 +1,8 @@
 from django.db import models
 from django.conf import settings
+from pathlib import Path
 import uuid
 import os
-
-
-def get_upload_to(instance, filename):
-    """
-    Build a path for the job files, based on the `job_id`
-    """
-    return os.path.join(str(instance.job_id), filename)
 
 
 class DeidentificationJob(models.Model):
@@ -25,8 +19,8 @@ class DeidentificationJob(models.Model):
     )
 
     job_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    input_file = models.FileField(upload_to=get_upload_to)
-    output_file = models.FileField(upload_to=get_upload_to, null=True, blank=True)
+    input_file = models.FileField(upload_to='input')
+    output_file = models.FileField(upload_to='output', null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -40,20 +34,27 @@ class DeidentificationJob(models.Model):
 
     def __str__(self):
         return f'Job {self.job_id} - {self.status}'
+    
+    # def filename(self):
+    #     # return os.path.basename(self.file.name)
+    #     # return os.path.basename(self.file.name)
+    #     print('xxxxxxxxxx')
+    #     return Path(self.input_file.name).name
+    
 
-    def get_input_file_path(self):
-        """
-        Absolute path for input file
-        """
-        return os.path.join(settings.MEDIA_ROOT, self.input_file.name)
+    # def get_input_file_path(self):
+    #     """
+    #     Absolute path for input file
+    #     """
+    #     return os.path.join(settings.MEDIA_ROOT, self.input_file.name)
 
-    def get_output_file_path(self):
-        """
-        Absolute path for output file
-        """
-        if self.output_file:
-            return os.path.join(settings.MEDIA_ROOT, self.output_file.name)
-        return None
+    # def get_output_file_path(self):
+    #     """
+    #     Absolute path for output file
+    #     """
+    #     if self.output_file:
+    #         return os.path.join(settings.MEDIA_ROOT, self.output_file.name)
+    #     return None
 
     def failed(self):
         """

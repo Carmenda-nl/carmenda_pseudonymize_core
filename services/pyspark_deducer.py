@@ -175,6 +175,22 @@ def main(
     input_fofi, input_cols, output_cols, pseudonym_key,
     max_n_processes, output_extension, partition_n, coalesce_n
 ):
+    
+
+
+    print(
+        f'''
+        INPUT: {input_fofi} \n
+        INPUT COLUMS: {input_cols} \n
+        OUTPUT COLUMS: {output_cols} \n
+        KEY: {pseudonym_key} \n
+        PROCESSES: {max_n_processes} \n
+        OUTPUT EXTENSION: {output_extension} \n
+        PARTITIONS: {partition_n} \n
+        COALESCE: {coalesce_n} \n
+        '''
+    )
+
     # on larger systems leave a CPU, also there's no benefit going beyond number of cores available
     n_processes = min(max_n_processes, max(1, (os.cpu_count() - 1)))
     input_folder = str('data/input/')
@@ -210,6 +226,13 @@ def main(
     input_extension = os.path.splitext(input_folder + input_fofi)[-1]
 
     if input_extension == '.csv':
+        
+        
+        print(input_folder)
+        print(input_fofi)
+
+
+
         input_fofi_size = os.stat(input_folder + input_fofi).st_size
         logger_main.info(f'CSV input file of size: {input_fofi_size}')
         psdf = spark.read.options(header=True, delimiter=',', multiline=True).csv(input_folder + input_fofi)
@@ -455,6 +478,14 @@ if __name__ == '__main__':
              """
     )
     parser.add_argument(
+        '--pseudonym_key',
+        nargs='?',
+        default=None,
+        help="""
+             Existing pseudonymization key to expand. Supply as JSON file with format {\'name\': \'pseudonym\'}.
+             """
+    )
+    parser.add_argument(
         '--max_n_processes',
         nargs='?',
         default=2,  # used to be os.cpu_count() but that doesn't work nice in containers.
@@ -472,14 +503,6 @@ if __name__ == '__main__':
              CSV is supported to provide a human readable format, but is not recommended for (large) datasets
              with potential irregular fields (e.g. containing data that can be misinterpreted such as
              early string closure symbols followed by the separator symbol).
-             """
-    )
-    parser.add_argument(
-        '--pseudonym_key',
-        nargs='?',
-        default=None,
-        help="""
-             Existing pseudonymization key to expand. Supply as JSON file with format {\'name\': \'pseudonym\'}.
              """
     )
     parser.add_argument(
