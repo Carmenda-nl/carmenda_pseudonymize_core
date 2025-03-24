@@ -6,11 +6,11 @@ from .models import DeidentificationJob
 from .serializers import DeidentificationJobSerializer
 import os
 import pandas
+from pathlib import Path
 
 import threading
 from services.manager import process_deidentification
 from services.pyspark_deducer import main
-# from services.deduce_manager_v1 import process_deidentification
 
 
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
@@ -37,6 +37,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 {f'The file type {file_extension} is not supported. Try another file type.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
 
         # get file columns and check if they are proper
         try:
@@ -71,15 +72,16 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         thread = threading.Thread(
             target=main,
             args=(
-                # job.input_file.path,                  # input_path
-                f"/tmp/deidentified_{job.job_id}.csv",  # output_path
-                ["patient_id", "timestamp", "caregiver", "report"],  # input_cols
-                ["anon_patient", "timestamp", "anon_caregiver", "report"],  # output_cols
-                "my_secret_key",  # pseudonym_key
-                4,  # max_n_processes
-                "csv",  # output_extension
-                1,  # partition_n
-                1   # coalesce_n
+                # job.input_file.path,  # input_fofi
+                Path(job.input_file.name).name,  # input_fofi
+
+                'patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport',  # input_cols
+                'patientID=patientID, processed_report=processed_report',  # output_cols
+                None,  # pseudonym_key
+                2,  # max_n_processes
+                '.parquet',  # output_extension
+                None,  # partition_n
+                None  # coalesce_n
             )
         )
         thread.daemon = True
