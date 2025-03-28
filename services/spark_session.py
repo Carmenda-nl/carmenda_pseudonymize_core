@@ -1,46 +1,38 @@
 from pyspark.sql import SparkSession
-import logging
-# import os
+import platform
+import os
 
 
-# Configuratie voor Windows
-# os.environ['HADOOP_HOME'] = os.path.join(os.getcwd(), 'hadoop')
-# os.environ['SPARK_HOME'] = os.path.join(os.getcwd(), 'spark')
-# os.environ['JAVA_HOME'] = r'C:\Program Files\Java\jdk-21'  # Pas dit aan naar jouw Java-installatie
-
-
-def get_spark_session(app_name="DeduceApp", cores=3):
+def get_spark(n_processes, app_name='DeduceApp'):
     """
-    Creëert en retourneert een Spark-sessie, optimaal geconfigureerd voor Windows.
-    max(2, (os.cpu_count() -1)) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
+    Create a Spark-session, for Windows or
+    other systems.
     """
+    if platform.system() == 'Windows':
+        # change Spark settings to run on non docker Windows based systems
+        os.system(command="C:\\hadoop\\bin\\winutils.exe chmod -R 777 C:\\temp\\spark-temp")
+        os.environ['JAVA_HOME'] = r"C:\Program Files\Java\jdk-21"
+        os.environ['SPARK_LOCAL_DIRS'] = r"C:\temp\spark-temp"
+        os.environ['HADOOP_HOME'] = r"C:\hadoop"
 
-    # This can help suppress extremely verbose logs (somehow the default is set to DEBUG)
-    logger = logging.getLogger("py4j")
+        spark = SparkSession.builder \
+            .master('local[' + str(n_processes) + ']') \
+            .appName(app_name) \
+            .config('spark.sql.execution.arrow.pyspark.enabled', 'false') \
+            .config('spark.driver.memory', '4g') \
+            .config('spark.executor.memory', '4g') \
+            .config('spark.memory.offHeap.enabled', 'true') \
+            .config('spark.memory.offHeap.size', '2g') \
+            .config('spark.sql.warehouse.dir', 'file:///C:/temp/spark-warehouse') \
+            .config('spark.local.dir', 'C:/temp/spark-temp') \
+            .getOrCreate()
+    else:
+        spark = SparkSession.builder \
+            .master('local[' + str(n_processes) + ']') \
+            .appName('DeduceApp') \
+            .getOrCreate()
 
-    # Default seems to be DEBUG, good alternative might be WARNING
-    logger.setLevel("ERROR")
-
-    # Voor Windows, voeg winutils.exe toe aan het pad
-    # hadoop_bin_dir = os.path.join(os.environ['HADOOP_HOME'], 'bin')
-    # print(hadoop_bin_dir)
-    # if not os.path.exists(hadoop_bin_dir):
-    #     print('WAS NOT')
-    #     os.makedirs(hadoop_bin_dir)
-
-    # Configureer Spark voor Windows
-    spark = (
-        SparkSession.builder
-        .master(f"local[{cores}]")
-        .appName(app_name)
-        .config("spark.jars.packages", "org.apache.hadoop:hadoop-client:3.3.1")
-        .config("spark.driver.memory", "4g")
-        .config("spark.executor.memory", "4g")
-        .config("spark.sql.execution.arrow.pyspark.enabled", "false")  # <------------ ENABLE LATER
-        .config("spark.driver.extraJavaOptions", "-Dlog4j.logLevel=WARN")
-        .getOrCreate()
-    )
-
-    spark.sparkContext.setLogLevel("WARN")
+        spark.sparkContext.setLogLevel('WARN')
+        spark.conf.set('spark.sql.execution.arrow.pyspark.enabled', 'true')
 
     return spark

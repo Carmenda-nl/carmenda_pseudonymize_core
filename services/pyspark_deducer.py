@@ -1,7 +1,7 @@
 """
 Script Name: pyspark_deducer.py
-Authors: Lars Spekschoor (lars.spekschoor@radboudumc.nl), Joep Tummers, Pim van Oirschot
-Date: 2024-12-23
+Authors: Lars Spekschoor (lars.spekschoor@radboudumc.nl), Joep Tummers, Pim van Oirschot, Django Heimgartner
+Date: 2025-03-25
 Description:
     This script deidentifies Dutch report texts (unstructured data) using Deduce
     (Menger et al. 2018, DOI: https://doi.org/10.1016/j.tele.2017.08.002., also on GitHub).
@@ -9,8 +9,8 @@ Description:
     This makes it possible to use the same code across entries.
     Pyspark allows for performance on large input data sizes. Dependencies are handled with containerization.
 Disclaimer:
-    This script applying Deduce is a best attempt to pseudonymize data and while we are dedicated to improve performance
-    we cannot guarantee an absence of false negatives.
+    This script applying Deduce is a best attempt to pseudonymize data and while we are dedicated to
+    improve performance we cannot guarantee an absence of false negatives.
     In the current state, we consider this method useful in that it reduces the chance of a scenario where a researcher
     recognizes a person in a dataset.
     Datasets should always be handled with care because individuals are likely (re-)identifiable both through false
@@ -27,39 +27,25 @@ Script logic:
         - Replace the generated [PATIENT] tags with the new patientID
     - Write output to disk
         - There is some error handling and logging, but it's so far only been used for debugging.
-Execution:
-    During development, pyspark only worked together with Deduce on Linux.
-    For windows we therefore recommend using Docker.
 """
 
-
-# Imports
-import argparse
-import platform
-
-# pyspark
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import pandas_udf, udf, col, explode, array_repeat, coalesce, struct, concat_ws
-from functools import reduce
-
-# standard modules
-import os
-import json
-import pandas as pd
-import numpy as np
-import random
-import string
-import time
-import warnings
-
-# deduce
 import deduce
 from deduce.person import Person
 
-import logging
+from pyspark.sql.functions import udf, col, explode, array_repeat, struct, concat_ws
+from functools import reduce
+
+import os
+import random
+import string
+import json
+import time
+import warnings
+import argparse
+import glob
 
 
-def pseudonymize(unique_names, pseudonym_key=None, droplist=[]):
+def pseudonymize(unique_names, pseudonym_key=None, droplist=[], logger=None):
     """
     Purpose:
         Turn a list of unique names into a dictionary, mapping each to a randomized string.
@@ -73,10 +59,10 @@ def pseudonymize(unique_names, pseudonym_key=None, droplist=[]):
     unique_names = [name for name in unique_names if name not in droplist]
 
     if pseudonym_key is None:
-        logger_main.info("Building new key because argument was None")
+        logger.info("Building new key because argument was None")
         pseudonym_key = {}
     else:
-        logger_main.info("Building from existing key")
+        logger.info("Building from existing key")
 
     for name in unique_names:
         if name not in pseudonym_key:
@@ -146,17 +132,18 @@ def deduce_with_id_func(input_cols_bc):
             report_deid = getattr(report_deid, "deidentified_text")
             return report_deid
         except Exception as e:
-            print(e)
-            print(f"Following row failed to process in function deduce_with_id, returning None:\n{row}")
+            logger.error(f"{e} row failed to process in deduce_with_id")
             return None
 
     return inner_func
+
 
 @udf
 def replace_tags_udf(text, new_value, tag="[PATIENT]"):
     """
     Purpose:
-        Deduce labels occurences of patient name in text with a [PATIENT] tag. This function replaces that with the randomized ID.
+        Deduce labels occurences of patient name in text with a [PATIENT] tag.
+        This function replaces that with the randomized ID.
     Parameters:
         text (string): the text possibly containing tag to replace
         new_value (string): text to replace tag with
@@ -167,93 +154,53 @@ def replace_tags_udf(text, new_value, tag="[PATIENT]"):
     try:
         return str.replace(text, "[PATIENT]", new_value)
     except Exception as e:
-        # print(f"Following text failed to process in fucntion replace_patient_tag, returning None:\n{text}")
+        logger.error(f"{e} Failed to process in replace_patient_tag, returning None")
         return None
 
 
-def main(
+def process_data(
     input_fofi, input_cols, output_cols, pseudonym_key,
-    max_n_processes, output_extension, partition_n, coalesce_n
+    max_n_processes, output_extension, partition_n, coalesce_n, logger=None
 ):
-    
-
-
-    print(
-        f'''
-        INPUT: {input_fofi} \n
-        INPUT COLUMS: {input_cols} \n
-        OUTPUT COLUMS: {output_cols} \n
-        KEY: {pseudonym_key} \n
-        PROCESSES: {max_n_processes} \n
-        OUTPUT EXTENSION: {output_extension} \n
-        PARTITIONS: {partition_n} \n
-        COALESCE: {coalesce_n} \n
-        '''
-    )
+    # if no logger is provided, set up default logging
+    if logger is None:
+        logger, logger_py4j = setup_logging()
 
     # on larger systems leave a CPU, also there's no benefit going beyond number of cores available
     n_processes = min(max_n_processes, max(1, (os.cpu_count() - 1)))
-    input_folder = str('data/input/')
-    output_folder = str('data/output/')
+    spark = get_spark(n_processes)
 
-    # change Spark settings to run on non docker Windows based systems
-    if platform.system() == 'Windows':
-        os.system(command="C:\\hadoop\\bin\\winutils.exe chmod -R 777 C:\\temp\\spark-temp")
-        os.environ['JAVA_HOME'] = r"C:\Program Files\Java\jdk-21"
-        os.environ['SPARK_LOCAL_DIRS'] = r"C:\temp\spark-temp"
-        os.environ['HADOOP_HOME'] = r"C:\hadoop"
-
-        spark = SparkSession.builder \
-            .master('local[' + str(n_processes) + ']') \
-            .appName('DeduceApp') \
-            .config('spark.sql.execution.arrow.pyspark.enabled', 'false') \
-            .config('spark.driver.memory', '4g') \
-            .config('spark.executor.memory', '4g') \
-            .config('spark.memory.offHeap.enabled', 'true') \
-            .config('spark.memory.offHeap.size', '2g') \
-            .config('spark.sql.warehouse.dir', 'file:///C:/temp/spark-warehouse') \
-            .config('spark.local.dir', 'C:/temp/spark-temp') \
-            .getOrCreate()
-    else:
-        spark = SparkSession.builder \
-            .master('local[' + str(n_processes) + ']') \
-            .appName('DeduceApp') \
-            .getOrCreate()
-
-        spark.sparkContext.setLogLevel('WARN')
-        spark.conf.set('spark.sql.execution.arrow.pyspark.enabled', 'true')
+    input_folder = str("data/input/")
+    output_folder = str("data/output/")
 
     input_extension = os.path.splitext(input_folder + input_fofi)[-1]
 
-    if input_extension == '.csv':
-        
-        
-        print(input_folder)
-        print(input_fofi)
-
-
-
+    if input_extension == ".csv":
         input_fofi_size = os.stat(input_folder + input_fofi).st_size
-        logger_main.info(f'CSV input file of size: {input_fofi_size}')
-        psdf = spark.read.options(header=True, delimiter=',', multiline=True).csv(input_folder + input_fofi)
+        logger.info(f"CSV input file of size: {input_fofi_size}")
+        psdf = spark.read.options(header=True, delimiter=",", multiline=True).csv(input_folder + input_fofi)
     else:
         psdf = spark.read.parquet(input_folder + input_fofi)
 
+    # convert string mappings to dictionaries
+    input_cols = dict(item.strip().split("=") for item in input_cols.split(","))
+    output_cols = dict(item.strip().split("=") for item in output_cols.split(","))
+
     # if you want to amplify data, usually for performance testing purposes
     n_concat = 1
-    psdf = psdf.withColumn(input_cols['patientName'], explode(array_repeat(input_cols['patientName'], n_concat)))
+    psdf = psdf.withColumn(input_cols["patientName"], explode(array_repeat(input_cols["patientName"], n_concat)))
     psdf.printSchema()
 
     # count rows
     psdf_rowcount = psdf.count()
-    logger_main.info(f'Row count: {psdf_rowcount}')
+    logger.info(f"Row count: {psdf_rowcount}")
 
     """
     An informed decision can be made with the data size and system properties
       - more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled
       - partitions should fit in memory on nodes (recommended is around 256MB)
     """
-    if partition_n is None and input_extension == '.csv':
+    if partition_n is None and input_extension == ".csv":
         # big files -> more partitions, much rows -> more partitions
         partition_n = max(
             input_fofi_size * n_concat // (1024**2 * 128) + 1,
@@ -261,23 +208,24 @@ def main(
         )
 
     if partition_n is not None:
-        logger_main.info('Repartitioning')
+        logger.info("Repartitioning")
         psdf = psdf.repartition(partition_n)
 
-    logger_main.info(f'partitions: {psdf.rdd.getNumPartitions()}')
+    logger.info(f"partitions: {psdf.rdd.getNumPartitions()}")
 
     # turn names into a dictionary of randomized IDs
-    logger_main.info(f'Searching for pseudonym key: {pseudonym_key}')
+    logger.info(f"Searching for pseudonym key: {pseudonym_key}")
     if pseudonym_key is not None:
         pseudonym_key = json.load(open(input_folder + pseudonym_key))
 
     pseudonym_key = pseudonymize(
-        psdf.select(input_cols['patientName']).distinct().toPandas()[input_cols['patientName']],
-        pseudonym_key
+        psdf.select(input_cols["patientName"]).distinct().toPandas()[input_cols["patientName"]],
+        pseudonym_key,
+        logger=logger
     )
 
     # write to json file
-    with open((output_folder + 'pseudonym_key.json'), 'w') as outfile:
+    with open((output_folder + "pseudonym_key.json"), "w") as outfile:
         json.dump(pseudonym_key, outfile)
 
     outfile.close()
@@ -294,173 +242,108 @@ def main(
     start_time = time.time()
 
     # define transformations, trigger execution by writing output to disk
-    psdf = psdf.withColumn('patientID', map_dictionary_udf(input_cols['patientName']))\
-        .withColumn('processed_report', deduce_with_id_udf(struct(*psdf.columns)))\
-        .withColumn('processed_report', replace_tags_udf('processed_report', 'patientID'))
+    psdf = psdf.withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
+        .withColumn("processed_report", deduce_with_id_udf(struct(*psdf.columns)))\
+        .withColumn("processed_report", replace_tags_udf("processed_report", "patientID"))
 
     select_cols = [col for col in output_cols.values() if col in psdf.columns]
     psdf = psdf.select(select_cols)
-    logger_main.info(f'Output columns: {psdf.columns}')
+    logger.info(f"Output columns: {psdf.columns}")
 
     # handling of irregularities
     filter_condition = reduce(lambda x, y: x | y, [col(c).isNull() for c in psdf.columns])
-    logger_main.info(filter_condition)
+    logger.info(filter_condition)
 
-
-
-# ----------------------------------------------------------------------------------------------------- #
     try:
         psdf_with_nulls = psdf.filter(filter_condition)
-        print('****************')
-        print(f'PSDF: {psdf}')
-        logger_main.info(f'Row count with problems: {psdf_with_nulls.count()}')
-        logger_main.info('Attempting to write dataframe of rows with nulls to file.')
-        output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + '_with_nulls'
+        logger.info(f"Row count with problems: {psdf_with_nulls.count()}")
+        logger.info("Attempting to write dataframe of rows with nulls to file.")
+        output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + "_with_nulls"
 
-        psdf_with_nulls.write.mode('overwrite').csv(output_file)
+        psdf_with_nulls.write.mode("overwrite").csv(output_file)
         psdf_with_nulls.unpersist()
 
     except Exception as e:
-        logger_main.error(
+        logger.error(
             f"Some rows are so problematic that pyspark couldn't write them to file.\n\
             In order not to lose progress on good rows, program will continue for those.\n\
-            Caught Exception:\n\
-            {e}")
-
-# ----------------------------------------------------------------------------------------------------- #
-
-
-
-
-
-
+            Caught Exception:\n {e}"
+        )
 
         try:
             psdf_with_nulls.unpersist()
-        except:
+        except Exception:
             pass
 
     # keep the rows without nulls
     psdf = psdf.filter(~filter_condition)
     psdf.show(10)
-    logger_main.info(
-        f'Remaining rows after filtering rows with empty values (that happened during processing): {psdf.count()}'
+    logger.info(
+        f"Remaining rows after filtering rows with empty values (that happened during processing): {psdf.count()}"
     )
     if coalesce_n is not None:
         psdf = psdf.coalesce(coalesce_n)
 
-    output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + '_processed'
+    # extract first 10 rows as JSON for return value
+    processed_preview = psdf.limit(10).toPandas().to_dict(orient="records")
 
-    if output_extension == '.csv':
+    output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
 
-    #     # Forceer coalesce naar 1 partitie voor kleine datasets
-    #     # Voor grotere datasets kun je dit weglaten om geheugenproblemen te voorkomen
-    #     if psdf.count() < 10000:  # Alleen coalesce voor kleine datasets
-    #         psdf = psdf.coalesce(1)
+    if output_extension == ".csv":
+        psdf.write.mode("overwrite").option("header", "true").csv(output_file)
 
-        psdf.write.mode('overwrite').option('header', 'true').csv(output_file)
+        csv_files = glob.glob(os.path.join(output_file, 'part-*.csv'))
 
-    #     import glob
-    #     import subprocess
-    #     # Na-verwerking om een enkel bestand te krijgen
-    #     part_files = glob.glob(os.path.join(output_file, "part-*.csv"))
+        if csv_files:
+            file_to_rename = csv_files[0]
+            new_name = os.path.join(output_file, input_fofi)
+            os.rename(file_to_rename, new_name)
 
-    #     if len(part_files) == 1:
-    #         # Als er slechts één deelbestand is, hernoem het
-    #         final_output = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed.csv"
-    #         subprocess.run(["mv", part_files[0], final_output])
-    #         # Verwijder de directory
-    #         subprocess.run(["rm", "-rf", output_file])
-    #         logger_main.info(f"Created single CSV file: {final_output}")
-    #     else:
-    #         # Als er meerdere deelbestanden zijn, voeg ze samen
-    #         final_output = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed.csv"
-    #         with open(final_output, 'w') as outfile:
-    #             # Schrijf header van eerste bestand
-    #             with open(part_files[0], 'r') as first_file:
-    #                 header = first_file.readline()
-    #                 outfile.write(header)
-
-    #             # Schrijf content van alle bestanden, sla headers over
-    #             for part_file in part_files:
-    #                 with open(part_file, 'r') as infile:
-    #                     next(infile)  # Sla header over
-    #                     outfile.write(infile.read())
-
-    #         # Verwijder de directory
-    #         subprocess.run(["rm", "-rf", output_file])
-    #         logger_main.info(f"Created single concatenated CSV file: {final_output}")
-
-    elif output_extension == '.txt':
-        psdf = psdf.select(concat_ws(', ', *psdf.columns).alias('value'))
-        psdf.write.mode('overwrite').option('header', 'true').text(output_file)
+    elif output_extension == ".txt":
+        psdf = psdf.select(concat_ws(", ", *psdf.columns).alias("value"))
+        psdf.write.mode("overwrite").option("header", "true").text(output_file)
     else:
-        if output_extension != '.parquet':
-            warnings.warn('Selected output extension not supported, using parquet.')
+        if output_extension != ".parquet":
+            warnings.warn("Selected output extension not supported, using parquet.")
 
-        psdf.write.mode('overwrite').option('header', 'true').parquet(output_file)
+        psdf.write.mode("overwrite").option("header", "true").parquet(output_file)
 
-
-
-    # # coalesceing is single-threaded, only do when necessary
-    # # psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
     end_time = time.time()
-    logger_main.info(
-        f"Time passed with {n_processes} processes and row count (start, end) = ({psdf_rowcount}, {psdf.count()}): {end_time - start_time}s ({(end_time - start_time) / psdf_rowcount}s / row)")
+    logger.info(
+        f"Time passed with {n_processes} processes and row count (start, end) = ({psdf_rowcount}, \
+            {psdf.count()}): {end_time - start_time}s ({(end_time - start_time) / psdf_rowcount}s / row)")
     psdf.printSchema()
-    # # logger_main.info(psdf.take(10))
 
     # close shop
     spark.stop()
 
+    return json.dumps(processed_preview)
 
-if __name__ == '__main__':
+
+def parse_cli_arguments():
     """
-    This section sets up logging, parses command-line arguments,
-    and calls the main function with the parsed arguments.
+    Parse command-line arguments for CLI usage.
 
-    Command-line arguments:
-        --input_fofi`: Specifies the input folder or file.
-        --input_cols`: Defines the mapping of input column names.
-        --output_cols`: Defines the mapping of output column names.
-        --max_n_processes`: Defines the maximum number of parallel processes.
-        --output_extension`: Specifies the output format extension.
-
-        --pseudonym_key`: Path to an existing pseudonymization key in JSON format (optional).
-        --partition_n`: Manually set the number of partitions during processing (optional).
-        --coalesce_n`: Manually set the number of output partitions after processing (optional).
+    Returns:
+        Parsed arguments
     """
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-
-    logger_main = logging.getLogger(__name__)
-    logger_main.setLevel(logging.INFO)
-
-    handler_stream = logging.FileHandler('data/log/main.log')
-    handler_stream.setFormatter(formatter)
-    logger_main.addHandler(handler_stream)
-
-    # this can help suppress extremely verbose logs
-    logger_py4j = logging.getLogger('py4j')
-    logger_py4j.setLevel('ERROR')  # default seems to be DEBUG, good alternative might be WARNING
-    logger_py4j.addHandler(logging.FileHandler('data/log/py4j.log'))
-
     parser = argparse.ArgumentParser(
-        description='Input parameters for the python program.',
+        description="Input parameters for the python program.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     parser.add_argument(
-        '--input_fofi',
-        nargs='?',
-        default='dummy_input.csv',
+        "--input_fofi",
+        nargs="?",
+        default="dummy_input.csv",
         help="""
              Name of the input folder or file. Currently csv file and parquet file or folder are supported.
              """
     )
     parser.add_argument(
-        '--input_cols',
-        nargs='?',
-        default='patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport',
+        "--input_cols",
+        nargs="?",
+        default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport",
         help="""
              Input column names as a single string with comma separated key=value format e.g.
              Whitespaces are removed, so column names currently can't contain them.
@@ -469,25 +352,25 @@ if __name__ == '__main__':
              """
     )
     parser.add_argument(
-        '--output_cols',
-        nargs='?',
-        default='patientID=patientID, processed_report=processed_report',
+        "--output_cols",
+        nargs="?",
+        default="patientID=patientID, processed_report=processed_report",
         help="""
              Output column names with same structure as input_cols. Take care when adding the reports column
              from input_cols, as this likely results in doubling of large data.
              """
     )
     parser.add_argument(
-        '--pseudonym_key',
-        nargs='?',
+        "--pseudonym_key",
+        nargs="?",
         default=None,
         help="""
              Existing pseudonymization key to expand. Supply as JSON file with format {\'name\': \'pseudonym\'}.
              """
     )
     parser.add_argument(
-        '--max_n_processes',
-        nargs='?',
+        "--max_n_processes",
+        nargs="?",
         default=2,  # used to be os.cpu_count() but that doesn't work nice in containers.
         help="""
              Maximum number of processes. Default behavior is to detect the number of cores on the
@@ -495,9 +378,9 @@ if __name__ == '__main__':
              """
     )
     parser.add_argument(
-        '--output_extension',
-        nargs='?',
-        default='.parquet',
+        "--output_extension",
+        nargs="?",
+        default=".parquet",
         help="""
              Select output format, currently only parquet (default), csv and txt are supported.
              CSV is supported to provide a human readable format, but is not recommended for (large) datasets
@@ -506,8 +389,8 @@ if __name__ == '__main__':
              """
     )
     parser.add_argument(
-        '--partition_n',
-        nargs='?',
+        "--partition_n",
+        nargs="?",
         default=None,
         help="""
              Manually set number of partitions during processing phase. The default makes an estimation based
@@ -515,8 +398,8 @@ if __name__ == '__main__':
              """
     )
     parser.add_argument(
-        '--coalesce_n',
-        nargs='?',
+        "--coalesce_n",
+        nargs="?",
         default=None,
         help="""
              Should you want to control the number of partitions of the output this option can be used.
@@ -524,33 +407,54 @@ if __name__ == '__main__':
              Because coalesce is different from reshuffle, this argument cannot be larger than partition_n
              """
     )
-
-    def parse_dict_cols(mapping_str):
-        return dict(item.strip().split('=') for item in mapping_str.split(','))
-
-    def parse_list_cols(mapping_str):
-        return [item.strip() for item in mapping_str.split(',')]
-
+    # parse and process arguments
     args = parser.parse_args()
-    args.input_cols = parse_dict_cols(args.input_cols)
-    args.output_cols = parse_dict_cols(args.output_cols)
 
-    if args.partition_n is not None:
-        args.partition_n = int(args.partition_n)
-    if args.coalesce_n is not None:
-        args.coalesce_n = int(args.coalesce_n)
+    return args
 
-    args.max_n_processes = int(args.max_n_processes)
-    parsed_args_str = '\n'.join(f' |-- {key}={value}' for key, value in vars(args).items())
-    logger_main.info(f'Parsed arguments:\n{parsed_args_str}\n')
 
-    main(
-        args.input_fofi,
-        args.input_cols,
-        args.output_cols,
-        args.pseudonym_key,
-        args.max_n_processes,
-        args.output_extension,
-        args.partition_n,
-        args.coalesce_n
+def main():
+    """
+    This section sets up logging, parses command-line arguments,
+    and calls the main function with the parsed arguments.
+
+    Command-line arguments:
+        --input_fofi`: Specifies the input folder or file
+        --input_cols`: Defines the mapping of input column names
+        --output_cols`: Defines the mapping of output column names
+        --max_n_processes`: Defines the maximum number of parallel processes
+        --output_extension`: Specifies the output format extension
+
+        --pseudonym_key`: Path to an existing pseudonymization key in JSON format (optional).
+        --partition_n`: Manually set the number of partitions during processing (optional).
+        --coalesce_n`: Manually set the number of output partitions after processing (optional).
+    """
+    args = parse_cli_arguments()
+
+    parsed_args_str = "\n".join(f" |-- {key}={value}" for key, value in vars(args).items())
+    logger.info(f"Parsed arguments:\n{parsed_args_str}\n")
+
+    process_data(
+        input_fofi=args.input_fofi,
+        input_cols=args.input_cols,
+        output_cols=args.output_cols,
+        pseudonym_key=args.pseudonym_key,
+        max_n_processes=int(args.max_n_processes),
+        output_extension=args.output_extension,
+        partition_n=int(args.partition_n) if args.partition_n else None,
+        coalesce_n=int(args.coalesce_n) if args.coalesce_n else None,
+        logger=logger
     )
+
+
+if __name__ == "__main__":
+    from spark_session import get_spark
+    from logger import setup_logging
+
+    logger, logger_py4j = setup_logging()
+    main()
+else:
+    from services.spark_session import get_spark
+    from services.logger import setup_logging
+
+    logger, logger_py4j = setup_logging()

@@ -13,19 +13,21 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             'job_id',
             'input_file',
             'output_file',
+            'key_file',
+            'log_file',
+            'processed_preview',
             'status',
             'created_at',
             'updated_at',
             'error_message',
-            # 'patient_column',
-            # 'time_column',
-            # 'caretaker_column',
-            # 'report_column'
         ]
 
         read_only_fields = [
             'job_id',
             'output_file',
+            'key_file',
+            'log_file',
+            'processed_preview',
             'status',
             'created_at',
             'updated_at',

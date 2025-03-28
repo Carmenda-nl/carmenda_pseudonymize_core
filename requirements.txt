@@ -9,5 +9,5 @@ deduce==3.0.3
 pandas==2.2.3
 pyarrow==19.0.1
 
-# no module named 'distutils'
+# needed for 'distutils'
 setuptools==77.0.3

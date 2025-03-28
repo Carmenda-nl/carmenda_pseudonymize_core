@@ -4,23 +4,24 @@ from rest_framework.decorators import action
 
 from .models import DeidentificationJob
 from .serializers import DeidentificationJobSerializer
-import os
-import pandas
-from pathlib import Path
-
-import threading
 from services.manager import process_deidentification
-from services.pyspark_deducer import main
+import os
+
+import shutil
+from django.conf import settings
 
 
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
+    """
+    Override the default create method to handle file-based
+    deidentification job creation.
+    """
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
 
     def create(self, request, *args, **kwargs):
         """
         Override create method to accept CSV or Parquet file
-        and extract column names before running the job
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -38,54 +39,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-
-        # get file columns and check if they are proper
-        try:
-            # input_file_path = os.path.abspath(job.get_input_file_path())
-
-            # if file_extension == '.csv':
-            #     df = pandas.read_csv(input_file_path, nrows=1)  # only read the first row
-            # elif file_extension == '.parquet':
-            #     df = pandas.read_parquet(input_file_path, engine='pyarrow')
-
-            # required_columns = 4
-            # if len(df.columns) < required_columns or any(col.strip() == '' for col in df.columns[:required_columns]):
-            #     job.failed()
-            #     return Response({'File must contain at least 4 named columns.'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # job.patient_column = df.columns[0]
-            # job.time_column = df.columns[1]
-            # job.caretaker_column = df.columns[2]
-            # job.report_column = df.columns[3]
-
-            job.save()
-
-        except Exception as exception:
-            job.failed()
-            return Response({f'Failed to process file: {str(exception)}'}, status=status.HTTP_400_BAD_REQUEST)
-
         # start the anonymizing process in a seperate thread
-        # thread = threading.Thread(
-        #     target=process_deidentification,
-        #     args=(job.job_id,)
-        # )
-        thread = threading.Thread(
-            target=main,
-            args=(
-                # job.input_file.path,  # input_fofi
-                Path(job.input_file.name).name,  # input_fofi
-
-                'patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport',  # input_cols
-                'patientID=patientID, processed_report=processed_report',  # output_cols
-                None,  # pseudonym_key
-                2,  # max_n_processes
-                '.parquet',  # output_extension
-                None,  # partition_n
-                None  # coalesce_n
-            )
-        )
-        thread.daemon = True
-        thread.start()
+        process_deidentification(job.job_id)
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
@@ -110,3 +65,47 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             return Response({'Output file is not available yet'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'download_url': request.build_absolute_uri(job.output_file.url)})
+
+
+class ResetJobsViewSet(viewsets.ViewSet):
+    """
+    This ViewSet provides a custom action to:
+        1. Delete all job records from the database
+        2. Remove all associated input and output files
+        3. Clean up any empty directories
+
+    Don't use this in a webapp setup or secure it with a login.
+    """
+    @action(detail=False, methods=['post'])
+    def reset(self, request):
+        try:
+            # get all jobs to track stats before deletion
+            total_jobs = DeidentificationJob.objects.count()
+
+            # get paths to input and output directories
+            input_dir = os.path.join(settings.MEDIA_ROOT, 'input')
+            output_dir = os.path.join(settings.MEDIA_ROOT, 'output')
+
+            # remove all job-related files
+            if os.path.exists(input_dir):
+                shutil.rmtree(input_dir)
+            if os.path.exists(output_dir):
+                shutil.rmtree(output_dir)
+
+            # delete all job records
+            DeidentificationJob.objects.all().delete()
+
+            # recreate empty directories to maintain structure
+            os.makedirs(input_dir, exist_ok=True)
+            os.makedirs(output_dir, exist_ok=True)
+
+            return Response({
+                'message': 'All jobs have been reset successfully.',
+                'total_jobs_deleted': total_jobs
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': 'An error occurred while resetting jobs.',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
