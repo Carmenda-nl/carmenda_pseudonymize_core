@@ -63,10 +63,10 @@ def pseudonymize(unique_names, pseudonym_key = None, droplist = []):
     """
     unique_names = [name for name in unique_names if name not in droplist]
     if pseudonym_key == None:
-        logger_main.info("Building new pseudonym_key because argument was None")
+        logger.info("Building new pseudonym_key because argument was None")
         pseudonym_key = {}
     else:
-        logger_main.info("Building from existing pseudonym_key")
+        logger.info("Building from existing pseudonym_key")
     for name in unique_names:
         if name not in pseudonym_key:
             found_new = False
@@ -161,7 +161,7 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     input_ext = os.path.splitext("/data/input/" + input_fofi)[-1]
     if input_ext == ".csv":
         input_fofi_size = os.stat("/data/input/" + input_fofi).st_size
-        logger_main.info("CSV input file of size: " + str(input_fofi_size))
+        logger.info("CSV input file of size: " + str(input_fofi_size))
         psdf = spark.read.options(header = True, delimiter = ",", multiline = True).csv("/data/input/" + input_fofi)
     else:
         psdf = spark.read.parquet("/data/input/" + input_fofi)
@@ -173,7 +173,7 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     #For debugging
     #psdf = psdf.limit(100)
     psdf_rowcount = psdf.count()
-    logger_main.info("Row count: " + str(psdf_rowcount))
+    logger.info("Row count: " + str(psdf_rowcount))
 
     ##An informed decision can be made with the data size and system properties
     ##- more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
@@ -184,12 +184,12 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
             psdf_rowcount // 1000 + 1
         )
     if partition_n != None:
-        logger_main.info("Repartitioning")
+        logger.info("Repartitioning")
         psdf = psdf.repartition(partition_n)
-    logger_main.info("partitions: " + str(psdf.rdd.getNumPartitions()))
+    logger.info("partitions: " + str(psdf.rdd.getNumPartitions()))
     
     ##Turn names into dictionary of randomized IDs
-    logger_main.info(f"Searching for pseudonym key: {pseudonym_key}")
+    logger.info(f"Searching for pseudonym key: {pseudonym_key}")
     if pseudonym_key != None:
         pseudonym_key = json.load(open("/data/input/" + pseudonym_key))
     pseudonym_key = pseudonymize(psdf.select(input_cols["patientName"]).distinct().toPandas()[input_cols["patientName"]],
@@ -211,7 +211,7 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
 
     select_cols = [col for col in output_cols.values() if col in psdf.columns]
     psdf = psdf.select(select_cols)
-    logger_main.info(f"Output columns: {psdf.columns}")
+    logger.info(f"Output columns: {psdf.columns}")
 
 
     ##Handling of irregularities
@@ -221,13 +221,13 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     #psdf.cache()
     try:
         psdf_with_nulls = psdf.filter(filter_condition)
-        logger_main.info(f"Row count with problems: {psdf_with_nulls.count()}")
-        logger_main.info(f"Attempting to write dataframe of rows with nulls to file.")
+        logger.info(f"Row count with problems: {psdf_with_nulls.count()}")
+        logger.info(f"Attempting to write dataframe of rows with nulls to file.")
         output_file = "/data/output/" + os.path.splitext(os.path.basename(input_fofi))[0] + "_with_nulls"
         psdf_with_nulls.write.mode("overwrite").csv(output_file)
         psdf_with_nulls.unpersist()
     except Exception as e:
-        logger_main.error(f"Some rows are so problematic that pyspark couldn't write them to file.\n\
+        logger.error(f"Some rows are so problematic that pyspark couldn't write them to file.\n\
                     In order not to lose progress on good rows, program will continue for those.\n\
                     Caught Exception:\n\
                     {e}")
@@ -238,7 +238,7 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     #Keep the rows without nulls
     psdf = psdf.filter(~filter_condition)
     psdf.show(10)
-    logger_main.info(f"Remaining rows after filtering rows with empty values (which are usually indicative of exceptions that happened during processing): {psdf.count()}")
+    logger.info(f"Remaining rows after filtering rows with empty values (which are usually indicative of exceptions that happened during processing): {psdf.count()}")
 
     if coalesce_n != None:
         psdf = psdf.coalesce(coalesce_n)
@@ -258,32 +258,17 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     #coalesceing is single-threaded, only do when necessary
     #psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
     end_t = time.time() #timeit.timeit()
-    logger_main.info(f"time passed with n_processes = {n_processes} and row count (start, end) = ({psdf_rowcount}, {psdf.count()}): {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
+    logger.info(f"time passed with n_processes = {n_processes} and row count (start, end) = ({psdf_rowcount}, {psdf.count()}): {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
     psdf.printSchema()
-    #logger_main.info(psdf.take(10))
+    #logger.info(psdf.take(10))
 
     #Close shop
     spark.stop()
 
 if __name__ == "__main__":
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-    
-    logger_main = logging.getLogger(__name__)
-    logger_main.setLevel(logging.INFO)
-    handler_main = logging.FileHandler("/data/output/logger_main.log")
-    handler_main.setFormatter(formatter)
-    logger_main.addHandler(handler_main)
+    from logger import setup_logging
 
-    # logger_issues = logging.getLogger("issues")
-    # logger_issues.setLevel(logging.WARNING)
-    # handler_issues = logging.FileHandler("/data/output/logger_issues.log")
-    # handler_issues.setFormatter(formatter)
-    # logger_issues.addHandler(handler_issues)
-
-    #This can help suppress extremely verbose logs (somehow the default is set to DEBUG)
-    logger_py4j = logging.getLogger("py4j")
-    logger_py4j.setLevel("ERROR") #Default seems to be DEBUG, good alternative might be WARNING
-    logger_py4j.addHandler(logging.FileHandler("/data/output/logger_py4j.log"))
+    logger, logger_py4j = setup_logging()   
 
     parser = argparse.ArgumentParser(description = "Input parameters for the python programme.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -333,6 +318,6 @@ if __name__ == "__main__":
     if args.coalesce_n != None:
         args.coalesce_n = int(args.coalesce_n) 
     args.max_n_processes = int(args.max_n_processes)
-    logger_main.info(args)
+    logger.info(args)
 
     main(args.input_fofi, args.input_cols, args.output_cols, args.pseudonym_key, args.max_n_processes, args.output_extension, args.partition_n, args.coalesce_n)
