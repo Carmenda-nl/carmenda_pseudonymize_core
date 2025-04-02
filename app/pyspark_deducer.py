@@ -166,6 +166,29 @@ def process_data(
     if logger is None:
         logger, logger_py4j = setup_logging()
 
+    # progress tracking setup
+    progress_stages = [
+        "Initializing Spark", "Loading data", "Pre-processing",
+        "Pseudonymization", "Data transformation", "Filtering nulls",
+        "Writing output", "Finalizing"
+    ]
+
+    total_stages = len(progress_stages)
+    current_stage = 0
+
+    def update_progress(stage_name=None):
+        nonlocal current_stage
+
+        if stage_name:
+            logger.info(f"[PROGRESS] {current_stage}/{total_stages} - {stage_name}")
+
+        current_stage += 1
+        progress_percent = (current_stage / total_stages) * 100
+        logger.info(f"[PROGRESS] {progress_percent:.1f}% complete")
+
+    # start progress tracking
+    update_progress(progress_stages[0])
+
     # on larger systems leave a CPU, also there's no benefit going beyond number of cores available
     n_processes = min(max_n_processes, max(1, (os.cpu_count() - 1)))
     spark = get_spark(n_processes)
@@ -175,12 +198,18 @@ def process_data(
 
     input_extension = os.path.splitext(input_folder + input_fofi)[-1]
 
+    # update progress - loading data
+    update_progress(progress_stages[1])
+
     if input_extension == ".csv":
         input_fofi_size = os.stat(input_folder + input_fofi).st_size
         logger.info(f"CSV input file of size: {input_fofi_size}")
         psdf = spark.read.options(header=True, delimiter=",", multiline=True).csv(input_folder + input_fofi)
     else:
         psdf = spark.read.parquet(input_folder + input_fofi)
+
+    # update progress - pre-processing
+    update_progress(progress_stages[2])
 
     # convert string mappings to dictionaries
     input_cols = dict(item.strip().split("=") for item in input_cols.split(","))
@@ -241,6 +270,9 @@ def process_data(
 
     start_time = time.time()
 
+    # update progress - data transformation
+    update_progress(progress_stages[4])
+
     # define transformations, trigger execution by writing output to disk
     psdf = psdf.withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
         .withColumn("processed_report", deduce_with_id_udf(struct(*psdf.columns)))\
@@ -249,6 +281,9 @@ def process_data(
     select_cols = [col for col in output_cols.values() if col in psdf.columns]
     psdf = psdf.select(select_cols)
     logger.info(f"Output columns: {psdf.columns}")
+
+    # update progress - filtering nulls
+    update_progress(progress_stages[5])
 
     # handling of irregularities
     filter_condition = reduce(lambda x, y: x | y, [col(c).isNull() for c in psdf.columns])
@@ -287,6 +322,9 @@ def process_data(
     # extract first 10 rows as JSON for return value
     processed_preview = psdf.limit(10).toPandas().to_dict(orient="records")
 
+    # update progress - writing output
+    update_progress(progress_stages[6])
+
     output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
 
     if output_extension == ".csv":
@@ -314,9 +352,14 @@ def process_data(
             {psdf.count()}): {end_time - start_time}s ({(end_time - start_time) / psdf_rowcount}s / row)")
     psdf.printSchema()
 
+    # update progress - finalizing
+    update_progress(progress_stages[7])
+
     # close shop
     spark.stop()
 
+    # complete progress
+    logger.info("[PROGRESS] 100% - Processing complete")
     return json.dumps(processed_preview)
 
 
@@ -454,7 +497,6 @@ if __name__ == "__main__":
     logger, logger_py4j = setup_logging()
     main()
 else:
-    # if run from the carmenda application
     from services.spark_session import get_spark
     from services.logger import setup_logging
 
