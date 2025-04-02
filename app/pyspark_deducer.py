@@ -42,6 +42,7 @@ import json
 import time
 import warnings
 import argparse
+import glob
 
 
 def pseudonymize(unique_names, pseudonym_key=None, droplist=[], logger=None):
@@ -157,61 +158,90 @@ def replace_tags_udf(text, new_value, tag="[PATIENT]"):
         return None
 
 
-def process_data(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, output_extension, partition_n, coalesce_n):
+def process_data(
+    input_fofi, input_cols, output_cols, pseudonym_key,
+    max_n_processes, output_extension, partition_n, coalesce_n, logger=None
+):
+    # if no logger is provided, set up default logging
+    if logger is None:
+        logger, logger_py4j = setup_logging()
 
-    # On larger systems leave a CPU, also there's no benefit going beyond number of cores available
+    # on larger systems leave a CPU, also there's no benefit going beyond number of cores available
     n_processes = min(max_n_processes, max(1, (os.cpu_count() - 1)))
     spark = get_spark(n_processes)
 
-    input_ext = os.path.splitext("/data/input/" + input_fofi)[-1]
-    if input_ext == ".csv":
-        input_fofi_size = os.stat("/data/input/" + input_fofi).st_size
-        logger.info("CSV input file of size: " + str(input_fofi_size))
-        psdf = spark.read.options(header=True, delimiter=",", multiline=True).csv(
-            "/data/input/" + input_fofi)
+    input_folder = str("data/input/")
+    output_folder = str("data/output/")
+
+    input_extension = os.path.splitext(input_folder + input_fofi)[-1]
+
+    if input_extension == ".csv":
+        input_fofi_size = os.stat(input_folder + input_fofi).st_size
+        logger.info(f"CSV input file of size: {input_fofi_size}")
+        psdf = spark.read.options(header=True, delimiter=",", multiline=True).csv(input_folder + input_fofi)
     else:
-        psdf = spark.read.parquet("/data/input/" + input_fofi)
+        psdf = spark.read.parquet(input_folder + input_fofi)
 
-    # If you want to amplify data, usually for performance testing purposes
+    # convert string mappings to dictionaries
+    input_cols = dict(item.strip().split("=") for item in input_cols.split(","))
+    output_cols = dict(item.strip().split("=") for item in output_cols.split(","))
+
+    # if you want to amplify data, usually for performance testing purposes
     n_concat = 1
-    psdf = psdf.withColumn(input_cols["patientName"], explode(
-        array_repeat(input_cols["patientName"], n_concat)))
+    psdf = psdf.withColumn(input_cols["patientName"], explode(array_repeat(input_cols["patientName"], n_concat)))
     psdf.printSchema()
-    # For debugging
-    # psdf = psdf.limit(100)
-    psdf_rowcount = psdf.count()
-    logger.info("Row count: " + str(psdf_rowcount))
 
-    # An informed decision can be made with the data size and system properties
-    # - more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled (e.g. due to group_by)
-    # - partitions should fit in memory on nodes (recommended is around 256MB)
-    if partition_n == None and input_ext == ".csv":
+    # count rows
+    psdf_rowcount = psdf.count()
+    logger.info(f"Row count: {psdf_rowcount}")
+
+    """
+    An informed decision can be made with the data size and system properties
+      - more partitions than cores to improve load balancing/skew especially when entries need to be shuffeled
+      - partitions should fit in memory on nodes (recommended is around 256MB)
+    """
+    if partition_n is None and input_extension == ".csv":
+        # big files -> more partitions, much rows -> more partitions
         partition_n = max(
             input_fofi_size * n_concat // (1024**2 * 128) + 1,
             psdf_rowcount // 1000 + 1
         )
-    if partition_n != None:
+
+    if partition_n is not None:
         logger.info("Repartitioning")
         psdf = psdf.repartition(partition_n)
-    logger.info("partitions: " + str(psdf.rdd.getNumPartitions()))
 
-    # Turn names into dictionary of randomized IDs
+    logger.info(f"partitions: {psdf.rdd.getNumPartitions()}")
+
+    # turn names into a dictionary of randomized IDs
     logger.info(f"Searching for pseudonym key: {pseudonym_key}")
-    if pseudonym_key != None:
-        pseudonym_key = json.load(open("/data/input/" + pseudonym_key))
-    pseudonym_key = pseudonymize(psdf.select(input_cols["patientName"]).distinct().toPandas()[input_cols["patientName"]],
-                                 pseudonym_key)
-    with open(("/data/output/" + "pseudonym_key.json"), "w") as outfile:
+    if pseudonym_key is not None:
+        pseudonym_key = json.load(open(input_folder + pseudonym_key))
+
+    pseudonym_key = pseudonymize(
+        psdf.select(input_cols["patientName"]).distinct().toPandas()[input_cols["patientName"]],
+        pseudonym_key,
+        logger=logger
+    )
+
+    # write to json file
+    with open((output_folder + "pseudonym_key.json"), "w") as outfile:
         json.dump(pseudonym_key, outfile)
+
     outfile.close()
+
     pseudonym_key_bc = spark.sparkContext.broadcast(pseudonym_key)
     input_cols_bc = spark.sparkContext.broadcast(input_cols)
 
+    # obtain randomized string corresponding to name
     map_dictionary_udf = udf(map_dictionary_func(pseudonym_key_bc))
+
+    # apply the Deduce algorithm
     deduce_with_id_udf = udf(deduce_with_id_func(input_cols_bc))
 
-    start_t = time.time()
-    # Define transformations, trigger execution by writing output to disk
+    start_time = time.time()
+
+    # define transformations, trigger execution by writing output to disk
     psdf = psdf.withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
         .withColumn("processed_report", deduce_with_id_udf(struct(*psdf.columns)))\
         .withColumn("processed_report", replace_tags_udf("processed_report", "patientID"))
@@ -220,65 +250,74 @@ def process_data(input_fofi, input_cols, output_cols, pseudonym_key, max_n_proce
     psdf = psdf.select(select_cols)
     logger.info(f"Output columns: {psdf.columns}")
 
-    # Handling of irregularities
-    filter_condition = reduce(
-        lambda x, y: x | y, [col(c).isNull() for c in psdf.columns])
-    print(filter_condition)
-    # To avoid some redundancy
-    # psdf.cache()
+    # handling of irregularities
+    filter_condition = reduce(lambda x, y: x | y, [col(c).isNull() for c in psdf.columns])
+    logger.info(filter_condition)
+
     try:
         psdf_with_nulls = psdf.filter(filter_condition)
         logger.info(f"Row count with problems: {psdf_with_nulls.count()}")
-        logger.info(
-            f"Attempting to write dataframe of rows with nulls to file.")
-        output_file = "/data/output/" + \
-            os.path.splitext(os.path.basename(input_fofi))[0] + "_with_nulls"
+        logger.info("Attempting to write dataframe of rows with nulls to file.")
+        output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + "_with_nulls"
+
         psdf_with_nulls.write.mode("overwrite").csv(output_file)
         psdf_with_nulls.unpersist()
+
     except Exception as e:
-        logger.error(f"Some rows are so problematic that pyspark couldn't write them to file.\n\
-                    In order not to lose progress on good rows, program will continue for those.\n\
-                    Caught Exception:\n\
-                    {e}")
+        logger.error(
+            f"Some rows are so problematic that pyspark couldn't write them to file.\n\
+            In order not to lose progress on good rows, program will continue for those.\n\
+            Caught Exception:\n {e}"
+        )
+
         try:
             psdf_with_nulls.unpersist()
-        except:
+        except Exception:
             pass
-    # Keep the rows without nulls
+
+    # keep the rows without nulls
     psdf = psdf.filter(~filter_condition)
     psdf.show(10)
     logger.info(
-        f"Remaining rows after filtering rows with empty values (which are usually indicative of exceptions that happened during processing): {psdf.count()}")
-
-    if coalesce_n != None:
+        f"Remaining rows after filtering rows with empty values (that happened during processing): {psdf.count()}"
+    )
+    if coalesce_n is not None:
         psdf = psdf.coalesce(coalesce_n)
 
+    # extract first 10 rows as JSON for return value
+    processed_preview = psdf.limit(10).toPandas().to_dict(orient="records")
+
+    output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
+
     if output_extension == ".csv":
-        output_file = "/data/output/" + \
-            os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
-        psdf.write.mode("overwrite").csv(output_file)
+        psdf.write.mode("overwrite").option("header", "true").csv(output_file)
+
+        csv_files = glob.glob(os.path.join(output_file, 'part-*.csv'))
+
+        if csv_files:
+            file_to_rename = csv_files[0]
+            new_name = os.path.join(output_file, input_fofi)
+            os.rename(file_to_rename, new_name)
+
     elif output_extension == ".txt":
-        output_file = "/data/output/" + \
-            os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
-        psdf = psdf.select(concat_ws(', ', *psdf.columns).alias("value"))
-        psdf.write.mode("overwrite").text(output_file)
+        psdf = psdf.select(concat_ws(", ", *psdf.columns).alias("value"))
+        psdf.write.mode("overwrite").option("header", "true").text(output_file)
     else:
         if output_extension != ".parquet":
-            warnings.warn(
-                "Selected output extension not supported, using parquet.")
-        output_file = "/data/output/" + \
-            os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
-        psdf.write.mode("overwrite").parquet(output_file)
-    # coalesceing is single-threaded, only do when necessary
-    # psdf.coalesce(1).write.mode("overwrite").csv("/tmp/" + filename + "_processed")
-    end_t = time.time()  # timeit.timeit()
-    logger.info(
-        f"time passed with n_processes = {n_processes} and row count (start, end) = ({psdf_rowcount}, {psdf.count()}): {end_t - start_t}s ({(end_t - start_t) / psdf_rowcount}s / row)")
-    psdf.printSchema()
-    # logger.info(psdf.take(10))
+            warnings.warn("Selected output extension not supported, using parquet.")
 
-    # Close shop
+        psdf.write.mode("overwrite").option("header", "true").parquet(output_file)
+
+    end_time = time.time()
+    logger.info(
+        f"Time passed with {n_processes} processes and row count (start, end) = ({psdf_rowcount}, \
+            {psdf.count()}): {end_time - start_time}s ({(end_time - start_time) / psdf_rowcount}s / row)")
+    psdf.printSchema()
+
+    # close shop
     spark.stop()
+
+    return json.dumps(processed_preview)
 
 
 def parse_cli_arguments():
