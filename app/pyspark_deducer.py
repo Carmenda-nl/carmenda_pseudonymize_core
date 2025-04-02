@@ -31,7 +31,6 @@ Execution:
 import argparse
 
 #pyspark
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, udf, col, explode, array_repeat, coalesce, struct, concat_ws
 from functools import reduce
 
@@ -151,12 +150,7 @@ def replace_tags_udf(text, new_value, tag = "[PATIENT]"):
 def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, output_extension, partition_n, coalesce_n):
 
     n_processes = min(max_n_processes, max(1, (os.cpu_count() -1))) #On larger systems leave a CPU, also there's no benefit going beyond number of cores available
-
-    spark = SparkSession.builder.master("local[" + str(n_processes) + "]").appName("DeduceApp").getOrCreate()
-    #spark.sparkContext.setLogLevel("WARN")
-    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
-    ##maxPartitionBytes doesn't seem to work for csv input and for parquet the default seems best.
-    #spark.conf.set("spark.sql.files.maxPartitionBytes", 128 * 1024 * 1024)
+    spark = get_spark(n_processes)
 
     input_ext = os.path.splitext("/data/input/" + input_fofi)[-1]
     if input_ext == ".csv":
@@ -266,6 +260,7 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     spark.stop()
 
 if __name__ == "__main__":
+    from spark_session import get_spark
     from logger import setup_logging
 
     logger, logger_py4j = setup_logging()   
