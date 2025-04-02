@@ -157,7 +157,7 @@ def replace_tags_udf(text, new_value, tag="[PATIENT]"):
         return None
 
 
-def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, output_extension, partition_n, coalesce_n):
+def process_data(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, output_extension, partition_n, coalesce_n):
 
     # On larger systems leave a CPU, also there's no benefit going beyond number of cores available
     n_processes = min(max_n_processes, max(1, (os.cpu_count() - 1)))
@@ -281,63 +281,142 @@ def main(input_fofi, input_cols, output_cols, pseudonym_key, max_n_processes, ou
     spark.stop()
 
 
+def parse_cli_arguments():
+    """
+    Parse command-line arguments for CLI usage.
+
+    Returns:
+        Parsed arguments
+    """
+    parser = argparse.ArgumentParser(
+        description="Input parameters for the python program.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--input_fofi",
+        nargs="?",
+        default="dummy_input.csv",
+        help="""
+             Name of the input folder or file. Currently csv file and parquet file or folder are supported.
+             """
+    )
+    parser.add_argument(
+        "--input_cols",
+        nargs="?",
+        default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport",
+        help="""
+             Input column names as a single string with comma separated key=value format e.g.
+             Whitespaces are removed, so column names currently can't contain them.
+             Keys patientName and report with values existing in the data are essential.
+             Optional columns reflect functionality that may not have been implemented (yet),
+             """
+    )
+    parser.add_argument(
+        "--output_cols",
+        nargs="?",
+        default="patientID=patientID, processed_report=processed_report",
+        help="""
+             Output column names with same structure as input_cols. Take care when adding the reports column
+             from input_cols, as this likely results in doubling of large data.
+             """
+    )
+    parser.add_argument(
+        "--pseudonym_key",
+        nargs="?",
+        default=None,
+        help="""
+             Existing pseudonymization key to expand. Supply as JSON file with format {\'name\': \'pseudonym\'}.
+             """
+    )
+    parser.add_argument(
+        "--max_n_processes",
+        nargs="?",
+        default=2,  # used to be os.cpu_count() but that doesn't work nice in containers.
+        help="""
+             Maximum number of processes. Default behavior is to detect the number of cores on the
+             system and subtract 1. Going above the number of available cores has no benefit.
+             """
+    )
+    parser.add_argument(
+        "--output_extension",
+        nargs="?",
+        default=".parquet",
+        help="""
+             Select output format, currently only parquet (default), csv and txt are supported.
+             CSV is supported to provide a human readable format, but is not recommended for (large) datasets
+             with potential irregular fields (e.g. containing data that can be misinterpreted such as
+             early string closure symbols followed by the separator symbol).
+             """
+    )
+    parser.add_argument(
+        "--partition_n",
+        nargs="?",
+        default=None,
+        help="""
+             Manually set number of partitions during processing phase. The default makes an estimation based
+             on file size and row count for .csv input or used default settings for .parquet.
+             """
+    )
+    parser.add_argument(
+        "--coalesce_n",
+        nargs="?",
+        default=None,
+        help="""
+             Should you want to control the number of partitions of the output this option can be used.
+             Default is None because coalesceing and output writing to single file is slow.
+             Because coalesce is different from reshuffle, this argument cannot be larger than partition_n
+             """
+    )
+    # parse and process arguments
+    args = parser.parse_args()
+
+    return args
+
+
+def main():
+    """
+    This section sets up logging, parses command-line arguments,
+    and calls the main function with the parsed arguments.
+
+    Command-line arguments:
+        --input_fofi`: Specifies the input folder or file
+        --input_cols`: Defines the mapping of input column names
+        --output_cols`: Defines the mapping of output column names
+        --max_n_processes`: Defines the maximum number of parallel processes
+        --output_extension`: Specifies the output format extension
+
+        --pseudonym_key`: Path to an existing pseudonymization key in JSON format (optional).
+        --partition_n`: Manually set the number of partitions during processing (optional).
+        --coalesce_n`: Manually set the number of output partitions after processing (optional).
+    """
+    args = parse_cli_arguments()
+
+    parsed_args_str = "\n".join(f" |-- {key}={value}" for key, value in vars(args).items())
+    logger.info(f"Parsed arguments:\n{parsed_args_str}\n")
+
+    process_data(
+        input_fofi=args.input_fofi,
+        input_cols=args.input_cols,
+        output_cols=args.output_cols,
+        pseudonym_key=args.pseudonym_key,
+        max_n_processes=int(args.max_n_processes),
+        output_extension=args.output_extension,
+        partition_n=int(args.partition_n) if args.partition_n else None,
+        coalesce_n=int(args.coalesce_n) if args.coalesce_n else None,
+        logger=logger
+    )
+
+
 if __name__ == "__main__":
     from spark_session import get_spark
     from logger import setup_logging
 
     logger, logger_py4j = setup_logging()
+    main()
+else:
+    # if run from the carmenda application
+    from services.spark_session import get_spark
+    from services.logger import setup_logging
 
-    parser = argparse.ArgumentParser(description="Input parameters for the python programme.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--input_fofi",
-                        nargs="?",
-                        default="dummy_input.csv",
-                        help="Name of the input folder or file. Currently csv file and parquet file or folder are supported.")
-    parser.add_argument("--input_cols",
-                        nargs="?",
-                        help="Input column names as a single string with comma separated key=value format e.g. \"patientName=foo, report=bar, ...=foobar\". Whitespaces are removed, so column names currently can't contain them. Keys patientName and report with values existing in the data are essential. Optional columns reflect functionality that may not have been implemented (yet)",
-                        default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport"),
-    parser.add_argument("--output_cols",
-                        nargs="?",
-                        help="Output column names with same structure as input_cols. Take care when adding the reports column from input_cols, as this likely results in doubling of large data.",
-                        default="patientID=patientID, processed_report=processed_report"),
-    parser.add_argument("--pseudonym_key",
-                        nargs="?",
-                        default=None,
-                        help="Existing pseudonymization key to expand. Supply as JSON file with format {\"name\": \"pseudonym\"}.")
-    parser.add_argument("--max_n_processes",
-                        nargs="?",
-                        # Used to be os.cpu_count() but that doesn't work nice in Docker containers.
-                        default=2,
-                        help="Maximum number of processes. Default behavior is to detect the number of cores on the system and subtract 1. Going above the number of available cores has no benefit.")
-    parser.add_argument("--output_extension",
-                        nargs="?",
-                        default=".parquet",
-                        help="Select output format, currently only parquet (default), csv and txt are supported. CSV is supported to provide a human readable format, but is not recommended for (large) datasets with potential irregular fields (e.g. containing data that can be misinterpreted such as early string closure symbols followed by the separator symbol).")
-    parser.add_argument("--partition_n",
-                        nargs="?",
-                        default=None,
-                        help="Manually set number of partitions during processing phase. The default makes an estimation based on file size and row count for .csv input or used default settings for .parquet.")
-    parser.add_argument("--coalesce_n",
-                        nargs="?",
-                        default=None,
-                        help="Should you want to control the number of partitions of the output this option can be used. Default is None because coalesceing and output writing to single file is slow. Because coalesce is different from reshuffle, this argument cannot be larger than partition_n")
-
-    def parse_dict_cols(mapping_str):
-        return dict(item.strip().split("=") for item in mapping_str.split(","))
-
-    def parse_list_cols(mapping_str):
-        return [item.strip() for item in mapping_str.split(",")]
-
-    args = parser.parse_args()
-    args.input_cols = parse_dict_cols(args.input_cols)
-    args.output_cols = parse_dict_cols(args.output_cols)
-    if args.partition_n != None:
-        args.partition_n = int(args.partition_n)
-    if args.coalesce_n != None:
-        args.coalesce_n = int(args.coalesce_n)
-    args.max_n_processes = int(args.max_n_processes)
-    logger.info(args)
-
-    main(args.input_fofi, args.input_cols, args.output_cols, args.pseudonym_key,
-         args.max_n_processes, args.output_extension, args.partition_n, args.coalesce_n)
+    logger, logger_py4j = setup_logging()
