@@ -1,3 +1,8 @@
+# ------------------------------------------------------------------------------------------------ #
+# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
+# ------------------------------------------------------------------------------------------------ #
+
 """
 Script Name: pyspark_deducer.py
 Authors: Lars Spekschoor (lars.spekschoor@radboudumc.nl), Joep Tummers, Pim van Oirschot, Django Heimgartner
@@ -222,8 +227,8 @@ def process_data(
     n_processes = min(max_n_processes, max(1, (os.cpu_count() - 1)))
     spark = get_spark(n_processes)
 
-    input_folder = str("data/input/")
-    output_folder = str("data/output/")
+    input_folder = os.getenv("INPUT_FOLDER") or "/data/input/"
+    output_folder = os.getenv("OUTPUT_FOLDER") or "/data/output/"
 
     input_extension = os.path.splitext(input_folder + input_fofi)[-1]
 
