@@ -158,6 +158,54 @@ def replace_tags_udf(text, new_value, tag="[PATIENT]"):
         return None
 
 
+def progress_tracker(logger, tracker):
+    """
+    Creates a progress tracking mechanism for multi-stage processing.
+
+    Parameters:
+        logger: Logger object to log progress messages
+        tracker: Global tracker object to update overall progress
+
+    Returns:
+        Dictionary containing progress tracking functions and data
+    """
+    progress_stages = [
+        "Initializing", "Loading data", "Pre-processing",
+        "Pseudonymization", "Data transformation", "Filtering nulls",
+        "Writing output", "Finalizing"
+    ]
+
+    total_stages = len(progress_stages)
+
+    progress_data = {
+        "current_stage": 0,
+        "progress_percentage": 0,
+        "total_stages": total_stages,
+        "stages": progress_stages
+    }
+
+    def update_progress(stage_name=None):
+        if stage_name is None and progress_data["current_stage"] < total_stages:
+            stage_name = progress_stages[progress_data["current_stage"]]
+
+        progress_data["current_stage"] += 1
+        progress_data["progress_percentage"] = int((progress_data["current_stage"] / total_stages) * 100)
+
+        # update the global progress tracker
+        tracker.update_progress(
+            progress_data["progress_percentage"],
+            stage_name
+        )
+
+        return progress_data["progress_percentage"]
+
+    return {
+        "update": update_progress,
+        "data": progress_data,
+        "get_stage_name": lambda idx: progress_stages[idx] if 0 <= idx < len(progress_stages) else None
+    }
+
+
 def process_data(
     input_fofi, input_cols, output_cols, pseudonym_key,
     max_n_processes, output_extension, partition_n, coalesce_n, logger=None
@@ -166,28 +214,9 @@ def process_data(
     if logger is None:
         logger, logger_py4j = setup_logging()
 
-    # progress tracking setup
-    progress_stages = [
-        "Initializing Spark", "Loading data", "Pre-processing",
-        "Pseudonymization", "Data transformation", "Filtering nulls",
-        "Writing output", "Finalizing"
-    ]
-
-    total_stages = len(progress_stages)
-    current_stage = 0
-
-    def update_progress(stage_name=None):
-        nonlocal current_stage
-
-        if stage_name:
-            logger.info(f"[PROGRESS] {current_stage}/{total_stages} - {stage_name}")
-
-        current_stage += 1
-        progress_percent = (current_stage / total_stages) * 100
-        logger.info(f"[PROGRESS] {progress_percent:.1f}% complete")
-
     # start progress tracking
-    update_progress(progress_stages[0])
+    progress = progress_tracker(logger, tracker)
+    progress["update"](progress["get_stage_name"](0))
 
     # on larger systems leave a CPU, also there's no benefit going beyond number of cores available
     n_processes = min(max_n_processes, max(1, (os.cpu_count() - 1)))
@@ -199,7 +228,7 @@ def process_data(
     input_extension = os.path.splitext(input_folder + input_fofi)[-1]
 
     # update progress - loading data
-    update_progress(progress_stages[1])
+    progress["update"](progress["get_stage_name"](1))
 
     if input_extension == ".csv":
         input_fofi_size = os.stat(input_folder + input_fofi).st_size
@@ -209,7 +238,7 @@ def process_data(
         psdf = spark.read.parquet(input_folder + input_fofi)
 
     # update progress - pre-processing
-    update_progress(progress_stages[2])
+    progress["update"](progress["get_stage_name"](2))
 
     # convert string mappings to dictionaries
     input_cols = dict(item.strip().split("=") for item in input_cols.split(","))
@@ -242,6 +271,9 @@ def process_data(
 
     logger.info(f"partitions: {psdf.rdd.getNumPartitions()}")
 
+    # update progress - pseudonymization
+    progress["update"](progress["get_stage_name"](3))
+
     # turn names into a dictionary of randomized IDs
     logger.info(f"Searching for pseudonym key: {pseudonym_key}")
     if pseudonym_key is not None:
@@ -271,7 +303,7 @@ def process_data(
     start_time = time.time()
 
     # update progress - data transformation
-    update_progress(progress_stages[4])
+    progress["update"](progress["get_stage_name"](4))
 
     # define transformations, trigger execution by writing output to disk
     psdf = psdf.withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
@@ -283,7 +315,7 @@ def process_data(
     logger.info(f"Output columns: {psdf.columns}")
 
     # update progress - filtering nulls
-    update_progress(progress_stages[5])
+    progress["update"](progress["get_stage_name"](5))
 
     # handling of irregularities
     filter_condition = reduce(lambda x, y: x | y, [col(c).isNull() for c in psdf.columns])
@@ -323,7 +355,7 @@ def process_data(
     processed_preview = psdf.limit(10).toPandas().to_dict(orient="records")
 
     # update progress - writing output
-    update_progress(progress_stages[6])
+    progress["update"](progress["get_stage_name"](6))
 
     output_file = output_folder + os.path.splitext(os.path.basename(input_fofi))[0] + "_processed"
 
@@ -353,14 +385,13 @@ def process_data(
     psdf.printSchema()
 
     # update progress - finalizing
-    update_progress(progress_stages[7])
+    progress["update"](progress["get_stage_name"](7))
 
     # close shop
     spark.stop()
+    result = {"data": processed_preview}
 
-    # complete progress
-    logger.info("[PROGRESS] 100% - Processing complete")
-    return json.dumps(processed_preview)
+    return json.dumps(result)
 
 
 def parse_cli_arguments():
@@ -493,11 +524,13 @@ def main():
 if __name__ == "__main__":
     from spark_session import get_spark
     from logger import setup_logging
+    from progress_tracker import tracker
 
     logger, logger_py4j = setup_logging()
     main()
 else:
     from services.spark_session import get_spark
     from services.logger import setup_logging
+    from services.progress_tracker import tracker
 
     logger, logger_py4j = setup_logging()
