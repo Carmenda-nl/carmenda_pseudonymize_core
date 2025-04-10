@@ -1,1 +1,16 @@
+
+# --------------------------- IDE files & folders ---------------------------- #
+
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/__pycache__
+**/.venv
+**/.vscode
+
+# --------------------------- Test files & folders --------------------------- #
+
+**/coverage.xml
+**/.coverage
+**/.pytest_cache
 data/

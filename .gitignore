@@ -1,3 +1,16 @@
-#Ignore all in data except a few test files
-/data/*
+
+# --------------------------- IDE files & folders ---------------------------- #
+
+*.pyc
+.idea
 .env
+.venv
+.vscode
+.DS_Store
+data/*
+
+# --------------------------------- Testing ---------------------------------- #
+
+docker-compose-local.yml
+test
+.coverage
