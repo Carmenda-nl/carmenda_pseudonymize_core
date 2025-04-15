@@ -6,7 +6,7 @@
 """
 Script Name: pyspark_deducer.py
 Authors: Lars Spekschoor (lars.spekschoor@radboudumc.nl), Joep Tummers, Pim van Oirschot, Django Heimgartner
-Date: 2025-03-25
+Date: 2025-04-14
 Description:
     This script deidentifies Dutch report texts (unstructured data) using Deduce
     (Menger et al. 2018, DOI: https://doi.org/10.1016/j.tele.2017.08.002., also on GitHub).
@@ -31,7 +31,6 @@ Script logic:
           de-identifying the main subject.
         - Replace the generated [PATIENT] tags with the new patientID
     - Write output to disk
-        - There is some error handling and logging, but it's so far only been used for debugging.
 """
 
 import deduce
@@ -77,7 +76,7 @@ def pseudonymize(unique_names, pseudonym_key=None, droplist=[], logger=None):
             while (found_new is False and iterate < 15):
                 iterate += 1
                 pseudonym_candidate = "".join(
-                    random.choices(string.ascii_uppercase + string.ascii_lowercase+string.digits, k=14)
+                    random.choices(string.ascii_uppercase + string.ascii_uppercase+string.digits, k=14)
                 )
                 if pseudonym_candidate not in pseudonym_key.values():
                     found_new is True
@@ -122,6 +121,7 @@ def deduce_with_id_func(input_cols_bc):
     def inner_func(row):
         try:
             input_cols = input_cols_bc.value
+
             patient_name = str.split(row[input_cols["patientName"]], " ", maxsplit=1)
             patient_initials = "".join([x[0] for x in patient_name])
 
@@ -133,11 +133,41 @@ def deduce_with_id_func(input_cols_bc):
             patient = Person(first_names=[patient_name[0:-1]], surname=patient_name[-1], initials=patient_initials)
             """
             deduce_patient = Person(first_names=[patient_name[0]], surname=patient_name[1], initials=patient_initials)
-            report_deid = deduce_instance.deidentify(row[input_cols["report"]], metadata={'patient': deduce_patient})
+
+            report_deid = deduce_instance.deidentify(row[input_cols["report"]], metadata={"patient": deduce_patient})
             report_deid = getattr(report_deid, "deidentified_text")
+
             return report_deid
+
         except Exception as e:
-            logger.error(f"{e} row failed to process in deduce_with_id")
+            logger.error(f"{e} row failed to process")
+            return None
+
+    return inner_func
+
+
+def deduce_report_only_func(input_cols_bc):
+    """
+    Purpose:
+        Apply the Deduce algorithm
+    Parameters:
+        report (string): Text entry to apply on.
+    Returns:
+        report_deid (string): Deidentified version of report input
+    """
+    deduce_instance = deduce.Deduce()
+
+    def inner_func(row):
+        try:
+            input_cols = input_cols_bc.value
+
+            report_deid = deduce_instance.deidentify(row[input_cols["report"]])
+            report_deid = getattr(report_deid, "deidentified_text")
+
+            return report_deid
+
+        except Exception as e:
+            logger.error(f"{e} row failed to process")
             return None
 
     return inner_func
@@ -157,9 +187,9 @@ def replace_tags_udf(text, new_value, tag="[PATIENT]"):
         text from text but with tag replaced by new_value
     """
     try:
-        return str.replace(text, "[PATIENT]", new_value)
+        return str.replace(text, "[PATIENT]", f"[{new_value}]")
     except Exception as e:
-        logger.error(f"{e} Failed to process in replace_patient_tag, returning None")
+        logger.error(f"Failed to process in replace_patient_tag, returning None \n {e}")
         return None
 
 
@@ -249,9 +279,15 @@ def process_data(
     input_cols = dict(item.strip().split("=") for item in input_cols.split(","))
     output_cols = dict(item.strip().split("=") for item in output_cols.split(","))
 
-    # if you want to amplify data, usually for performance testing purposes
+    # check if the `patientName` column is available
+    patient_name = input_cols.get("patientName", None) in psdf.columns
+
+    # if you want to amplify (dublicate) data, usually for performance testing purposes
     n_concat = 1
-    psdf = psdf.withColumn(input_cols["patientName"], explode(array_repeat(input_cols["patientName"], n_concat)))
+
+    if patient_name:
+        psdf = psdf.withColumn(input_cols["patientName"], explode(array_repeat(input_cols["patientName"], n_concat)))
+
     psdf.printSchema()
 
     # count rows
@@ -279,41 +315,61 @@ def process_data(
     # update progress - pseudonymization
     progress["update"](progress["get_stage_name"](3))
 
+    input_cols_bc = spark.sparkContext.broadcast(input_cols)
+    start_time = time.time()
+
     # turn names into a dictionary of randomized IDs
     logger.info(f"Searching for pseudonym key: {pseudonym_key}")
     if pseudonym_key is not None:
         pseudonym_key = json.load(open(input_folder + pseudonym_key))
 
-    pseudonym_key = pseudonymize(
-        psdf.select(input_cols["patientName"]).distinct().toPandas()[input_cols["patientName"]],
-        pseudonym_key,
-        logger=logger
-    )
+    # create an pseudonym_key when `patientName` exists
+    if patient_name:
+        pseudonym_key = pseudonymize(
+            psdf.select(input_cols["patientName"]).distinct().toPandas()[input_cols["patientName"]],
+            pseudonym_key,
+            logger=logger
+        )
 
-    # write to json file
-    with open((output_folder + "pseudonym_key.json"), "w") as outfile:
-        json.dump(pseudonym_key, outfile)
+        # write to json file
+        with open((output_folder + "pseudonym_key.json"), "w") as outfile:
+            json.dump(pseudonym_key, outfile)
 
-    outfile.close()
+        outfile.close()
 
-    pseudonym_key_bc = spark.sparkContext.broadcast(pseudonym_key)
-    input_cols_bc = spark.sparkContext.broadcast(input_cols)
+        # update progress - data transformation
+        progress["update"](progress["get_stage_name"](4))
 
-    # obtain randomized string corresponding to name
-    map_dictionary_udf = udf(map_dictionary_func(pseudonym_key_bc))
+        pseudonym_key_bc = spark.sparkContext.broadcast(pseudonym_key)
+        map_dictionary_udf = udf(map_dictionary_func(pseudonym_key_bc))
 
-    # apply the Deduce algorithm
-    deduce_with_id_udf = udf(deduce_with_id_func(input_cols_bc))
+        deduce_with_id_udf = udf(deduce_with_id_func(input_cols_bc))
 
-    start_time = time.time()
+        """
+        define transformations, trigger execution by writing output to disk
+          1. create a new column `patientID`
+          2. create a new column `processed_report`
+          3. replace [PATIENT] tags
+        """
+        psdf = psdf \
+            .withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
+            .withColumn("processed_report", deduce_with_id_udf(struct(*psdf.columns)))\
+            .withColumn("processed_report", replace_tags_udf("processed_report", "patientID"))
+    else:
+        logger.info("No patientName column, extracting names from reports")
 
-    # update progress - data transformation
-    progress["update"](progress["get_stage_name"](4))
+        # update progress - data transformation
+        progress["update"](progress["get_stage_name"](4))
 
-    # define transformations, trigger execution by writing output to disk
-    psdf = psdf.withColumn("patientID", map_dictionary_udf(input_cols["patientName"]))\
-        .withColumn("processed_report", deduce_with_id_udf(struct(*psdf.columns)))\
-        .withColumn("processed_report", replace_tags_udf("processed_report", "patientID"))
+        deduce_report_only_udf = udf(deduce_report_only_func(input_cols_bc))
+
+        """
+        define transformations, trigger execution by writing output to disk
+          1. Apply deidentification to the report
+          2. Replace [PATIENT] tags with a constant value
+        """
+        psdf = psdf \
+            .withColumn("processed_report", deduce_report_only_udf(struct(*psdf.columns)))
 
     select_cols = [col for col in output_cols.values() if col in psdf.columns]
     psdf = psdf.select(select_cols)
@@ -386,7 +442,8 @@ def process_data(
     end_time = time.time()
     logger.info(
         f"Time passed with {n_processes} processes and row count (start, end) = ({psdf_rowcount}, \
-            {psdf.count()}): {end_time - start_time}s ({(end_time - start_time) / psdf_rowcount}s / row)")
+            {psdf.count()}): {end_time - start_time}s ({(end_time - start_time) / psdf_rowcount}s / row)"
+    )
     psdf.printSchema()
 
     # update progress - finalizing
@@ -422,7 +479,7 @@ def parse_cli_arguments():
     parser.add_argument(
         "--input_cols",
         nargs="?",
-        default="patientName=Cliëntnaam, time=Tijdstip, caretakerName=Zorgverlener, report=rapport",
+        default="patientName=Cliëntnaam, report=rapport",
         help="""
              Input column names as a single string with comma separated key=value format e.g.
              Whitespaces are removed, so column names currently can't contain them.
