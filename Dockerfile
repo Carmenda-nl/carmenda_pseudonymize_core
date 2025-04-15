@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-FROM python:3.10.12
+FROM python:3.10.17
 
 ARG INIT=true
 
@@ -13,7 +13,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y default-jre
 
 # install py packages
-RUN pip install pyspark deduce pandas venv-pack pyarrow
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 COPY app /app
 COPY app/pyspark_deducer.py /app/pyspark_deducer_baked.py
@@ -23,7 +24,7 @@ RUN mkdir -p data/input
 RUN mkdir -p data/output
 
 # deduce lookup data structures
-RUN if [ "$INIT" = "true" ]; then\
+RUN if [ '$INIT' = "true" ]; then\
         echo "Performing INIT"; \
         python init_script.py; \
     else \
