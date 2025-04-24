@@ -41,7 +41,7 @@ Use the following commands in the terminal to build and run the container.
 Build the image from the Dockerfile (replace `latest` with a different tag if needed):
 
 ```bash
-docker build -t img_name:latest .
+docker build -t carmenda/pseudonymizer:latest .
 ```
 
 ### Run the Image
