@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
     'corsheaders',
     'api',
 ]
@@ -52,8 +53,6 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_METHODS = (
     'DELETE',
     'GET',
-    'OPTIONS',
-    'PATCH',
     'POST',
     'PUT',
 )
@@ -91,6 +90,28 @@ DATABASES = {
 }
 
 
+# Django REST framework
+# https://www.django-rest-framework.org
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Deidentification API',
+    'DESCRIPTION': 'API for file-based deidentification',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+
+    # Define your tag groups as before
+    'TAGS': [
+        {'name': 'Jobs', 'description': 'general job management endpoints'},
+        {'name': 'Processing', 'description': 'endpoints related to job deidentification processing'},
+        {'name': 'Cleanup', 'description': 'removes all the created jobs and leftover files'},
+    ],
+}
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
@@ -121,14 +142,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'data')
 # Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-
-# Data directories for deidentification jobs
-DATA_INPUT_DIR = os.path.join(BASE_DIR, 'data', 'input')
-DATA_OUTPUT_DIR = os.path.join(BASE_DIR, 'data', 'output')
-
-# Create the directories on boot
-os.makedirs(DATA_INPUT_DIR, exist_ok=True)
-os.makedirs(DATA_OUTPUT_DIR, exist_ok=True)
 
 
 # Default primary key field type
