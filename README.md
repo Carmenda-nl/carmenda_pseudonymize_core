@@ -1,10 +1,12 @@
-# CARMENDA PSEUDOMIZE APP - Backend Building
+# CARMENDA PSEUDOMIZE APP
 
 This project uses a PyInstaller build backend,
 as the backend does not require any Python dependencies at runtime and is multiplatform.  
 The following guide explains the building process.
 
-## Step 1: Preparations
+## Backend building
+
+### Step 1: Preparations
 
 Pull this repository to your local machine.  
 > Important:** The operating system (OS) you use will determine the target build.  
@@ -12,10 +14,10 @@ Pull this repository to your local machine.
 
 Ensure Python is installed (minimum version 3.10).
 
-Open a terminal and navigate to the backend folder:
+Open a terminal and navigate to the code folder:
 
 ```bash
-cd code\backend
+cd code
 ```
 
 Create a virtual environment, as all dependencies need to be loaded into it:
@@ -45,7 +47,7 @@ You can now test-run the server to verify everything functions properly:
 python manage.py runserver
 ```
 
-## Step 2: Building
+### Step 2: Building
 
 With the terminal still open and the virtual environment active, move up one folder:
 
@@ -62,10 +64,12 @@ pip install pyinstaller
 Build the backend with the following command:
 
 ```bash
-pyinstaller backend.spec --noconfirm
+pyinstaller build.spec --noconfirm
 ```
 
 > This process may take some time.
+
+### Step 3: Run
 
 After building is complete, navigate to the created distribution folder:
 
@@ -82,16 +86,14 @@ backend.exe runserver --noreload
 If everything is functioning correctly, you can copy the `dist` folder along
 with the `.exe` and `_internal` folder to deploy the backend.
 
+---
+
 ## Docker build
 
 ```bash
 docker build -t backend .
 ```
 
+```bash
 docker run -p 8000:8000 backend
-
-Django version 5.1.7, using settings 'main.settings'
-Starting development server at http://0.0.0.0:8000/
-Quit the server with CONTROL-C.
-
-127.0.0.1
+```
