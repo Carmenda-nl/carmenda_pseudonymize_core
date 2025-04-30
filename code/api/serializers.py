@@ -43,7 +43,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         # split by comma and remove whitespace
         fields = [field.strip() for field in value.split(',')]
 
-        pattern = re.compile(r'^(\w+)=(.+)$')
+        pattern = re.compile(r'^([^=]+)=(.+)$')
         field_dict = {}
 
         for field in fields:

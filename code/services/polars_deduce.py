@@ -52,51 +52,6 @@ from deduce.person import Person
 deduce_instance = deduce.Deduce()
 
 
-def pseudonymize(unique_names, pseudonym_key=None, droplist=[], logger=None):
-    """
-    Generates pseudonyms (random strings) for a list of unique names.
-
-    Parameters:
-        unique_names (list): List of names to pseudonymize
-        pseudonym_key (dict, optional): Existing name-pseudonym mapping. Default: None
-        droplist (list, optional): Names to skip. Default: []
-        logger (logging.Logger, optional): Logger for information messages. Default: None
-
-    Returns:
-        dict: Mapping of original names to pseudonyms. Also contains None:None mapping.
-
-    Raises:
-        AssertionError: If number of unique names doesn't match number of mappings.
-    """
-    unique_names = [name for name in unique_names if name not in droplist]
-
-    if pseudonym_key is None:
-        logger.info('Building new key because argument was None')
-        pseudonym_key = {}
-    else:
-        logger.info('Building from existing key')
-
-    for name in unique_names:
-        if name not in pseudonym_key:
-            found_new = False
-            iterate = 0
-
-            while (found_new is False and iterate < 15):
-                iterate += 1
-                pseudonym_candidate = ''.join(
-                    random.choices(string.ascii_uppercase + string.ascii_uppercase+string.digits, k=14)
-                )
-                if pseudonym_candidate not in pseudonym_key.values():
-                    found_new is True
-                    pseudonym_key[name] = pseudonym_candidate
-
-    error_message = 'Unique_names (input) and pseudonym_key (output) do not have the same length'
-    assert len(unique_names) == len(pseudonym_key.items()), error_message
-    pseudonym_key[None] = None
-
-    return pseudonym_key
-
-
 def deduce_with_id(input_cols):
     """
     This is a factory function that returns an inner function configured to process
@@ -181,6 +136,51 @@ def replace_tags(text, new_value, tag='[PATIENT]'):
     except Exception:
         # no error log as null rows will be collected later
         return None
+
+
+def pseudonymize(unique_names, pseudonym_key=None, droplist=[], logger=None):
+    """
+    Generates pseudonyms (random strings) for a list of unique names.
+
+    Parameters:
+        unique_names (list): List of names to pseudonymize
+        pseudonym_key (dict, optional): Existing name-pseudonym mapping. Default: None
+        droplist (list, optional): Names to skip. Default: []
+        logger (logging.Logger, optional): Logger for information messages. Default: None
+
+    Returns:
+        dict: Mapping of original names to pseudonyms. Also contains None:None mapping.
+
+    Raises:
+        AssertionError: If number of unique names doesn't match number of mappings.
+    """
+    unique_names = [name for name in unique_names if name not in droplist]
+
+    if pseudonym_key is None:
+        logger.info('Building new key because argument was None')
+        pseudonym_key = {}
+    else:
+        logger.info('Building from existing key')
+
+    for name in unique_names:
+        if name not in pseudonym_key:
+            found_new = False
+            iterate = 0
+
+            while (found_new is False and iterate < 15):
+                iterate += 1
+                pseudonym_candidate = ''.join(
+                    random.choices(string.ascii_uppercase + string.ascii_uppercase+string.digits, k=14)
+                )
+                if pseudonym_candidate not in pseudonym_key.values():
+                    found_new is True
+                    pseudonym_key[name] = pseudonym_candidate
+
+    error_message = 'Unique_names (input) and pseudonym_key (output) do not have the same length'
+    assert len(unique_names) == len(pseudonym_key.items()), error_message
+    pseudonym_key[None] = None
+
+    return pseudonym_key
 
 
 def progress_tracker(tracker):
@@ -413,8 +413,10 @@ def process_data(input_fofi, input_cols, output_cols, pseudonym_key, output_exte
     else:
         logger.info('No problematic rows found!')
 
-    # print example table to terminal
-    print(f'\n{df}\n')
+    # do not run this when used in Electron, as it gives a `charmap` error
+    if not getattr(sys, 'frozen', False):
+        # print example table to terminal.
+        print(f'\n{df}\n')
 
     # update progress - writing output
     progress['update'](progress['get_stage_name'](6))
