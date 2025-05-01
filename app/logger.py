@@ -15,31 +15,27 @@ def setup_logging(log_dir='data/output'):
         log_dir (str): Directory to store log files
 
     Returns:
-        tuple: Main logger and py4j logger
+        tuple: deidentify logger
     """
     # ensure log directory exists
     os.makedirs(log_dir, exist_ok=True)
 
     # create formatter
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    # setup main logger
-    logger_main = logging.getLogger(__name__)
-    logger_main.setLevel(logging.INFO)
-    logger_main.handlers.clear()  # clear any existing handlers
+    # setup deidentify logger
+    logger = logging.getLogger('deidentify.logger')
+    logger.setLevel(logging.INFO)
 
-    # file handler for main log
-    file_handler = logging.FileHandler(os.path.join(log_dir, 'main.log'))
+    # clear existing handlers to prevent duplicates
+    if logger.hasHandlers():
+        for handler in logger.handlers:
+            handler.close()
+        logger.handlers.clear()
+
+    # file handler for deidentify log
+    file_handler = logging.FileHandler(os.path.join(log_dir, 'deidentification.log'))
     file_handler.setFormatter(formatter)
-    logger_main.addHandler(file_handler)
+    logger.addHandler(file_handler)
 
-    # setup py4j logger to suppress verbose logs
-    logger_py4j = logging.getLogger('py4j')
-    logger_py4j.setLevel(logging.ERROR)
-
-    # file handler for py4j log
-    py4j_file_handler = logging.FileHandler(os.path.join(log_dir, 'py4j.log'))
-    py4j_file_handler.setFormatter(formatter)
-    logger_py4j.addHandler(py4j_file_handler)
-
-    return logger_main, logger_py4j
+    return logger
