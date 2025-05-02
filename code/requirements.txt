@@ -8,7 +8,7 @@ drf-spectacular==0.28.0
 coreapi==2.3.3
 
 # large-scale data processing
-polars[all]==1.27.1
+polars[pandas]==1.27.1
 
 # deduce packages
 deduce==3.0.3

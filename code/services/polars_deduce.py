@@ -178,7 +178,6 @@ def pseudonymize(unique_names, pseudonym_key=None, droplist=[], logger=None):
 
     error_message = 'Unique_names (input) and pseudonym_key (output) do not have the same length'
     assert len(unique_names) == len(pseudonym_key.items()), error_message
-    pseudonym_key[None] = None
 
     return pseudonym_key
 

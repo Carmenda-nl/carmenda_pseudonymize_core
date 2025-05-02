@@ -3,9 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-FROM python:3.10.17
-
-LABEL image.author='d.heimgartner@tanooki.nl'
+FROM python:3.13.3
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
