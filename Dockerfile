@@ -12,12 +12,9 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY app /app
-COPY app/polars_deduce.py /app/polars_deduce_baked.py
 
 # create folders
 RUN mkdir -p data/input
 RUN mkdir -p data/output
 
-EXPOSE 4040
-
-ENTRYPOINT ["python", "polars_deduce_baked.py"]
+ENTRYPOINT ["python", "polars_deduce.py"]
