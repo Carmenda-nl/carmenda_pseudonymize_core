@@ -8,7 +8,12 @@ The following guide explains the building process.
 
 ### Step 1: Preparations
 
-Pull this repository to your local machine.  
+Pull this repository to your local machine.
+
+```bash
+git clone --recursive https://github.com/Carmenda-nl/carmenda_pseudonymize_backend.git
+```
+
 > Important:** The operating system (OS) you use will determine the target build.  
 > For example, using Windows will generate a Windows executable; using Linux will generate a Linux executable.
 
