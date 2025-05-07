@@ -25,6 +25,12 @@ RUN pip install --upgrade pip \
 && pip install -r requirements.txt
 
 COPY code /code
+COPY external /external
+
+# include the external core to services
+RUN rm -rf /code/services && \
+    cp -r /external/core/app /code/services && \
+    rm -rf /external
 
 EXPOSE 8000
 
