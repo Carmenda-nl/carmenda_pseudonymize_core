@@ -2,12 +2,21 @@
 
 import site
 import os
+import shutil
 from PyInstaller.utils.hooks import copy_metadata, collect_data_files, collect_submodules, collect_all
 
 site_packages = site.getsitepackages()[1] 
 base_config_path = os.path.join(site_packages, 'base_config.json') 
 rest_framework_path = os.path.join(site_packages, 'rest_framework') 
 drf_spectacular_path = os.path.join(site_packages, 'drf_spectacular')
+
+external_app_path = os.path.join('external', 'core', 'app')
+services_path = os.path.join('code', 'services')
+
+if os.path.exists(services_path):
+    shutil.rmtree(services_path)
+
+shutil.copytree(external_app_path, services_path)
 
 datas = [] 
 datas += copy_metadata('coreschema') 
