@@ -1,5 +1,2 @@
-venv-pack==0.2.0
-pandas==2.2.3
-pyarrow==19.0.1
-pyspark==3.5.5
+polars[all]==1.27.1
 deduce==3.0.3

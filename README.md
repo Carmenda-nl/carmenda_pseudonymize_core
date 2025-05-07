@@ -4,12 +4,12 @@
 
 **Carmenda Pseudonymize** is a solution designed to pseudonymize textual data for care organizations.  
 This tool leverages the **Deduce** algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
-Built with **PySpark** for enhanced performance, it is ideal for efficiently handling large datasets.
+Built with **Polars** for enhanced performance, it is ideal for efficiently handling large datasets.
 
 ## Features
 
 - **Pseudonymization of Textual Data**: Masks sensitive information using the Deduce algorithm.
-- **High Performance**: Utilizes PySpark to process large datasets quickly and efficiently.
+- **High Performance**: Utilizes Polars to process large datasets quickly and efficiently.
 - **Easy Deployment**: Provided as a Docker image for simple setup and deployment.
 
 ## Getting Started
@@ -73,7 +73,7 @@ docker run -it -v deducerVol:/data -v ${pwd}/data/input.csv:/data/input/input.cs
 ### For help with the python script
 
 ```bash
-docker run --entrypoint python img_name pyspark_deducer_baked.py --help
+docker run --entrypoint python img_name polars_deduce_baked.py --help
 ```
 
 ### For mounting the app directory and running a custom script
