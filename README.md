@@ -88,6 +88,13 @@ Test-run the built backend:
 backend.exe runserver --noreload
 ```
 
+on mac 
+
+```bash
+./backend runserver --noreload
+```
+
+
 If everything is functioning correctly, you can copy the `dist` folder along
 with the `.exe` and `_internal` folder to deploy the backend.
 
