@@ -2,10 +2,23 @@
 
 import site
 import os
+import sys
 import shutil
 from PyInstaller.utils.hooks import copy_metadata, collect_data_files, collect_submodules, collect_all
 
-site_packages = site.getsitepackages()[1] 
+
+# check build os
+mac = sys.platform == 'darwin'
+windows = sys.platform == 'win32'
+
+if mac:
+    site_packages = site.getsitepackages()[0]
+elif windows:
+    site_packages = site.getsitepackages()[1]
+else:
+    print('No Support for Linux!')
+    quit()
+
 base_config_path = os.path.join(site_packages, 'base_config.json') 
 rest_framework_path = os.path.join(site_packages, 'rest_framework') 
 drf_spectacular_path = os.path.join(site_packages, 'drf_spectacular')
@@ -52,7 +65,6 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('drf_spectacular') 
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
-# Gebruik os.path.join voor cross-platform compatibiliteit
 a = Analysis(
     [os.path.join('code', 'manage.py')],
     pathex=[],
@@ -72,27 +84,20 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='backend',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='backend',
 )
