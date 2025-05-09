@@ -2,11 +2,74 @@
 
 This project uses a PyInstaller build backend,
 as the backend does not require any Python dependencies at runtime and is multiplatform.  
-The following guide explains the building process.
+The following guide explains: How to setup a development or building environment locally.
+
+## Development
+
+### Step 1: Preparations
+
+Ensure Python is installed (minimum version 3.10) and Git.
+Clonel this repository to your local machine.
+
+```bash
+git clone --recursive https://github.com/Carmenda-nl/carmenda_pseudonymize_backend.git
+```
+
+Open a terminal and navigate to the code folder of this project:
+
+```bash
+cd code
+```
+
+Generate 3 symlinks (symbolic links) to the external core.
+
+```bash
+ln -s ../../external/core/app/polars_deduce.py code/services/polars_deduce.py
+ln -s ../../external/core/app/logger.py code/services/logger.py
+ln -s ../../external/core/app/progress_tracker.py code/services/progress_tracker.py
+```
+
+> Only possible on Linux based dev environments.
+> If on windows, copy the 3 files from the `external/core/apps` to `code/services` **WSL** is advisable for development
+
+Create a virtual environment, as all dependencies need to be loaded into it:
+
+```bash
+virtualenv .venv
+```
+
+Activate the virtual environment:
+
+```bash
+source .venv\bin\activate
+```
+
+> **Note:** This example assumes you are on a Windows system using WSL.  
+
+### Step 2: Install dependendies
+
+Install the project dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Add a `.env` file with the following data
+
+```bash
+SECRET_KEY=add any key here
+DEBUG=False
+```
+
+You can now test-run the server to verify everything functions properly:
+
+```bash
+python manage.py runserver
+```
 
 ## Backend building
 
-### Step 1: Preparations
+### Step 1: Setup
 
 Pull this repository to your local machine.
 
@@ -24,17 +87,6 @@ Open a terminal and navigate to the code folder:
 ```bash
 cd code
 ```
-
-Generate 3 symlinks (symbolic links) to the external core.
-
-```bash
-ln -s ../../external/core/app/polars_deduce.py code/services/polars_deduce.py
-ln -s ../../external/core/app/logger.py code/services/logger.py
-ln -s ../../external/core/app/progress_tracker.py code/services/progress_tracker.py
-```
-
-> Only possible on Linux based dev environments
-> If on windows just copy the 3 files from the `external/core/apps` to `code/services`
 
 Create a virtual environment, as all dependencies need to be loaded into it:
 
@@ -55,13 +107,6 @@ Install the project dependencies:
 
 ```bash
 pip install -r requirements.txt
-```
-
-Add a `.env` file with the following data
-
-```bash
-SECRET_KEY=add any key here
-DEBUG=False
 ```
 
 You can now test-run the server to verify everything functions properly:
