@@ -15,7 +15,7 @@ git clone --recursive https://github.com/Carmenda-nl/carmenda_pseudonymize_backe
 ```
 
 > Important:** The operating system (OS) you use will determine the target build.  
-> For example, using Windows will generate a Windows executable; using Linux will generate a Linux executable.
+> For example, using Windows will generate a Windows executable; using Mac will generate a MacOS executable.
 
 Ensure Python is installed (minimum version 3.10).
 
@@ -24,6 +24,17 @@ Open a terminal and navigate to the code folder:
 ```bash
 cd code
 ```
+
+Generate 3 symlinks (symbolic links) to the external core.
+
+```bash
+ln -s ../../external/core/app/polars_deduce.py code/services/polars_deduce.py
+ln -s ../../external/core/app/logger.py code/services/logger.py
+ln -s ../../external/core/app/progress_tracker.py code/services/progress_tracker.py
+```
+
+> Only possible on Linux based dev environments
+> If on windows just copy the 3 files from the `external/core/apps` to `code/services`
 
 Create a virtual environment, as all dependencies need to be loaded into it:
 
@@ -44,6 +55,13 @@ Install the project dependencies:
 
 ```bash
 pip install -r requirements.txt
+```
+
+Add a `.env` file with the following data
+
+```bash
+SECRET_KEY=add any key here
+DEBUG=False
 ```
 
 You can now test-run the server to verify everything functions properly:
@@ -84,19 +102,20 @@ cd dist\backend
 
 Test-run the built backend:
 
+On windows this is:
+
 ```bash
 backend.exe runserver --noreload
 ```
 
-on mac 
+On a mac run:
 
 ```bash
 ./backend runserver --noreload
 ```
 
-
-If everything is functioning correctly, you can copy the `dist` folder along
-with the `.exe` and `_internal` folder to deploy the backend.
+If everything is functioning correctly, you can copy the `backend` file from
+the dist folder to the frontend dist.
 
 ---
 
