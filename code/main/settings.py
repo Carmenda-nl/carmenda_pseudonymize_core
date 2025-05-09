@@ -1,24 +1,24 @@
 from pathlib import Path
+from django.core.management.utils import get_random_secret_key
+import environ
 import os
 
+
+env = environ.FileAwareEnv(
+    # set casting, default values for env's
+    DEBUG=(bool, False),
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# take environment variables from .env file
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#-x_4fkuedh45d2eo_p9v59$^622ofl01*!$i3(s^yqdi+i01&'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
+DEBUG = env('DEBUG')
+SECRET_KEY = env('SECRET_KEY', default=get_random_secret_key())
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-
-# Application definition
 
 INSTALLED_APPS = [
     'django.contrib.auth',
@@ -93,23 +93,28 @@ DATABASES = {
 # Django REST framework
 # https://www.django-rest-framework.org
 
-REST_FRAMEWORK = {
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-}
+if DEBUG:
+    REST_FRAMEWORK = {
+        'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    }
 
-SPECTACULAR_SETTINGS = {
-    'TITLE': 'Deidentification API',
-    'DESCRIPTION': 'API for file-based deidentification',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,
+    SPECTACULAR_SETTINGS = {
+        'TITLE': 'Deidentification API',
+        'DESCRIPTION': 'API for file-based deidentification',
+        'VERSION': '1.0.0',
+        'SERVE_INCLUDE_SCHEMA': False,
 
-    # Define your tag groups as before
-    'TAGS': [
-        {'name': 'Jobs', 'description': 'general job management endpoints'},
-        {'name': 'Processing', 'description': 'endpoints related to job deidentification processing'},
-        {'name': 'Cleanup', 'description': 'removes all the created jobs and leftover files'},
-    ],
-}
+        # Define your tag groups as before
+        'TAGS': [
+            {'name': 'Jobs', 'description': 'general job management endpoints'},
+            {'name': 'Processing', 'description': 'endpoints related to job deidentification processing'},
+            {'name': 'Cleanup', 'description': 'removes all the created jobs and leftover files'},
+        ],
+    }
+else:
+    REST_FRAMEWORK = {
+        'DEFAULT_RENDERER_CLASSES': ('rest_framework.renderers.JSONRenderer', )
+    }
 
 
 # Password validation
