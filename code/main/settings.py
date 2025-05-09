@@ -2,6 +2,7 @@ from pathlib import Path
 from django.core.management.utils import get_random_secret_key
 import environ
 import os
+import sys
 
 
 env = environ.FileAwareEnv(
@@ -30,6 +31,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'corsheaders',
     'api',
+    'main',
 ]
 
 MIDDLEWARE = [
@@ -42,6 +44,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if getattr(sys, 'frozen', False):
+    # Add additional middleware for pyinstaller envs (fixes: MEDIA_URL in prod)
+    MIDDLEWARE.append('main.middleware.ServeMediaFilesMiddleware')
 
 
 # CORS settings for electron communication
