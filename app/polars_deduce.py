@@ -35,6 +35,7 @@ Script logic:
 
 import os
 import sys
+import shutil
 import random
 import string
 import json
