@@ -48,8 +48,17 @@ from functools import reduce
 import deduce
 from deduce.person import Person
 
-# initialise deduce on first run
-deduce_instance = deduce.Deduce()
+# initialize deduce
+if getattr(sys, 'frozen', False):
+    lookup_data = os.path.join('data', 'deduce', 'data', 'lookup')
+
+    if not os.path.exists(lookup_data):
+        lookup_cached = os.path.join(sys._MEIPASS, 'deduce', 'data', 'lookup')
+        shutil.copytree(lookup_cached, lookup_data, dirs_exist_ok=True)
+
+    deduce_instance = deduce.Deduce(lookup_data_path=lookup_data, cache_path=lookup_data)
+else:
+    deduce_instance = deduce.Deduce()
 
 
 def deduce_with_id(input_cols):
