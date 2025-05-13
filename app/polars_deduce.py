@@ -192,6 +192,26 @@ def pseudonymize(unique_names, pseudonym_key=None, droplist=[], logger=None):
     return pseudonym_key
 
 
+def detect_separator(input_file):
+    """
+    Determines the separator from the first header row.
+
+    Parameters:
+        input_file (str): String with the header row
+
+    Returns:
+        str: String with the separator
+    """
+    with open(input_file, 'r', encoding='utf-8') as file:
+        header = file.readline()
+
+    candidates = [',', ';', '\t', '|']
+    scores = {separator: header.count(separator) for separator in candidates}
+    separator = max(scores, key=scores.get)
+
+    return separator
+
+
 def progress_tracker(tracker):
     """
     Creates a progress tracking mechanism for multi-stage processing.
@@ -270,9 +290,10 @@ def process_data(input_fofi, input_cols, output_cols, pseudonym_key, output_exte
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     if input_extension == '.csv':
-        input_fofi_size = os.stat(os.path.join(input_folder, input_fofi)).st_size
+        input_file = os.path.join(input_folder, input_fofi)
+        input_fofi_size = os.stat(input_file).st_size
         logger.info(f'CSV input file of size: {input_fofi_size}')
-        df = pl.read_csv(os.path.join(input_folder, input_fofi))
+        df = pl.read_csv(input_file, separator=detect_separator(input_file))
     else:
         df = pl.read_parquet(os.path.join(input_folder, input_fofi))
 
