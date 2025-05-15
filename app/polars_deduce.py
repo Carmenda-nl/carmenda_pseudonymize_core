@@ -81,14 +81,14 @@ def deduce_with_id(input_cols):
             patient_name = str.split(row[input_cols['patientName']], ' ', maxsplit=1)
             patient_initials = ''.join([name[0] for name in patient_name])
             """
-            Difficult to predict person metadata exactly. I.e. in case of multiple spaces
-            does this indicate multitude of first names or a composed last name ?
-
             Best will be if input data contains columns for first names, surname, initials
                 patient = Person(first_names=[patient_name[0:-1]]
                 surname=patient_name[-1], initials=patient_initials)
             """
-            deduce_patient = Person(first_names=[patient_name[0]], surname=patient_name[1], initials=patient_initials)
+            if len(patient_name) == 1:
+                deduce_patient = Person(first_names=[patient_name[0]])
+            else:
+                deduce_patient = Person(first_names=[patient_name[0]], surname=patient_name[1], initials=patient_initials)
 
             report_deid = deduce_instance.deidentify(row[input_cols['report']], metadata={'patient': deduce_patient})
             report_deid = getattr(report_deid, 'deidentified_text')
