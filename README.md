@@ -3,7 +3,7 @@
 ![Linter](https://img.shields.io/badge/linter-flake8-4B8B3B)
 
 **Carmenda Pseudonymize** is a solution designed to pseudonymize textual data for care organizations.  
-This tool leverages the **Deduce** algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
+This tool leverages the **[Deduce](https://github.com/vmenger/deduce)** tool (Menger et al. 2017) [1] algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
 Built with **Polars** for enhanced performance, it is ideal for efficiently handling large datasets.
 
 ## Features
@@ -81,3 +81,6 @@ docker run --entrypoint python img_name polars_deduce_baked.py --help
 ```bash
 docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input -v ${pwd}/app:/app --entrypoint python img_name your_script.py
 ```
+
+[1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
+
