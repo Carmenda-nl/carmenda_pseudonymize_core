@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+select = ['ALL']
+exclude = ['migrations']
+ignore = [
+    'I001',
+]
+
+[tool.ruff.format]
+quote-style = 'single'
+
+[tool.ruff.flake8-quotes]
+inline-quotes = 'single'
