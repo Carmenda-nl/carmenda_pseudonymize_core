@@ -20,12 +20,13 @@ def setup_logging(log_dir='data/output'):
     # ensure log directory exists
     os.makedirs(log_dir, exist_ok=True)
 
-    # create formatter
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # create formatters
+    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    console_formatter = logging.Formatter('%(message)s')  # Only show the message in terminal
 
     # setup deidentify logger
     logger = logging.getLogger('deidentify.logger')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     # clear existing handlers to prevent duplicates
     if logger.hasHandlers():
@@ -33,9 +34,16 @@ def setup_logging(log_dir='data/output'):
             handler.close()
         logger.handlers.clear()
 
-    # file handler for deidentify log
+    # file handler for deidentify log (INFO level and above)
     file_handler = logging.FileHandler(os.path.join(log_dir, 'deidentification.log'))
-    file_handler.setFormatter(formatter)
+    file_handler.setFormatter(file_formatter)
+    file_handler.setLevel(logging.INFO)  # Only INFO, WARNING, ERROR, CRITICAL to file
     logger.addHandler(file_handler)
+
+    # console handler for terminal output (DEBUG level and above)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(console_formatter)
+    console_handler.setLevel(logging.DEBUG)  # All levels to console
+    logger.addHandler(console_handler)
 
     return logger

@@ -8,12 +8,14 @@
 Script Name: polars_deduce.py
 Authors: Django Heimgartner, Joep Tummers, Pim van Oirschot
 Date: 2025-08-06
+
 Description:
     This script deidentifies Dutch report texts (unstructured data) using Deduce
     (Menger et al. 2018, DOI: https://doi.org/10.1016/j.tele.2017.08.002., also on GitHub).
     The column/field in source data marked as patient names is used to generate unique codes for each value.
     This makes it possible to use the same code across entries.
     Polars allows for performance on large input data sizes.
+
 Disclaimer:
     This script applying Deduce is a best attempt to pseudonymize data and while we are dedicated to
     improve performance we cannot guarantee an absence of false negatives.
@@ -21,6 +23,7 @@ Disclaimer:
     recognizes a person in a dataset.
     Datasets should always be handled with care because individuals are likely (re-)identifiable both through false
     negatives and from context in the unredacted parts of text.
+
 Script logic:
     - Load relevant module elements
     - Define functions
