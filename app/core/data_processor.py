@@ -13,196 +13,152 @@ This module provides functionality for:
     - Writing processed data to output files
 """
 
+from __future__ import annotations
+
+from core.pseudonymizer import Pseudonymizer
+from core.deduce_handler import DeduceHandler
 from services.logger import setup_logging
 from services.progress_tracker import progress_tracker, tracker
 from utils.file_handling import (
+    create_output_file_path,
     get_environment_paths,
     get_file_extension,
     get_file_size,
     load_data_file,
     load_pseudonym_key,
-    save_pseudonym_key,
-    create_output_file_path,
     save_data_file,
+    save_pseudonym_key,
 )
 
-from core.pseudonymizer import pseudonymize
-from core.deduce_handler import DeduceHandler
-
-
-import sys
-import json
-import time
-import polars as pl
-
-import multiprocessing
 from functools import reduce
+from typing import TYPE_CHECKING
+import polars as pl
+import multiprocessing
+import sys
+import time
+import json
+
+if TYPE_CHECKING:
+    import logging
 
 
-def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_key: str, output_extension: str) -> str:
-    """Process and pseudonymize patient data from input files.
-
-    Parameters
-    ----------
-    input_fofi : str
-        Input file or folder identifier.
-    input_cols : str
-        Comma-separated string of input column mappings.
-    output_cols : str
-        Comma-separated string of output column mappings.
-    pseudonym_key : str
-        Path to pseudonym key file or None.
-    output_extension : str
-        Desired output file extension (.csv or .parquet).
-
-    Returns
-    -------
-    str
-        JSON string containing processed data preview.
-
-    """
-    params = dict(locals().items())
-    params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
-
-    input_folder, output_folder = get_environment_paths()
-    logger = setup_logging(output_folder)
-
-    logger.debug('\nParsed arguments:\n%s\n', params_str)
-
-    # start progress tracking
-    progress = progress_tracker(tracker)
-    progress['update'](progress['get_stage_name'](0))
-
-    # update progress - loading data
-    progress['update'](progress['get_stage_name'](1))
-
-    # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
-
-    # get file path and extension
-    input_file_path = f'{input_folder}/{input_fofi}' if not input_fofi.startswith('/') else input_fofi
+def _load_data_file(input_file_path: str, logger: logging.Logger) -> pl.DataFrame:
+    """Load data file and log relevant information."""
     input_extension = get_file_extension(input_file_path)
 
     if input_extension == '.csv':
         file_size = get_file_size(input_file_path)
         logger.info('CSV input file of size: %s', file_size)
 
-    # load data using file utilities
+    # Load data using file utilities
     df = load_data_file(input_file_path)
 
-    # update progress - pre-processing
-    progress['update'](progress['get_stage_name'](2))
-
-    # convert string mappings to dictionaries
-    input_cols = dict(item.strip().split('=') for item in input_cols.split(','))
-    output_cols = dict(item.strip().split('=') for item in output_cols.split(','))
-
-    # check if the `patientName` column is available
-    patient_name_col = input_cols.get('patientName', None)
-    has_patient_name = patient_name_col in df.columns
-
-    # log a columns schema
+    # Log a columns schema
     schema_str = 'root\n' + '\n'.join([f' |-- {name}: {dtype}' for name, dtype in df.schema.items()])
     logger.debug('%s \n', schema_str)
 
-    # count rows
+    # Count rows
     df_rowcount = df.height
     logger.info('Row count: %d', df_rowcount)
+    return df
 
-    # update progress - pseudonymization
-    progress['update'](progress['get_stage_name'](3))
 
-    start_time = time.time()
+def _parse_column_mappings(input_cols: str, output_cols: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Parse column mapping strings into dictionaries."""
+    input_cols = dict(item.strip().split('=') for item in input_cols.split(','))
+    output_cols = dict(item.strip().split('=') for item in output_cols.split(','))
 
-    # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
+    return input_cols, output_cols
 
-    # load existing pseudonym key if provided
-    pseudonym_key_dict = None
-    logger.info('Searching for pseudonym key: %s', pseudonym_key)
 
-    if pseudonym_key is not None:
-        key_file_path = f'{input_folder}/{pseudonym_key}'
-        pseudonym_key_dict = load_pseudonym_key(key_file_path)
+def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict, logger: logging.Logger) -> dict[str, str]:
+    """Create pseudonym key for patient names."""
+    unique_names = (
+        df.select(input_cols['patientName'])
+        .filter(pl.col(input_cols['patientName']).is_not_null())
+        .unique()
+        .to_series()
+    )
 
-    # create an pseudonym_key when `patientName` exists
-    if has_patient_name:
-        unique_names = (
-            df.select(input_cols['patientName'])
-            .filter(pl.col(input_cols['patientName']).is_not_null())
-            .unique()
-            .to_series()
+    pseudonymizer = Pseudonymizer(logger=logger)
+    pseudonymizer.load_key(pseudonym_key_dict)
+    return pseudonymizer.pseudonymize(unique_names)
+
+
+def _with_patient(df: pl.DataFrame, input_cols: dict, pseudonym_key: dict, logger: logging.Logger) -> pl.DataFrame:
+    """Transform data when patient name column is available."""
+    handler = DeduceHandler()
+    patient_name_col = input_cols['patientName']
+
+    # Create a new column `patientID` with pseudonym keys
+    df = df.with_columns(
+        pl.col(patient_name_col)
+        # Obtain randomized string corresponding to name
+        .map_elements(lambda name: pseudonym_key.get(name), return_dtype=pl.Utf8)
+        .alias('patientID'),
+    )
+
+    # Create a new column `processed_report` with deduced names
+    df = df.with_columns(
+        pl.struct(df.columns)
+        .map_elements(handler.deduce_with_id(input_cols), return_dtype=pl.Utf8)
+        .alias('processed_report'),
+    )
+
+    # Replace [PATIENT] tags in `processed_report` with pseudonym keys
+    df = df.with_columns(
+        pl.struct(['processed_report', 'patientID'])
+        .map_elements(
+            lambda row: handler.replace_tags(row['processed_report'], row['patientID']),
+            return_dtype=pl.Utf8,
         )
-        pseudonym_key = pseudonymize(unique_names, pseudonym_key, logger=logger)
-        save_pseudonym_key(pseudonym_key, output_folder)
+        .alias('processed_report'),
+    )
 
-        # update progress - data transformation
-        progress['update'](progress['get_stage_name'](4))
+    logger.debug(df.head(10))
+    return df
 
-        # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
-        handler = DeduceHandler()
+def _without_patient(df: pl.DataFrame, input_cols: dict, logger: logging.Logger) -> pl.DataFrame:
+    """Transform data when no patient name column is available."""
+    handler = DeduceHandler()
+    logger.info('No patientName column, extracting names from reports')
 
-        # create a new column `patientID` with pseudonym keys
-        df = df.with_columns(
-            pl.col(patient_name_col)
-            # obtain randomized string corresponding to name
-            .map_elements(lambda name: pseudonym_key.get(name, None), return_dtype=pl.Utf8)
-            .alias('patientID'),
-        )
+    return df.with_columns(
+        pl.struct(df.columns)
+        .map_elements(handler.deduce_report_only(input_cols), return_dtype=pl.Utf8)
+        .alias('processed_report'),
+    )
 
-        # create a new column `processed_report` with deduced names
-        df = df.with_columns(
-            pl.struct(df.columns)
-            .map_elements(handler.deduce_with_id(input_cols), return_dtype=pl.Utf8)
-            .alias('processed_report'),
-        )
 
-        # replace [PATIENT] tags in `processed_report` with pseudonym keys
-        df = df.with_columns(
-            pl.struct(['processed_report', 'patientID'])
-            .map_elements(
-                lambda row: handler.replace_tags(row['processed_report'], row['patientID']), return_dtype=pl.Utf8,
-            )
-            .alias('processed_report'),
-        )
-
-        # log the first 10 rows of the dataframe
-        print(df.head(10))
-
-    else:
-        logger.info('No patientName column, extracting names from reports')
-
-        # update progress - data transformation
-        progress['update'](progress['get_stage_name'](4))
-
-        # create a new column `processed_report` with deduced names
-        df = df.with_columns(
-            pl.struct(df.columns)
-            .map_elements(handler.deduce_report_only(input_cols), return_dtype=pl.Utf8)
-            .alias('processed_report'),
-        )
-
+def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, logger: logging.Logger) -> pl.DataFrame:
+    """Prepare data for output by selecting and renaming columns."""
     select_cols = [col for col in output_cols.values() if col in df.columns]
     df = df.select(select_cols)
     logger.info('Output columns: %s\n', df.columns)
 
-    # rename headers to their original input name
-    input_cols_keys = dict(input_cols)
+    # Rename headers to their original input name
     rename_headers = {}
 
     if 'patientID' in df.columns and 'patientName' in output_cols:
-        rename_headers['patientID'] = input_cols_keys['patientName']
-    if 'processed_report' in df.columns and 'report' in input_cols_keys:
-        rename_headers['processed_report'] = input_cols_keys['report']
+        rename_headers['patientID'] = input_cols['patientName']
+    if 'processed_report' in df.columns and 'report' in input_cols:
+        rename_headers['processed_report'] = input_cols['report']
 
     if rename_headers:
         df = df.rename(rename_headers)
 
-    # update progress - filtering nulls
-    progress['update'](progress['get_stage_name'](5))
+    return df
 
-    # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    # handling of irregularities
+def _filter_null_rows(
+    df: pl.DataFrame,
+    output_folder: str,
+    input_fofi: str,
+    output_extension: str,
+    logger: logging.Logger,
+) -> pl.DataFrame:
+    """Filter out rows with null values and save them separately."""
     filter_condition = reduce(
         lambda acc, col_name: acc | pl.col(col_name).is_null(),
         df.columns,
@@ -210,14 +166,14 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     )
     logger.info('Filtering rows with NULL in any of these columns: %s', ', '.join(df.columns))
 
-    # collecting rows with problems
+    # Collecting rows with problems
     df_with_nulls = df.filter(filter_condition)
 
-    # if null rows found, collect rows and build file
+    # If null rows found, collect rows and build file
     if not df_with_nulls.is_empty():
         try:
             logger.warning('Number of rows with problems: %d\n', df_with_nulls.height)
-            print(f'{df_with_nulls}\n')
+            logger.debug('%s\n', df_with_nulls)
 
             logger.info('Attempting to write dataframe of rows with nulls to file.')
             output_file = create_output_file_path(output_folder, input_fofi, '_with_nulls')
@@ -226,7 +182,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         except (OSError, PermissionError, ValueError):
             logger.exception('Problematic rows detected. Continuing with valid rows.')
 
-        # cleanup the problematic rows and keep the good ones
+        # Cleanup the problematic rows and keep the good ones
         if 'df_with_nulls' in locals():
             del df_with_nulls
 
@@ -235,28 +191,11 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     else:
         logger.info('No problematic rows found!')
 
-    # only print to terminal when not running as a frozen executable
-    if not getattr(sys, 'frozen', False):
-        # print example table to terminal.
-        print(f'\n{df}\n')
+    return df
 
-    # update progress - writing output
-    progress['update'](progress['get_stage_name'](6))
 
-    # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
-
-    # extract first 10 rows as JSON for return value
-    processed_preview = df.head(10).to_dicts()
-
-    output_file = create_output_file_path(output_folder, input_fofi)
-    save_data_file(df, output_file, output_extension)
-
-    if output_extension == '.csv':
-        logger.info('Selected output extension is .csv\n')
-    elif output_extension != '.parquet':
-        logger.warning('Selected output extension not supported, using parquet.\n')
-
-    # stop the timer and log the results
+def _performance_metrics(start_time: float, df_rowcount: int, logger: logging.Logger) -> None:
+    """Log performance metrics for the processing operation."""
     end_time = time.time()
     total_time = end_time - start_time
     time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
@@ -268,7 +207,106 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     )
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
-    # update progress - finalizing
+
+def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_key: str, output_extension: str) -> str:
+    """Process and pseudonymize patient data from input files and return in Json."""
+    params = dict(locals().items())
+    params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
+
+    input_folder, output_folder = get_environment_paths()
+    logger = setup_logging(output_folder)
+
+    logger.debug('\nParsed arguments:\n%s\n', params_str)
+
+    # Start progress tracking
+    progress = progress_tracker(tracker)
+    progress['update'](progress['get_stage_name'](0))
+
+    # Update progress - Loading data
+    progress['update'](progress['get_stage_name'](1))
+
+    # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
+
+    input_file_path = f'{input_folder}/{input_fofi}' if not input_fofi.startswith('/') else input_fofi
+    df = _load_data_file(input_file_path, logger)
+
+    # Update progress - pre-processing
+    progress['update'](progress['get_stage_name'](2))
+
+    # Convert string mappings to dictionaries
+    input_cols_dict, output_cols_dict = _parse_column_mappings(input_cols, output_cols)
+
+    # Check if the `patientName` column is available
+    patient_name_col = input_cols_dict.get('patientName', None)
+    has_patient_name = patient_name_col in df.columns
+
+    # Step 3: Create pseudonym key if needed
+    progress['update'](progress['get_stage_name'](3))
+
+    start_time = time.time()
+
+    # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
+
+    # Load existing pseudonym key if provided
+    pseudonym_key_dict = None
+    logger.info('Searching for pseudonym key: %s', pseudonym_key)
+
+    if pseudonym_key is not None:
+        key_file_path = f'{input_folder}/{pseudonym_key}'
+        pseudonym_key_dict = load_pseudonym_key(key_file_path)
+        logger.info('Loaded existing pseudonym key: %s', pseudonym_key)
+
+    if has_patient_name:
+        pseudonym_key = _create_key(df, input_cols_dict, pseudonym_key_dict, logger)
+        save_pseudonym_key(pseudonym_key, output_folder)
+
+    # Update progress - data transformation
+    progress['update'](progress['get_stage_name'](4))
+
+    # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
+
+    handler = DeduceHandler()
+
+    if has_patient_name:
+        df = _with_patient(df, input_cols_dict, pseudonym_key, logger)
+    else:
+        df = _without_patient(df, input_cols_dict, logger)
+
+    # Prepare output data
+    df = _prepare_output_data(df, input_cols_dict, output_cols_dict, logger)
+
+    # Update progress - filtering nulls
+    progress['update'](progress['get_stage_name'](5))
+
+    # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
+
+    df = _filter_null_rows(df, output_folder, input_fofi, output_extension, logger)
+
+    # Only print to terminal when not running as a frozen executable
+    if not getattr(sys, 'frozen', False):
+        # Log example table to debug.
+        logger.debug('\n%s\n', df)
+
+    # Update progress - writing output
+    progress['update'](progress['get_stage_name'](6))
+
+    # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
+
+    # Extract first 10 rows as JSON for return value
+    processed_preview = df.head(10).to_dicts()
+
+    output_file = create_output_file_path(output_folder, input_fofi)
+    save_data_file(df, output_file, output_extension)
+
+    if output_extension == '.csv':
+        logger.info('Selected output extension is .csv\n')
+    elif output_extension != '.parquet':
+        logger.warning('Selected output extension not supported, using parquet.\n')
+
+    # Log performance and finalize
+    _performance_metrics(start_time, df.height, logger)
+
+    # Update progress - finalizing
     progress['update'](progress['get_stage_name'](7))
 
     result = {'data': processed_preview}

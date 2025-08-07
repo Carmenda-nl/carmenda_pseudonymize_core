@@ -2,9 +2,7 @@
 line-length = 120
 select = ['ALL']
 exclude = ['migrations']
-ignore = [
-    'I001',
-]
+ignore = ['I001']
 
 [tool.ruff.format]
 quote-style = 'single'

@@ -7,49 +7,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+import polars as pl
 import sys
 import json
-from typing import TYPE_CHECKING
-from pathlib import Path
-
-if TYPE_CHECKING:
-    import polars as pl
-
-import polars as pl
-
-
-def detect_separator(input_file: str) -> str:
-    """Determine the separator from the first header row.
-
-    Parameters
-    ----------
-    input_file : str
-        Path to the input file
-
-    Returns
-    -------
-    str
-        The detected separator character
-
-    """
-    file_path = Path(input_file)
-    with file_path.open(encoding='utf-8') as file:
-        header = file.readline()
-
-    candidates = [',', ';', '\t', '|']
-    scores = {separator: header.count(separator) for separator in candidates}
-    return max(scores, key=scores.get)
 
 
 def get_environment_paths() -> tuple[str, str]:
-    """Get input and output folder paths based on the current environment.
-
-    Returns
-    -------
-    tuple[str, str]
-        Tuple containing (input_folder, output_folder) paths
-
-    """
+    """Get input and output folder paths based on the current environment."""
     if sys.argv[0] == 'manage.py':
         # Django environment
         input_folder = 'data/input/'
@@ -68,60 +33,48 @@ def get_environment_paths() -> tuple[str, str]:
 
 
 def get_file_extension(file_path: str) -> str:
-    """Get file extension from a file path.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the file
-
-    Returns
-    -------
-    str
-        File extension including the dot (e.g., '.csv', '.parquet')
-
-    """
+    """Get file extension from a file path."""
     return Path(file_path).suffix
 
 
 def get_file_size(file_path: str) -> int:
-    """Get the size of a file in bytes.
+    """Get the size of a file in bytes."""
+    try:
+        return Path(file_path).stat().st_size
+    except (FileNotFoundError, PermissionError) as e:
+        error_msg = f'Cannot access file "{file_path}": {e}'
+        raise type(e)(error_msg) from e
 
-    Parameters
-    ----------
-    file_path : str
-        Path to the file
 
-    Returns
-    -------
-    int
-        File size in bytes
+def detect_separator(input_file: str) -> str:
+    """Determine the separator from the first header row."""
+    file_path = Path(input_file)
 
-    """
-    return Path(file_path).stat().st_size
+    try:
+        with file_path.open(encoding='utf-8') as file:
+            header = file.readline().strip()
+    except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
+        error_msg = f'Cannot read file "{input_file}": {e}'
+        raise ValueError(error_msg) from e
+
+    if not header:
+        error_msg = f'File "{input_file}" is empty or has no header'
+        raise ValueError(error_msg)
+
+    candidates = [',', ';', '\t', '|']
+    scores = {separator: header.count(separator) for separator in candidates}
+    best_separator = max(scores, key=scores.get)
+
+    # Ensure we found at least one separator
+    if scores[best_separator] == 0:
+        error_msg = f'No valid separator found in "{input_file}". Tried: {candidates}'
+        raise ValueError(error_msg)
+
+    return best_separator
 
 
 def load_data_file(file_path: str, separator: str | None = None) -> pl.DataFrame:
-    """Load data from CSV or Parquet file.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the input file
-    separator : str, optional
-        CSV separator character. If None, will be auto-detected for CSV files
-
-    Returns
-    -------
-    pl.DataFrame
-        Loaded data as Polars DataFrame
-
-    Raises
-    ------
-    ValueError
-        If file format is not supported
-
-    """
+    """Load data from CSV or Parquet file."""
     file_extension = get_file_extension(file_path)
 
     if file_extension == '.csv':
@@ -133,110 +86,80 @@ def load_data_file(file_path: str, separator: str | None = None) -> pl.DataFrame
         return pl.read_parquet(file_path)
 
     supported_formats = ['.csv', '.parquet']
-    msg = f'Unsupported file format: {file_extension}. Supported: {supported_formats}'
-    raise ValueError(msg)
+    message = f'Unsupported file format: {file_extension}. Supported: {supported_formats}'
+    raise ValueError(message)
 
 
-def save_data_file(
-    df: pl.DataFrame,
-    file_path: str,
-    output_extension: str = '.parquet',
-) -> None:
-    """Save DataFrame to file in specified format.
+def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.parquet') -> None:
+    """Save DataFrame to file in specified format."""
+    output_path = Path(file_path).parent
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    Parameters
-    ----------
-    df : pl.DataFrame
-        DataFrame to save
-    file_path : str
-        Output file path (without extension)
-    output_extension : str, default '.parquet'
-        Output file format ('.csv' or '.parquet')
-
-    """
-    if output_extension == '.csv':
-        df.write_csv(f'{file_path}.csv')
-    else:
-        df.write_parquet(f'{file_path}.parquet')
+    try:
+        if output_extension == '.csv':
+            df.write_csv(f'{file_path}.csv')
+        elif output_extension == '.parquet':
+            df.write_parquet(f'{file_path}.parquet')
+        else:
+            supported_formats = ['.csv', '.parquet']
+            error_msg = f'Unsupported output format: {output_extension}. Supported: {supported_formats}'
+            raise ValueError(error_msg)
+    except (OSError, PermissionError) as e:
+        error_msg = f'Cannot write file "{file_path}{output_extension}": {e}'
+        raise OSError(error_msg) from e
 
 
 def load_pseudonym_key(key_file_path: str) -> dict[str, str]:
-    """Load pseudonym key from JSON file.
-
-    Parameters
-    ----------
-    key_file_path : str
-        Path to the JSON key file
-
-    Returns
-    -------
-    dict[str, str]
-        Dictionary mapping original names to pseudonyms
-
-    """
+    """Load pseudonym key from JSON file."""
     file_path = Path(key_file_path)
-    with file_path.open(encoding='utf-8') as file:
-        return json.load(file)
+
+    try:
+        with file_path.open(encoding='utf-8') as file:
+            data = json.load(file)
+    except FileNotFoundError as e:
+        error_msg = f'Pseudonym key file not found: "{key_file_path}"'
+        raise FileNotFoundError(error_msg) from e
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        error_msg = f'Invalid JSON in pseudonym key file "{key_file_path}": {e}'
+        raise ValueError(error_msg) from e
+
+    # Validate that it's a string-to-string mapping
+    if not isinstance(data, dict):
+        error_msg = f'Pseudonym key must be a JSON object, got {type(data).__name__}'
+        raise TypeError(error_msg)
+
+    # Ensure all keys and values are strings
+    try:
+        return {str(k): str(v) for k, v in data.items()}
+    except (TypeError, AttributeError) as e:
+        error_msg = f'Pseudonym key must contain string mappings: {e}'
+        raise ValueError(error_msg) from e
 
 
-def save_pseudonym_key(
-    pseudonym_key: dict[str, str],
-    output_folder: str,
-    filename: str = 'pseudonym_key.json',
-) -> None:
-    """Save pseudonym key to JSON file.
+def save_pseudonym_key(pseudonym_key: dict[str, str], output_folder: str, filename: str = 'pseudonym_key.json') -> None:
+    """Save pseudonym key to JSON file."""
+    output_path = Path(output_folder)
 
-    Parameters
-    ----------
-    pseudonym_key : dict[str, str]
-        Dictionary mapping original names to pseudonyms
-    output_folder : str
-        Output folder path
-    filename : str, default 'pseudonym_key.json'
-        Output filename
+    try:
+        output_path.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        error_msg = f'Cannot create output directory "{output_folder}": {e}'
+        raise OSError(error_msg) from e
 
-    """
-    output_path = Path(output_folder) / filename
-    with output_path.open('w', encoding='utf-8') as outfile:
-        json.dump(pseudonym_key, outfile, indent=2)
+    file_path = output_path / filename
+    try:
+        with file_path.open('w', encoding='utf-8') as outfile:
+            json.dump(pseudonym_key, outfile, indent=2)
+    except (OSError, TypeError) as e:
+        error_msg = f'Cannot write pseudonym key to "{file_path}": {e}'
+        raise OSError(error_msg) from e
 
 
-def create_output_file_path(
-    output_folder: str,
-    input_filename: str,
-    suffix: str = '',
-) -> str:
-    """Create output file path based on input filename.
-
-    Parameters
-    ----------
-    output_folder : str
-        Output folder path
-    input_filename : str
-        Original input filename
-    suffix : str, default ''
-        Optional suffix to add to filename (e.g., '_with_nulls')
-
-    Returns
-    -------
-    str
-        Output file path without extension
-
-    """
+def create_output_file_path(output_folder: str, input_filename: str, suffix: str = '') -> str:
+    """Create output file path based on input filename."""
     input_path = Path(input_filename)
     base_name = input_path.stem
+
     if suffix:
         base_name = f'{base_name}{suffix}'
     return str(Path(output_folder) / base_name)
-
-
-def ensure_directory_exists(directory_path: str) -> None:
-    """Ensure that a directory exists, creating it if necessary.
-
-    Parameters
-    ----------
-    directory_path : str
-        Path to the directory
-
-    """
-    Path(directory_path).mkdir(parents=True, exist_ok=True)

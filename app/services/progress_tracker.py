@@ -3,54 +3,52 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
+"""Progress tracking utilities for multi-stage data processing.
+
+This module provides the ProgressTracker class and a factory function for managing and reporting
+progress across various processing stages in the core.
+"""
+
+from __future__ import annotations
+
 from threading import Lock
+import logging
 
 
 class ProgressTracker:
-    def __init__(self):
+    """Singleton class to track progress across multiple stages of data processing."""
+
+    def __init__(self) -> None:
+        """Initialize the ProgressTracker with default values."""
         self.progress = 0
         self.current_stage = None
         self.lock = Lock()
 
-    def update_progress(self, percentage, stage=None):
-        """
-        Update the progress tracker with new percentage and stage information.
+    def update_progress(self, percentage: float, stage: str | None = None) -> None:
+        """Update the progress tracker with new percentage and stage information."""
+        with self.lock:
+            self._update_internal_state(percentage, stage)
 
-        Parameters:
-            percentage (int): Progress percentage (0-100)
-            stage (str, optional): Current processing stage name
-        """
-        self.progress = percentage
-
+    def _update_internal_state(self, percentage: float, stage: str | None) -> None:
+        """Update the progress and stage safely."""
+        self.progress = int(percentage)
         if stage is not None:
             self.current_stage = stage
 
-    def get_progress(self):
-        """
-        Returns the current status as a dictionary.
-        """
-        return {
-            'percentage': self.progress,
-            'stage': self.current_stage
-        }
+    def get_progress(self) -> dict[str, int | str | None]:
+        """Retrieve the current progress and stage information."""
+        with self.lock:
+            return {'percentage': self.progress, 'stage': self.current_stage}
 
 
-# singleton instance
+# Singleton instance (only one instance needed)
 tracker = ProgressTracker()
 
 
+def progress_tracker(tracker: ProgressTracker) -> dict:
+    """Create a progress tracker for multi-stage processing."""
+    logger = logging.getLogger(__name__)
 
-
-def progress_tracker(tracker):
-    """
-    Creates a progress tracking mechanism for multi-stage processing.
-
-    Parameters:
-        tracker: Global tracker object to update overall progress
-
-    Returns:
-        Dictionary containing progress tracking functions and data
-    """
     progress_stages = [
         'Prepare data',
         'Loading data',
@@ -71,17 +69,29 @@ def progress_tracker(tracker):
         'stages': progress_stages,
     }
 
-    def update_progress(stage_name=None):
+    def _calculate_percentage() -> int:
+        """Calculate current progress percentage."""
+        return int((progress_data['current_stage'] / total_stages) * 100)
+
+    def _log_progress(percentage: int, bar: str, stage_name: str) -> None:
+        """Log the progress with colored output."""
+        green = '\033[92m'
+        reset = '\033[0m'
+        logger.debug('\n%s[%3d%%]%s %s %s\n', green, percentage, reset, bar, stage_name)
+
+    def update_progress(stage_name: str | None = None) -> int:
+        """Update progress to next stage and return current percentage."""
         if stage_name is None and progress_data['current_stage'] < total_stages:
             stage_name = progress_stages[progress_data['current_stage']]
 
         progress_data['current_stage'] += 1
-        progress_data['progress_percentage'] = int((progress_data['current_stage'] / total_stages) * 100)
+        progress_percentage = _calculate_percentage()
+        progress_data['progress_percentage'] = progress_percentage
 
-        # update the global progress tracker
-        tracker.update_progress(progress_data['progress_percentage'], stage_name)
+        # Update the global progress tracker
+        tracker.update_progress(progress_percentage, stage_name)
 
-        return progress_data['progress_percentage']
+        return progress_percentage
 
     return {
         'update': update_progress,

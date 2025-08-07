@@ -3,4 +3,4 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Test package for carmenda_pseudonymize_core."""
+"""Tests package for carmenda_pseudonymize_core."""

@@ -49,7 +49,7 @@ class DeduceHandler:
                 patient_name = str.split(row[input_cols['patientName']], ' ', maxsplit=1)
                 patient_initials = ''.join([name[0] for name in patient_name])
 
-                # best results with input data that contains columns for: first names, surname, initials
+                # Best results with input data that contains columns for: first names, surname, initials
                 if len(patient_name) == 1:
                     deduce_patient = Person(first_names=[patient_name[0]])
                 else:
@@ -65,7 +65,7 @@ class DeduceHandler:
                 )
 
             except (KeyError, IndexError, AttributeError, ValueError):
-                # no error log as null rows will be collected later
+                # No error log as null rows will be collected later
                 return ''
             else:
                 return report_deid.deidentified_text
@@ -79,7 +79,7 @@ class DeduceHandler:
             try:
                 report_deid = self.deduce_instance.deidentify(row[input_cols['report']])
             except (KeyError, AttributeError, ValueError):
-                # no error log as null rows will be collected later
+                # No error log as null rows will be collected later
                 return None
             else:
                 return report_deid.deidentified_text
