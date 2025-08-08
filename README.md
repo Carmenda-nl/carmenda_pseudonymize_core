@@ -41,7 +41,7 @@ Use the following commands in the terminal to build and run the container.
 Build the image from the Dockerfile (replace `latest` with a different tag if needed):
 
 ```bash
-docker build -t carmenda/pseudonymizer:latest .
+docker build -t carmenda/core:latest .
 ```
 
 ### Run the Image
@@ -62,6 +62,11 @@ The second `-v` connects your local folder with output data to the `/data/input`
 
 ```bash
 docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input img_name input.csv
+```
+
+> example:
+```bash
+docker run -v "/mnt/c/Users/djang/Documents/data/input:/data/input" -v "/mnt/c/Users/djang/Documents/data/output:/data/output" core:latest --input_fofi /data/input/dummy_input.csv --input_cols "patientName=Clientnaam, report=Rapportage"
 ```
 
 ### Interactive terminal, binding down to a specific file (second -v), calling a specific image version using :latest tag
