@@ -65,6 +65,7 @@ docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input img_name input.c
 ```
 
 > example:
+
 ```bash
 docker run -v "/mnt/c/Users/djang/Documents/data/input:/data/input" -v "/mnt/c/Users/djang/Documents/data/output:/data/output" core:latest --input_fofi /data/input/dummy_input.csv --input_cols "patientName=Clientnaam, report=Rapportage"
 ```
