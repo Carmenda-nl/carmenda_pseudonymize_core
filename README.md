@@ -83,4 +83,3 @@ docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input -v ${pwd}/app:/a
 ```
 
 [1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
-

@@ -3,18 +3,21 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-FROM python:3.13.3
+FROM python:3.21-alpine
 
-WORKDIR /app
+WORKDIR /source
 
 # install py packages
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN apk update && apk upgrade && \
+    pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apk cache clean
 
-COPY app /app
+COPY source /source
 
 # create folders
 RUN mkdir -p data/input
 RUN mkdir -p data/output
 
-ENTRYPOINT ["python", "polars_deduce.py"]
+ENTRYPOINT ["python", "main.py"]
