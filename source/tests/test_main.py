@@ -7,8 +7,14 @@
 
 import argparse
 import pytest
-from main import parse_cli_arguments, main
+import sys
+from pathlib import Path
 from unittest.mock import patch, MagicMock
+
+# Add the parent directory to the Python path so we can import main
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from main import parse_cli_arguments, main
 
 
 class TestParseCliArguments:
