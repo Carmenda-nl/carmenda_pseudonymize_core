@@ -25,8 +25,9 @@ def setup_logging(log_dir: str = 'data/output', console_level: int | None = None
     file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Setup deidentify logger
-    logger = logging.getLogger('deidentify.logger')
-    logger.setLevel(logging.DEBUG)
+    logger = logging.getLogger('deidentify')
+    logger.setLevel(logging.DEBUG)  # <- set logging level
+    logger.propagate = True  # <- disables logging to console if `False`
 
     # Clear existing handlers to prevent duplicates
     if logger.hasHandlers():
