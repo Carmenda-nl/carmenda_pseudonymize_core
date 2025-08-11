@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Deduce handler module for text de-identification and pseudonymization.
+"""Deduce handler module for text de-identification.
 
 This module provides functions for processing medical text data using the Deduce
 de-identification library with enhanced case-insensitive name detection. It includes:
@@ -47,11 +47,20 @@ class DutchNameDetector:
         self.surnames: set[str] = set()
         self.interfix_surnames: set[str] = set()
         self.interfixes: set[str] = set()
+        self.common_words: set[str] = set()
 
         self._load_lookup_tables()
 
     def _load_lookup_tables(self) -> None:
         """Load all deduce name lookup tables and lowercase them."""
+
+        def load_word_set(path: Path) -> set[str]:
+            """Load file lines into a lowercase set."""
+            if path.exists():
+                with path.open(encoding='utf-8') as file:
+                    return {line.strip().lower() for line in file if line.strip()}
+            return set()
+
         if self.lookup_data_path:
             # Use custom lookup path if provided
             base_path = Path(self.lookup_data_path) / 'src' / 'names'
@@ -60,130 +69,85 @@ class DutchNameDetector:
             deduce_init = deduce.Deduce()
             base_path = Path(deduce_init.lookup_data_path) / 'src' / 'names'
 
-        # Load first names (case-insensitive)
-        first_name_file = base_path / 'lst_first_name' / 'items.txt'
-        if first_name_file.exists():
-            with first_name_file.open(encoding='utf-8') as name_file:
-                # Stripping whitespace and converting to lowercase
-                self.first_names = {line.strip().lower() for line in name_file if line.strip()}
+        # Map attribute names to relative file paths
+        lookup_files = {
+            'first_names': base_path / 'lst_first_name' / 'items.txt',
+            'surnames': base_path / 'lst_surname' / 'items.txt',
+            'interfix_surnames': base_path / 'lst_interfix_surname' / 'items.txt',
+            'interfixes': base_path / 'lst_interfix' / 'items.txt',
+            'common_words': Path(__file__).parent.parent / 'data' / 'common_words.txt',
+        }
 
-        # Load surnames (case-insensitive)
-        surname_file = base_path / 'lst_surname' / 'items.txt'
-        if surname_file.exists():
-            with surname_file.open(encoding='utf-8') as surname_file:
-                # Stripping whitespace and converting to lowercase
-                self.surnames = {line.strip().lower() for line in surname_file if line.strip()}
-
-        # Load interfix surnames (case-insensitive)
-        interfix_surname_file = base_path / 'lst_interfix_surname' / 'items.txt'
-        if interfix_surname_file.exists():
-            with interfix_surname_file.open(encoding='utf-8') as surname_interfix_file:
-                # Stripping whitespace and converting to lowercase
-                self.interfix_surnames = {line.strip().lower() for line in surname_interfix_file if line.strip()}
-
-        # Load interfixes (case-insensitive)
-        interfix_file = base_path / 'lst_interfix' / 'items.txt'
-        if interfix_file.exists():
-            with interfix_file.open(encoding='utf-8') as interfix_file:
-                # Stripping whitespace and converting to lowercase
-                self.interfixes = {line.strip().lower() for line in interfix_file if line.strip()}
+        for attr, file_path in lookup_files.items():
+            setattr(self, attr, load_word_set(file_path))
 
     def names_case_insensitive(self, text: str) -> list[NameAnnotation]:
         """Detect Dutch names in text case-insensitively."""
-        print(f'REPORT TEXT: {text}')
-        annotations = []
+        annotations: list[NameAnnotation] = []
 
-        # Pattern 1: First name + interfix + surname (e.g., "truus de rooij")
-        pattern_1 = r'\b(\w+)\s+(de|van|der|den|van\s+der|van\s+den|te|ter|ten|tot)\s+(\w+)\b'
+        def is_overlapping(match_start: int, match_end: int) -> bool:
+            return any(ann.start <= match_start < ann.end or ann.start < match_end <= ann.end for ann in annotations)
 
-        for match in re.finditer(pattern_1, text, re.IGNORECASE):
-            first_name = match.group(1).lower()
-            interfix = match.group(2).lower()
-            last_name = match.group(3).lower()
+        max_characters = 3
 
-            # print('*******************************************************')
-            # print(f'found match {first_name}')
-            # print(f'found match {interfix}')
-            # print(f'found match {last_name}')
-            # print('*******************************************************')
+        patterns = [
+            {
+                # Pattern 1: First name + interfix + surname
+                'regex': r'\b(\w+)\s+(de|van|der|den|van\s+der|van\s+den|te|ter|ten|tot)\s+(\w+)\b',
+                'confidence': 0.95,
+                'validate': lambda g: (
+                    self._first_name(g[0].lower())
+                    and self._interfix(g[1].lower())
+                    and self._interfix_surname(g[2].lower())
+                ),
+            },
+            {
+                # Pattern 2: First name + surname
+                'regex': r'\b(\w+)\s+(\w+)\b',
+                'confidence': 0.85,
+                'validate': lambda g: (self._first_name(g[0].lower()) and self._surname(g[1].lower())),
+            },
+            {
+                # Pattern 3: Only detect first names that are:
+                #   1. In the first names lookup table
+                #   2. At least 3 characters long (to avoid false positives)
+                #   3. Not common words
+                'regex': r'\b(\w+)\b',
+                'confidence': 0.70,
+                'validate': lambda g: (
+                    self._first_name(g[0].lower())
+                    and len(g[0]) >= max_characters
+                    and not self._common_word(g[0].lower())
+                ),
+            },
+        ]
 
-            if (self._first_name(first_name) and
-                self._interfix(interfix) and
-                self._interfix_surname(last_name)):
+        for idx, pattern_info in enumerate(patterns):
+            for match in re.finditer(pattern_info['regex'], text, re.IGNORECASE):
+                if idx > 0 and is_overlapping(match.start(), match.end()):
+                    continue
 
-                annotations.append(NameAnnotation(
-                    start=match.start(),
-                    end=match.end(),
-                    text=match.group(0),
-                    tag='persoon',
-                    confidence=0.95,
-                ))
-
-            # print(f"Match found: {match.group(0)} at positions {match.start()}-{match.end()}")
-
-        # Pattern 2: First name + surname (e.g., "truus bakker")
-        pattern_2 = r'\b(\w+)\s+(\w+)\b'
-
-        for match in re.finditer(pattern_2, text, re.IGNORECASE):
-            # Skip if already matched by pattern 1
-            if any(ann.start <= match.start() < ann.end or
-                   ann.start < match.end() <= ann.end for ann in annotations):
-                continue
-
-            first_name = match.group(1).lower()
-            last_name = match.group(2).lower()
-
-            if (self._is_first_name(first_name) and
-                self._is_surname(last_name)):
-
-                annotations.append(NameAnnotation(
-                    start=match.start(),
-                    end=match.end(),
-                    text=match.group(0),
-                    tag='persoon',
-                    confidence=0.85,
-                ))
-
-        # Pattern 3: Single first names (e.g., "piet", "mieke")
-        pattern_3 = r'\b(\w+)\b'
-
-        for match in re.finditer(pattern_3, text, re.IGNORECASE):
-            # Skip if already matched by previous patterns
-            if any(ann.start <= match.start() < ann.end or
-                   ann.start < match.end() <= ann.end for ann in annotations):
-                continue
-
-            word = match.group(1).lower()
-
-            # Only detect single first names that are:
-            # 1. In the first names lookup table
-            # 2. At least 3 characters long (to avoid false positives)
-            # 3. Not common words
-
-            max_characters = 3
-
-            if (self._first_name(word) and
-                len(word) >= max_characters and
-                not self._common_word(word)):
-
-                annotations.append(NameAnnotation(
-                    start=match.start(),
-                    end=match.end(),
-                    text=match.group(0),
-                    tag='persoon',
-                    confidence=0.70,
-                ))
+                if pattern_info['validate'](match.groups()):
+                    annotations.append(
+                        NameAnnotation(
+                            start=match.start(),
+                            end=match.end(),
+                            text=match.group(0),
+                            tag='persoon',
+                            confidence=pattern_info['confidence'],
+                        ),
+                    )
 
         # Sort by confidence and position
         annotations.sort(key=lambda x: (-x.confidence, x.start))
         return annotations
 
     def _first_name(self, name: str) -> bool:
-        """Check if a name is in the first names lookup (case-insensitive)."""
+        """Check if a name is in the first names lookup (case-insensitive) or a known variant."""
         return name.lower() in self.first_names
 
     def _surname(self, name: str) -> bool:
-        """Check if a name is in the surnames lookup (case-insensitive)."""
+        """Check if a name is in the surnames lookup (case-insensitive) or a known variant."""
         return name.lower() in self.surnames
 
     def _interfix_surname(self, name: str) -> bool:
@@ -196,17 +160,7 @@ class DutchNameDetector:
 
     def _common_word(self, word: str) -> bool:
         """Check if a word is a common Dutch word that should not be treated as a name."""
-        common_words = {
-            'de', 'het', 'een', 'en', 'van', 'te', 'dat', 'die', 'in', 'op', 'is', 'aan', 'als', 'voor',
-            'met', 'was', 'hij', 'ze', 'haar', 'hem', 'hebben', 'had', 'dit', 'wat', 'er', 'maar',
-            'om', 'worden', 'nog', 'zal', 'bij', 'jaar', 'werd', 'zeer', 'onder', 'tegen', 'na',
-            'ook', 'tot', 'over', 'dan', 'uit', 'kan', 'niet', 'wel', 'door', 'naar', 'zou',
-            'patient', 'patiënt', 'mevrouw', 'meneer', 'dokter', 'zuster', 'arts', 'verpleegster',
-            'gaat', 'komt', 'heeft', 'zijn', 'waren', 'hadden', 'ging', 'gingen', 'kwam', 'kwamen',
-            'wandelen', 'fietsen', 'eten', 'drinken', 'vrolijk', 'mooi', 'goed', 'dag', 'tijd', 'pijn',
-            'ijs', 'patat', 'hier', 'daar', 'vandaag', 'morgen', 'gisteren', 'weer', 'wonen', 'woont',
-        }
-        return word.lower() in common_words
+        return word.lower() in self.common_words
 
 
 class DeduceHandler:
@@ -262,12 +216,6 @@ class DeduceHandler:
                 custom_annotations = self.detector.names_case_insensitive(report_text)
 
                 # Step 3: Merge results intelligently
-
-                # print(deduce_result.deidentified_text)
-
-                # print('===========')
-                # print(report_text)
-
                 return self._merge_annotations(
                     deduce_result.deidentified_text,
                     custom_annotations,
@@ -289,19 +237,19 @@ class DeduceHandler:
 
         for annotation in custom_annotations:
             # Check if this position was already handled by Deduce
-            original_segment = original_text[annotation.start:annotation.end]
+            original_segment = original_text[annotation.start : annotation.end]
 
             # If the text in deduce result still contains the original name
             # (meaning Deduce didn't detect it), we should replace it
             if original_segment.lower() in result_text.lower():
-                missed_annotations.append(custom_annotations)
+                missed_annotations.append(annotation)
 
         # Replace missed names with [PERSOON-X] tags
         person_counter = self._count_existing_tags(result_text) + 1
 
         for annotation in sorted(missed_annotations, key=lambda x: x.start):
             # Find the name in the current result text
-            name_to_replace = original_text[annotation.start:annotation.end]
+            name_to_replace = original_text[annotation.start : annotation.end]
 
             # Case-insensitive search and replace
             pattern = re.escape(name_to_replace)
@@ -320,18 +268,6 @@ class DeduceHandler:
         """Count existing [PERSOON-X] tags in text."""
         pattern = r'\[PERSOON-\d+\]'
         return len(re.findall(pattern, text))
-
-
-
-
-
-
-
-
-
-
-
-
 
     def deduce_report_only(self, input_cols: dict) -> Callable[[dict], str]:
         """Apply the Deduce algorithm without patient info."""
