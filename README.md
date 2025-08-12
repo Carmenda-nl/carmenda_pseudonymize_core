@@ -1,9 +1,10 @@
-# Carmenda Pseudonymize
+# Carmenda privacy tool
 
-![Linter](https://img.shields.io/badge/linter-flake8-4B8B3B)
+![Linter](https://img.shields.io/badge/linter-ruff-4B8B3B)
 
-**Carmenda Pseudonymize** is a solution designed to pseudonymize textual data for care organizations.  
-This tool leverages the **[Deduce](https://github.com/vmenger/deduce)** tool (Menger et al. 2017) [1] algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
+**Carmenda privacy tool** is a solution designed to pseudonymize textual data for care organizations.  
+This tool leverages the **[Deduce](https://github.com/vmenger/deduce)** tool (Menger et al. 2017) [1]
+algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
 Built with **Polars** for enhanced performance, it is ideal for efficiently handling large datasets.
 
 ## Features
@@ -18,7 +19,7 @@ Follow the instructions on the [wiki](https://github.com/Carmenda-nl/Carmenda_ps
 
 ## How It Works
 
-Carmenda Pseudonymize uses the Deduce algorithm to replace sensitive information in textual data with pseudonyms.  
+Carmenda privacy tool uses the Deduce algorithm to replace sensitive information in textual data with pseudonyms.  
 This method ensures that the data remains useful for analytical purposes while safeguarding individual privacy.
 
 ## License
@@ -32,60 +33,78 @@ For questions or support, please contact us at [support@carmenda.nl](mailto:supp
 
 ---
 
-## Deployment
-
-Use the following commands in the terminal to build and run the container.
+## Docker Deployment
 
 ### Build the Docker Image
 
-Build the image from the Dockerfile (replace `latest` with a different tag if needed):
+Build the image from the Dockerfile:
 
 ```bash
-docker build -t carmenda/core:latest .
+docker build -t privacy-core:latest .
 ```
 
-### Run the Image
+### Show Help
 
-The first `-v` makes/connects a Docker Volume to the `/data/input` folder within the container  
-> *A Docker Volume is disk space managed by Docker to be shared by the host and container. This avoids unexpected changes to other host disk locations.*
-
-The second `-v` connects your local folder with output data to the `/data/input` folder in the container.  
-> *Instead of a folder, an individual file should also work.*
-
-**Note:** The `${pwd}` notation is PowerShell-specific. Try what works in your terminal or use the full file path.
-
-- `img_name:latest` is the name of the image, with `:latest` indicating a tag.
-- `input.csv` is an argument for the code execution, which will be added to the CMD command above.
-- Replace arguments with `/bin/bash` and add `-it` to the run command to avoid entering the program and open a terminal inside the container.
-
-### Normal, Simple Situation
+To see the available command-line options:
 
 ```bash
-docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input img_name input.csv
+docker run --rm privacy-core:latest --help
 ```
 
-> example:
+### Run the Privacy tool
+
+Use the following command to run the privacy tool with mounted volumes:
 
 ```bash
-docker run -v "/mnt/c/Users/djang/Documents/data/input:/data/input" -v "/mnt/c/Users/djang/Documents/data/output:/data/output" core:latest --input_fofi /data/input/dummy_input.csv --input_cols "patientName=Clientnaam, report=Rapportage"
+docker run --rm \
+  -v /path/to/your/input:/source/data/input \
+  -v /path/to/your/output:/source/data/output \
+  carmenda-pseudonymizer \
+  --input_fofi /source/data/input/your_file.csv \
+  --output_extension .csv
 ```
 
-### Interactive terminal, binding down to a specific file (second -v), calling a specific image version using :latest tag
+**Example:**
 
 ```bash
-docker run -it -v deducerVol:/data -v ${pwd}/data/input.csv:/data/input/input.csv --entrypoint /bin/bash img_name:latest
+docker run --rm \
+  -v /Users/h.j.m.tummers/docker_test/data/input:/source/data/input \
+  -v /Users/h.j.m.tummers/docker_test/data/output:/source/data/output \
+  carmenda-pseudonymizer \
+  --input_fofi /source/data/input/test_SHL.csv \
+  --output_extension .csv
 ```
 
-### For help with the python script
+### Additional Options
+
+For custom column mappings:
 
 ```bash
-docker run --entrypoint python img_name polars_deduce_baked.py --help
+docker run --rm \
+  -v /path/to/your/input:/source/data/input \
+  -v /path/to/your/output:/source/data/output \
+  carmenda-pseudonymizer \
+  --input_fofi /source/data/input/your_file.csv \
+  --input_cols "patientName=Cliëntnaam, report=rapport" \
+  --output_cols "patientID=patientID, processed_report=processed_report" \
+  --output_extension .csv
 ```
 
-### For mounting the app directory and running a custom script
+### Important Notes
 
-```bash
-docker run -v deducerVol:/data -v ${pwd}/data/input:/data/input -v ${pwd}/app:/app --entrypoint python img_name your_script.py
-```
+- **Input Path**: Always use `/source/data/input/` as the base path for input files in the container
+- **Output Path**: Always use `/source/data/output/` as the base path for output files in the container  
+- **Volume Mounting**: The `-v` flags map your local directories to the container directories
+- **File Extensions**: Supported formats are `.csv` and `.parquet`
+- **Remove Container**: The `--rm` flag automatically removes the container after execution
+
+### Troubleshooting
+
+If you don't see output files:
+
+1. Check that the volume mounts are correct
+2. Verify that the input file path starts with `/source/data/input/`
+3. Ensure the output directory has write permissions
+4. Check the container logs for any error messages
 
 [1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853

@@ -43,7 +43,7 @@ from core.data_processor import process_data
 def parse_cli_arguments() -> argparse.Namespace:
     """Parse command-line arguments for CLI usage."""
     parser = argparse.ArgumentParser(
-        description='Pseudonymize Dutch medical report texts using Deduce algorithm.',
+        description='Pseudonymize Dutch medical report texts using the Deduce algorithm.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog='Example: python main.py --input_fofi data.csv --output_extension .parquet',
     )

@@ -11,11 +11,16 @@ from pathlib import Path
 import polars as pl
 import sys
 import json
+import os
 
 
 def get_environment_paths() -> tuple[str, str]:
     """Get input and output folder paths based on the current environment."""
-    if sys.argv[0] == 'manage.py':
+    if os.environ.get('DOCKER_ENV') == 'true':
+        # Docker environment
+        input_folder = '/source/data/input'
+        output_folder = '/source/data/output'
+    elif sys.argv[0] == 'manage.py':
         # Django environment
         input_folder = 'data/input/'
         output_folder = 'data/output/'

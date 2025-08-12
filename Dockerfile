@@ -16,12 +16,19 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY source /source
+COPY docker-entrypoint.sh /source/
 
 # Copy base_config.json to where deduce expects it
 RUN cp /source/base_config.json /usr/local/lib/python3.13/site-packages/base_config.json
 
 # Create folders
-RUN mkdir -p data/input
-RUN mkdir -p data/output
+RUN mkdir -p /source/data/input
+RUN mkdir -p /source/data/output
 
-ENTRYPOINT ["python", "main.py"]
+# Make entrypoint script executable
+RUN chmod +x /source/docker-entrypoint.sh
+
+# Set environment variable to indicate Docker environment
+ENV DOCKER_ENV=true
+
+ENTRYPOINT ["/source/docker-entrypoint.sh"]
