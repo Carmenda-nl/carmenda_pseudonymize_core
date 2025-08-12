@@ -69,13 +69,13 @@ class DutchNameDetector:
             deduce_init = deduce.Deduce()
             base_path = Path(deduce_init.lookup_data_path) / 'src' / 'names'
 
-        # Map attribute names to relative file paths
+        # Map attribute names to relative file paths (set here your own lookup paths)
         lookup_files = {
             'first_names': base_path / 'lst_first_name' / 'items.txt',
             'surnames': base_path / 'lst_surname' / 'items.txt',
             'interfix_surnames': base_path / 'lst_interfix_surname' / 'items.txt',
             'interfixes': base_path / 'lst_interfix' / 'items.txt',
-            'common_words': Path(__file__).parent.parent / 'data' / 'common_words.txt',
+            'common_words': Path(__file__).parent.parent / 'lookup' / 'common_words.txt',
         }
 
         for attr, file_path in lookup_files.items():
