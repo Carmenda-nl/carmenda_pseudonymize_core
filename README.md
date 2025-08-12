@@ -37,10 +37,10 @@ For questions or support, please contact us at [support@carmenda.nl](mailto:supp
 
 ### Build the Docker Image
 
-Build the image from the Dockerfile:
+Build the image from the Dockerfile in the deployment folder:
 
 ```bash
-docker build -t privacy-core:latest .
+docker build -f deployment/Dockerfile -t carmenda-pseudonymizer .
 ```
 
 ### Show Help
