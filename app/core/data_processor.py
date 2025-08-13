@@ -131,10 +131,11 @@ def _without_patient(df: pl.DataFrame, input_cols: dict, logger: logging.Logger)
     )
 
 
-def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
+def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, logger: logging.Logger) -> pl.DataFrame:
     """Prepare data for output by selecting and renaming columns."""
     select_cols = [col for col in output_cols.values() if col in df.columns]
     df = df.select(select_cols)
+    logger.info('Output columns: %s\n', df.columns)
 
     # Rename headers to their original input name
     rename_headers = {}
@@ -283,8 +284,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
     # Only print to terminal when not running as a frozen executable
     if not getattr(sys, 'frozen', False):
-        # Log example table to debug.
-        logger.debug('\n%s\n', df)
+        print('\n', df, '\n')  # noqa: T201 (show example in terminal)
 
     # Update progress - writing output
     progress['update'](progress['get_stage_name'](6))
