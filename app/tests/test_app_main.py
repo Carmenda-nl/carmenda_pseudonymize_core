@@ -11,11 +11,10 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-# Add the app directory to the Python path so we can import main
-app_dir = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(app_dir))
+# Add the parent directory to the Python path so we can import main
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from main import parse_cli_arguments, main  # noqa: E402
+from main import parse_cli_arguments, main
 
 
 class TestParseCliArguments:

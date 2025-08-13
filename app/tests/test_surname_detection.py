@@ -1,26 +1,42 @@
-"""Test surname detection. (run with pytest -s to see results)."""
+# ------------------------------------------------------------------------------------------------ #
+# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
+# ------------------------------------------------------------------------------------------------ #
+
+"""Unit tests for surname detection.
+
+For complete results, run with arguments.
+`pytest -s -v`
+"""
 
 import sys
 from pathlib import Path
+from services.logger import setup_test_logging
+from core.deduce_handler import DutchNameDetector
+from utils.terminal import get_separator_line
 
-# Add the app directory to the Python path for relative imports
-app_dir = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(app_dir))
 
-from services.logger import setup_test_logging  # noqa: E402
-from core.deduce_handler import DutchNameDetector  # noqa: E402
+# Add the source directory to the Python path
+source_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(source_dir))
 
 
 def test_surname_detection() -> None:
     """Test if input is properly detected as a surname."""
-    logger = setup_test_logging()
     detector = DutchNameDetector()
+    logger = setup_test_logging()
 
-    # Test specific names
-    test_names = ['naaldenberg', 'naaldenberch', 'vroegindeweij', 'jassen', 'janssen']
+    test_names = [
+        # Add test surnames for surname detection
+        'naaldenberg',
+        'naaldenberch',
+        'vroegindeweij',
+        'jassen',
+        'janssen',
+    ]
 
-    logger.info('Testing surname detection:')
-    logger.info('-' * 40)
+    logger.info('(start test)')
+    logger.info('%s\n', get_separator_line())
 
     results = []
     for name in test_names:
@@ -29,9 +45,9 @@ def test_surname_detection() -> None:
         logger.info('%s → %s', f'{name:<15}', result_text)
         results.append(is_surname)
 
-    logger.info('-' * 40)
     total_surnames = sum(results)
-    logger.info('Found %d surnames out of %d names tested', total_surnames, len(test_names))
+    logger.info('\nFound %d surnames out of %d names tested.\n', total_surnames, len(test_names))
+    logger.info(get_separator_line())
 
 
 if __name__ == '__main__':
