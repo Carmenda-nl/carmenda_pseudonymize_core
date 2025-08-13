@@ -40,7 +40,7 @@ For questions or support, please contact us at [support@carmenda.nl](mailto:supp
 Build the image from the Dockerfile in the deployment folder:
 
 ```bash
-docker build -f deployment/Dockerfile -t carmenda-pseudonymizer .
+docker build -f deployment/Dockerfile -t privacy-core:latest .
 ```
 
 ### Show Help
@@ -57,10 +57,10 @@ Use the following command to run the privacy tool with mounted volumes:
 
 ```bash
 docker run --rm \
-  -v /path/to/your/input:/source/data/input \
-  -v /path/to/your/output:/source/data/output \
-  carmenda-pseudonymizer \
-  --input_fofi /source/data/input/your_file.csv \
+  -v /path/to/your/input:/app/data/input \
+  -v /path/to/your/output:/app/data/output \
+  privacy-core \
+  --input_fofi /app/data/input/your_file.csv \
   --output_extension .csv
 ```
 
@@ -68,10 +68,10 @@ docker run --rm \
 
 ```bash
 docker run --rm \
-  -v /Users/h.j.m.tummers/docker_test/data/input:/source/data/input \
-  -v /Users/h.j.m.tummers/docker_test/data/output:/source/data/output \
-  carmenda-pseudonymizer \
-  --input_fofi /source/data/input/test_SHL.csv \
+  -v /Users/h.j.m.tummers/docker_test/data/input:/app/data/input \
+  -v /Users/h.j.m.tummers/docker_test/data/output:/app/data/output \
+  privacy-core \
+  --input_fofi /app/data/input/test_SHL.csv \
   --output_extension .csv
 ```
 
@@ -81,10 +81,10 @@ For custom column mappings:
 
 ```bash
 docker run --rm \
-  -v /path/to/your/input:/source/data/input \
-  -v /path/to/your/output:/source/data/output \
-  carmenda-pseudonymizer \
-  --input_fofi /source/data/input/your_file.csv \
+  -v /path/to/your/input:/app/data/input \
+  -v /path/to/your/output:/app/data/output \
+  privacy-core \
+  --input_fofi /app/data/input/your_file.csv \
   --input_cols "patientName=Cliëntnaam, report=rapport" \
   --output_cols "patientID=patientID, processed_report=processed_report" \
   --output_extension .csv
@@ -92,8 +92,8 @@ docker run --rm \
 
 ### Important Notes
 
-- **Input Path**: Always use `/source/data/input/` as the base path for input files in the container
-- **Output Path**: Always use `/source/data/output/` as the base path for output files in the container  
+- **Input Path**: Always use `/app/data/input/` as the base path for input files in the container
+- **Output Path**: Always use `/app/data/output/` as the base path for output files in the container  
 - **Volume Mounting**: The `-v` flags map your local directories to the container directories
 - **File Extensions**: Supported formats are `.csv` and `.parquet`
 - **Remove Container**: The `--rm` flag automatically removes the container after execution
@@ -103,7 +103,7 @@ docker run --rm \
 If you don't see output files:
 
 1. Check that the volume mounts are correct
-2. Verify that the input file path starts with `/source/data/input/`
+2. Verify that the input file path starts with `/app/data/input/`
 3. Ensure the output directory has write permissions
 4. Check the container logs for any error messages
 

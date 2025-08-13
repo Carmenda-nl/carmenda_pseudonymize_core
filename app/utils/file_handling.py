@@ -18,8 +18,8 @@ def get_environment_paths() -> tuple[str, str]:
     """Get input and output folder paths based on the current environment."""
     if os.environ.get('DOCKER_ENV') == 'true':
         # Docker environment
-        input_folder = '/source/data/input'
-        output_folder = '/source/data/output'
+        input_folder = '/app/data/input'
+        output_folder = '/app/data/output'
     elif sys.argv[0] == 'manage.py':
         # Django environment
         input_folder = 'data/input/'
@@ -33,6 +33,9 @@ def get_environment_paths() -> tuple[str, str]:
         # Script environment
         input_folder = 'data/input'
         output_folder = 'data/output'
+
+    # Ensure output directory exists
+    Path(output_folder).mkdir(parents=True, exist_ok=True)
 
     return input_folder, output_folder
 

@@ -131,11 +131,10 @@ def _without_patient(df: pl.DataFrame, input_cols: dict, logger: logging.Logger)
     )
 
 
-def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, logger: logging.Logger) -> pl.DataFrame:
+def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
     """Prepare data for output by selecting and renaming columns."""
     select_cols = [col for col in output_cols.values() if col in df.columns]
     df = df.select(select_cols)
-    logger.info('Output columns: %s\n', df.columns)
 
     # Rename headers to their original input name
     rename_headers = {}

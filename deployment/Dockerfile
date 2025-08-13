@@ -5,30 +5,31 @@
 
 FROM python:3.13.6-slim
 
-WORKDIR /source
+WORKDIR /app
 
 # Install py packages
-COPY ../source/requirements.txt .
+COPY ../app/requirements.txt .
 RUN apt-get update && \
     pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY ../source /source
-COPY deployment/docker-entrypoint.sh /source/
+COPY ../app /app
+COPY deployment/docker-entrypoint.sh /app/
 
 # Copy base_config.json to where deduce expects it
-RUN cp /source/base_config.json /usr/local/lib/python3.13/site-packages/base_config.json
+RUN cp /app/base_config.json /usr/local/lib/python3.13/site-packages/base_config.json
 
-# Create folders
-RUN mkdir -p /source/data/input
-RUN mkdir -p /source/data/output
+# Create folders for both mount options
+RUN mkdir -p /app/data/input
+RUN mkdir -p /app/data/output
+
 
 # Make entrypoint script executable
-RUN chmod +x /source/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Set environment variable to indicate Docker environment
 ENV DOCKER_ENV=true
 
-ENTRYPOINT ["/source/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

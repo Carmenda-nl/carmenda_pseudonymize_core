@@ -54,3 +54,27 @@ def setup_logging(log_dir: str = 'data/output', console_level: int | None = None
         logger.addHandler(console_handler)
 
     return logger
+
+
+def setup_test_logging(console_level: int = logging.INFO) -> logging.Logger:
+    """Set up simplified logging specifically for tests."""
+    test_formatter = logging.Formatter('%(message)s')
+
+    # Setup test logger
+    logger = logging.getLogger('test')
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    # Clear existing handlers to prevent duplicates
+    if logger.hasHandlers():
+        for handler in logger.handlers:
+            handler.close()
+        logger.handlers.clear()
+
+    # Add console handler with simple formatting
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(test_formatter)
+    console_handler.setLevel(console_level)
+    logger.addHandler(console_handler)
+
+    return logger
