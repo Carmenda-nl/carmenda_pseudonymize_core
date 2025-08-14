@@ -15,8 +15,6 @@ de-identification library with enhanced case-insensitive name detection. It incl
 
 from __future__ import annotations
 
-import sys
-import shutil
 import deduce
 import re
 
@@ -40,46 +38,13 @@ class NameAnnotation:
 class DutchNameDetector:
     """Case-insensitive Dutch name detector using lookup tables and patterns."""
 
-    def __init__(self, lookup_data_path: str | None = None) -> None:
+    def __init__(self, lookup_sets: dict[str, set[str]]) -> None:
         """Initialize with lookup data."""
-        self.lookup_data_path = lookup_data_path
-        self.first_names: set[str] = set()
-        self.surnames: set[str] = set()
-        self.interfix_surnames: set[str] = set()
-        self.interfixes: set[str] = set()
-        self.common_words: set[str] = set()
-
-        self._load_lookup_tables()
-
-    def _load_lookup_tables(self) -> None:
-        """Load all deduce name lookup tables and lowercase them."""
-
-        def load_word_set(path: Path) -> set[str]:
-            """Load file lines into a lowercase set."""
-            if path.exists():
-                with path.open(encoding='utf-8') as file:
-                    return {line.strip().lower() for line in file if line.strip()}
-            return set()
-
-        if self.lookup_data_path:
-            # Use custom lookup path if provided
-            base_path = Path(self.lookup_data_path) / 'src' / 'names'
-        else:
-            # Use default Deduce lookup path
-            deduce_init = deduce.Deduce()
-            base_path = Path(deduce_init.lookup_data_path) / 'src' / 'names'
-
-        # Map attribute names to relative file paths (set here your own lookup paths)
-        lookup_files = {
-            'first_names': base_path / 'lst_first_name' / 'items.txt',
-            'surnames': base_path / 'lst_surname' / 'items.txt',
-            'interfix_surnames': base_path / 'lst_interfix_surname' / 'items.txt',
-            'interfixes': base_path / 'lst_interfix' / 'items.txt',
-            'common_words': Path(__file__).parent.parent / 'lookup' / 'common_words.txt',
-        }
-
-        for attr, file_path in lookup_files.items():
-            setattr(self, attr, load_word_set(file_path))
+        self.first_names = lookup_sets.get('first_names', set())
+        self.surnames = lookup_sets.get('surnames', set())
+        self.interfix_surnames = lookup_sets.get('interfix_surnames', set())
+        self.interfixes = lookup_sets.get('interfixes', set())
+        self.common_words = lookup_sets.get('common_words', set())
 
     def names_case_insensitive(self, text: str) -> list[NameAnnotation]:
         """Detect Dutch names in text case-insensitively."""
@@ -168,24 +133,57 @@ class DeduceHandler:
 
     def __init__(self) -> None:
         """Initialize DeduceHandler with a configured Deduce instance."""
+        custom_lookup = Path(__file__).parent.parent / 'deduce' / 'lookup'
+
+        # Always use custom lookup path first
+        if custom_lookup.exists():
+            self.lookup_data_path = str(custom_lookup)
+        else:
+            self.lookup_data_path = None
+
         self.deduce_instance = self._get_deduce_instance()
 
-        # Initialize custom detector using default Deduce lookup tables
-        self.detector = DutchNameDetector()
+        # Load lookup tables once
+        self.lookup_sets = self._load_lookup_tables()
+
+        # Initialize custom detector using the same lookup path
+        self.detector = DutchNameDetector(self.lookup_sets)
 
     def _get_deduce_instance(self) -> deduce.Deduce:
         """Get a configured Deduce instance with lookup data."""
-        if getattr(sys, 'frozen', False):
-            lookup_data = Path('data') / 'deduce' / 'data' / 'lookup'
-
-            if not lookup_data.exists():
-                lookup_cached = Path(getattr(sys, '_MEIPASS', '')) / 'deduce' / 'data' / 'lookup'
-                shutil.copytree(lookup_cached, lookup_data, dirs_exist_ok=True)
-
-            return deduce.Deduce(lookup_data_path=str(lookup_data), cache_path=str(lookup_data))
+        if self.lookup_data_path:
+            return deduce.Deduce(lookup_data_path=self.lookup_data_path)
 
         # Use default Deduce lookup tables
         return deduce.Deduce()
+
+    def _load_lookup_tables(self) -> dict[str, set[str]]:
+        """Load all deduce name lookup tables and lowercase them."""
+        if self.lookup_data_path:
+            base_path = Path(self.lookup_data_path) / 'src' / 'names'
+            common_words_path = Path(self.lookup_data_path) / 'src' / 'whitelist'
+        else:
+            deduce_lookup = Path(self.deduce_instance.lookup_data_path)
+            base_path = deduce_lookup / 'src' / 'names'
+            common_words_path = deduce_lookup / 'src' / 'whitelist'
+
+        # Map attribute names to relative file paths
+        lookup_files = {
+            'first_names': base_path / 'lst_first_name' / 'items.txt',
+            'surnames': base_path / 'lst_surname' / 'items.txt',
+            'interfix_surnames': base_path / 'lst_interfix_surname' / 'items.txt',
+            'interfixes': base_path / 'lst_interfix' / 'items.txt',
+            'common_words': common_words_path / 'lst_common_word' / 'items.txt',
+        }
+
+        def load_word_set(path: Path) -> set[str]:
+            """Load file lines into a lowercase set."""
+            if path.exists():
+                with path.open(encoding='utf-8') as file:
+                    return {line.strip().lower() for line in file if line.strip()}
+            return set()
+
+        return {attr: load_word_set(file_path) for attr, file_path in lookup_files.items()}
 
     def deduce_with_id(self, input_cols: dict) -> Callable[[dict], str]:
         """Return an inner function configured to process rows with name detection."""

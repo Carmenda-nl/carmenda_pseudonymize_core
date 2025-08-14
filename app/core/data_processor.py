@@ -42,6 +42,10 @@ if TYPE_CHECKING:
     import logging
 
 
+# Loading pseudonymization handler
+handler = DeduceHandler()
+
+
 def _load_data_file(input_file_path: str, logger: logging.Logger) -> pl.DataFrame:
     """Load data file and log relevant information."""
     input_extension = get_file_extension(input_file_path)
@@ -87,7 +91,6 @@ def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict, lo
 
 def _with_patient(df: pl.DataFrame, input_cols: dict, pseudonym_key: dict, logger: logging.Logger) -> pl.DataFrame:
     """Transform data when patient name column is available."""
-    handler = DeduceHandler()
     patient_name_col = input_cols['patientName']
 
     # Create a new column `patientID` with pseudonym keys
@@ -121,7 +124,6 @@ def _with_patient(df: pl.DataFrame, input_cols: dict, pseudonym_key: dict, logge
 
 def _without_patient(df: pl.DataFrame, input_cols: dict, logger: logging.Logger) -> pl.DataFrame:
     """Transform data when no patient name column is available."""
-    handler = DeduceHandler()
     logger.info('No patientName column, extracting names from reports')
 
     return df.with_columns(
@@ -264,8 +266,6 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     progress['update'](progress['get_stage_name'](4))
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
-
-    handler = DeduceHandler()
 
     if has_patient_name:
         df = _with_patient(df, input_cols_dict, pseudonym_key, logger)
