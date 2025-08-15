@@ -282,6 +282,7 @@ glas
 glimlach
 god
 goed
+goede
 goedkoop
 goud
 graf

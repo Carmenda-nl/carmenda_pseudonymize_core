@@ -1,3 +1,4 @@
+'s
 't
 aan de
 bij de
@@ -32,6 +33,7 @@ v.
 v.d.
 v/d
 van
+van't
 van 't
 van de
 van den
@@ -41,4 +43,8 @@ van t
 vd
 vd.
 von
+von der
+zu
+zum
 zur
+zûm

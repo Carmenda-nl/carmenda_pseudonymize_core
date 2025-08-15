@@ -620,6 +620,7 @@ Amaya
 Ambar
 Amber
 Ambra
+Ambroos
 Ambrosia
 Ambrosius
 Ame
@@ -5087,6 +5088,7 @@ Gerritjen
 Gerriët
 Gerriëtte
 Gerry
+Gers
 Gersom
 Gerson
 Gert
