@@ -152,7 +152,7 @@ class DeduceHandler:
     def _get_deduce_instance(self) -> deduce.Deduce:
         """Get a configured Deduce instance with lookup data."""
         if self.lookup_data_path:
-            return deduce.Deduce(lookup_data_path=self.lookup_data_path)
+            return deduce.Deduce(lookup_data_path=self.lookup_data_path, cache_path=Path(self.lookup_data_path))
 
         # Use default Deduce lookup tables
         return deduce.Deduce()

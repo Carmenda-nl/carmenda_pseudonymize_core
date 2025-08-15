@@ -12,7 +12,7 @@ For complete results, run with arguments.
 import sys
 from pathlib import Path
 from services.logger import setup_test_logging
-from core.deduce_handler import DutchNameDetector
+from core.deduce_handler import DeduceHandler
 from utils.terminal import get_separator_line
 
 
@@ -23,7 +23,7 @@ sys.path.insert(0, str(source_dir))
 
 def test_surname_detection() -> None:
     """Test if input is properly detected as a surname."""
-    detector = DutchNameDetector()
+    detector = DeduceHandler().detector
     logger = setup_test_logging()
 
     test_names = [
