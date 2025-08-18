@@ -97,7 +97,7 @@ def _with_patient(df: pl.DataFrame, input_cols: dict, pseudonym_key: dict, logge
     df = df.with_columns(
         pl.col(patient_name_col)
         # Obtain randomized string corresponding to name
-        .map_elements(lambda name: pseudonym_key.get(name), return_dtype=pl.Utf8)
+        .replace_strict(pseudonym_key, default=None)
         .alias('patientID'),
     )
 
@@ -259,6 +259,9 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         logger.info('Loaded existing pseudonym key: %s', pseudonym_key)
 
     if has_patient_name:
+        # Strip whitespace from patient names
+        df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
+
         pseudonym_key = _create_key(df, input_cols_dict, pseudonym_key_dict, logger)
         save_pseudonym_key(pseudonym_key, output_folder)
 
