@@ -45,6 +45,7 @@ class DutchNameDetector:
         self.interfix_surnames = lookup_sets.get('interfix_surnames', set())
         self.interfixes = lookup_sets.get('interfixes', set())
         self.common_words = lookup_sets.get('common_words', set())
+        self.stop_words = lookup_sets.get('stop_words', set())
 
     def names_case_insensitive(self, text: str) -> list[NameAnnotation]:
         """Detect Dutch names in text case-insensitively."""
@@ -55,10 +56,12 @@ class DutchNameDetector:
 
         max_characters = 3
 
+
+
         patterns = [
             {
                 # Pattern 1: First name + interfix + surname
-                'regex': r'\b(\w+)\s+(de|van|der|den|van\s+der|van\s+den|te|ter|ten|tot)\s+(\w+)\b',
+                'regex': r'\b(\w+)\s+((?:de|van|den|te|ter|ten|tot)(?:\s+der|\s+den)?)\s+(\w+)\b',
                 'confidence': 0.95,
                 'validate': lambda g: (
                     self._first_name(g[0].lower())
@@ -67,32 +70,72 @@ class DutchNameDetector:
                 ),
             },
             {
-                # Pattern 2: First name + surname
-                'regex': r'\b(\w+)\s+(\w+)\b',
+                # Pattern 2: First name + surname (only match surname when there is a first name)
+                'regex': r"\b([A-Za-zÀ-ÖØ-öø-ÿ]+)\s+([A-Za-zÀ-ÖØ-öø-ÿ'\-]+)\b",
                 'confidence': 0.85,
-                'validate': lambda g: (self._first_name(g[0].lower()) and self._surname(g[1].lower())),
-            },
-            {
-                # Pattern 3: Only detect first names that are:
-                #   1. In the first names lookup table
-                #   2. At least 3 characters long (to avoid false positives)
-                #   3. Not common words
-                'regex': r'\b(\w+)\b',
-                'confidence': 0.70,
                 'validate': lambda g: (
                     self._first_name(g[0].lower())
+                    and self._surname(g[1].lower())
                     and len(g[0]) >= max_characters
-                    and not self._common_word(g[0].lower())
+                    and g[0].lower() not in self.common_words
+                    and g[0].lower() not in self.stop_words
                 ),
             },
+
+            {
+                # Pattern 4: Alleen achternamen
+                'regex': r"\b([A-Za-zÀ-ÖØ-öø-ÿ'\-]+)\b",
+                'confidence': 0.80,
+                'validate': lambda g: (
+                    self._surname(g[0].lower())
+                    and len(g[0]) >= max_characters
+                    and g[0].lower() not in self.common_words
+                    and g[0].lower() not in self.stop_words
+                ),
+            },
+
+
+            # {
+            #     # Pattern 3: Only detect first names that are:
+            #     #   1. In the first names lookup table
+            #     #   2. At least 3 characters long (to avoid false positives)
+            #     #   3. Not common words
+            #     'regex': r'\b(\w+)\b',
+            #     'confidence': 0.70,
+            #     'validate': lambda g: (
+            #         self._first_name(g[0].lower())
+            #         and len(g[0]) >= max_characters
+            #         and not self._common_word(g[0].lower())
+            #     ),
+            #     'regex': r'\b([A-Za-zÀ-ÖØ-öø-ÿ]+)\b',  # alleen letters, geen cijfers
+            #     'confidence': 0.70,
+            #     'validate': lambda g: (
+            #         self._first_name(g[0].lower())
+            #         and not self._common_word(g[0].lower())
+            #         and not self._stop_word(g[0].lower())
+            #     ),
+            # },
         ]
 
+
+
+        print(f"\nSCANNING TEXT: {text}\n{'-'*60}")
+
         for idx, pattern_info in enumerate(patterns):
+
+
+            print(f'applying pattern {idx + 1}: {text}')
             for match in re.finditer(pattern_info['regex'], text, re.IGNORECASE):
+                # print(f'  {match}')
+
+
+
+
                 if idx > 0 and is_overlapping(match.start(), match.end()):
                     continue
 
                 if pattern_info['validate'](match.groups()):
+                    print(f"  NAME: {match.group(0)!r} @ {match.span()}")
                     annotations.append(
                         NameAnnotation(
                             start=match.start(),
@@ -126,6 +169,10 @@ class DutchNameDetector:
     def _common_word(self, word: str) -> bool:
         """Check if a word is a common Dutch word that should not be treated as a name."""
         return word.lower() in self.common_words
+
+    def _stop_word(self, word: str) -> bool:
+        """Check if a word is a stop word (case-insensitive)."""
+        return word.lower() in self.stop_words
 
 
 class DeduceHandler:
@@ -174,6 +221,7 @@ class DeduceHandler:
             'interfix_surnames': base_path / 'lst_interfix_surname' / 'items.txt',
             'interfixes': base_path / 'lst_interfix' / 'items.txt',
             'common_words': common_words_path / 'lst_common_word' / 'items.txt',
+            'stop_words': common_words_path / 'lst_stop_word' / 'items.txt',
         }
 
         def load_word_set(path: Path) -> set[str]:
@@ -190,6 +238,7 @@ class DeduceHandler:
 
         def inner_func(row: dict) -> str:
             try:
+                # First create a Deduce person based on patient name
                 patient_name = str.split(row[input_cols['patientName']], ' ', maxsplit=1)
                 patient_initials = ''.join([name[0] for name in patient_name])
 
@@ -203,15 +252,51 @@ class DeduceHandler:
                         initials=patient_initials,
                     )
 
+
+
+
+
+
                 # Step 1: Apply standard Deduce processing
                 report_text = row[input_cols['report']]
+
+                test = report_text.lower()
+
+
+
+
+
+                # deduce_result = self.deduce_instance.deidentify(
+                #     report_text,
+                #     metadata={'patient': deduce_patient},
+                # )
+
+
+
+
+                # print ('=' * 80)
+                # print(report_text)
+
+
+                # print('*' * 80)
+                # print(deduce_result.deidentified_text)
+                # print('- - - - - - - - - - - - - - - - - - - - - - - - - - -')
+                # print(deduce_result.annotations)
+                # print('*' * 80)
+
+
+                # Step 2: Apply extended custom name detection
+                custom_annotations = self.detector.names_case_insensitive(report_text)
+
+
                 deduce_result = self.deduce_instance.deidentify(
                     report_text,
                     metadata={'patient': deduce_patient},
                 )
 
-                # Step 2: Apply extended custom name detection
-                custom_annotations = self.detector.names_case_insensitive(report_text)
+
+
+
 
                 # Step 3: Merge results intelligently
                 return self._merge_annotations(
