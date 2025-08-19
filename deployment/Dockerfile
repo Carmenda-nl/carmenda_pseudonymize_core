@@ -18,9 +18,6 @@ RUN apt-get update && \
 COPY ./app /app
 COPY ./deployment/docker-entrypoint.sh /app/
 
-# Copy base_config.json to where deduce expects it
-RUN cp /app/base_config.json /usr/local/lib/python3.13/site-packages/base_config.json
-
 # Create folders for both mount options
 RUN mkdir -p /app/data/input
 RUN mkdir -p /app/data/output
