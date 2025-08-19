@@ -24,6 +24,7 @@ Astra
 Ata
 Avery
 Avi
+Bakker
 Barber
 Barthel
 Bartolomeus
@@ -79,6 +80,7 @@ Friederich
 Fu
 Gulden
 Ha
+Hadden
 Hamilton
 Hank
 Harris
@@ -184,6 +186,7 @@ Vi
 Vida
 Vitalis
 Vlinder
+Vrolijk
 Wilhelmina
 Will
 Willebrord
