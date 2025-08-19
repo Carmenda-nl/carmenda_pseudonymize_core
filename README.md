@@ -37,9 +37,10 @@ For questions or support, please contact us at [support@carmenda.nl](mailto:supp
 
 ### Build the Docker Image
 
-Build the image from the Dockerfile in the deployment folder:
+Build the image from the Dockerfile in the main folder (works on Linux, macOS and Windows):
 
 ```bash
+# Run this command from the project root directory
 docker build -f deployment/Dockerfile -t privacy-core:latest .
 ```
 
@@ -64,7 +65,7 @@ docker run --rm \
   --output_extension .csv
 ```
 
-**Example:**
+**Example for Linux/macOS:**
 
 ```bash
 docker run --rm \
@@ -72,6 +73,28 @@ docker run --rm \
   -v /Users/h.j.m.tummers/docker_test/data/output:/app/data/output \
   privacy-core \
   --input_fofi /app/data/input/test_SHL.csv \
+  --output_extension .csv
+```
+
+**Example for Windows (PowerShell):**
+
+```powershell
+docker run --rm `
+  -v C:\Users\username\docker_test\data\input:/app/data/input `
+  -v C:\Users\username\docker_test\data\output:/app/data/output `
+  privacy-core `
+  --input_fofi /app/data/input/test_SHL.csv `
+  --output_extension .csv
+```
+
+**Example for Windows (Command Prompt):**
+
+```cmd
+docker run --rm ^
+  -v C:\Users\username\docker_test\data\input:/app/data/input ^
+  -v C:\Users\username\docker_test\data\output:/app/data/output ^
+  privacy-core ^
+  --input_fofi /app/data/input/test_SHL.csv ^
   --output_extension .csv
 ```
 
@@ -93,8 +116,11 @@ docker run --rm \
 ### Important Notes
 
 - **Input Path**: Always use `/app/data/input/` as the base path for input files in the container
-- **Output Path**: Always use `/app/data/output/` as the base path for output files in the container  
-- **Volume Mounting**: The `-v` flags map your local directories to the container directories
+- **Output Path**: Always use `/app/data/output/` as the base path for output files in the container
+- **Volume Mounting**:
+  - The `-v` flags map your local directories to the container directories
+  - On Windows, use Windows paths (C:\path\to\folder) on the left side of the colon, but Unix-style paths on the right side
+  - Note: The paths inside the container always remain Unix-style (/app/data/...)
 - **File Extensions**: Supported formats are `.csv` and `.parquet`
 - **Remove Container**: The `--rm` flag automatically removes the container after execution
 
@@ -106,5 +132,11 @@ If you don't see output files:
 2. Verify that the input file path starts with `/app/data/input/`
 3. Ensure the output directory has write permissions
 4. Check the container logs for any error messages
+
+**Windows-specific tips:**
+
+1. Use absolute paths for volume mounts, relative paths may not work well on Windows
+2. If you have issues accessing volumes, try configuring Docker Desktop for file sharing
+3. Docker Desktop needs access to the folders you want to mount (see Docker Desktop settings)
 
 [1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
