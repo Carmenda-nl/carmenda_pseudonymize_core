@@ -118,6 +118,7 @@ Akyol
 Akyüz
 Akça
 Al
+Al-farsi
 Alards
 Albayrak
 Alberda
@@ -4423,6 +4424,7 @@ Khedoe
 Kho
 Khodabaks
 Khoenkhoen
+Khoury
 Kicken
 Kieboom
 Kieft
