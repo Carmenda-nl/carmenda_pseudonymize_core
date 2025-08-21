@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 
-def setup_logging(log_dir: str = 'data/output', console_level: int | None = None) -> logging.Logger:
+def setup_logging(log_dir: str = 'data/output') -> logging.Logger:
     """Set up comprehensive logging with log levels."""
     log_path = Path(log_dir)
 
@@ -26,7 +26,7 @@ def setup_logging(log_dir: str = 'data/output', console_level: int | None = None
 
     # Setup deidentify logger
     logger = logging.getLogger('deidentify')
-    logger.setLevel(logging.INFO)  # <- set logging level
+    logger.setLevel(logging.DEBUG)  # <- set logging level
     logger.propagate = True  # <- disables logging to console if `False`
 
     # Clear existing handlers to prevent duplicates
@@ -35,7 +35,7 @@ def setup_logging(log_dir: str = 'data/output', console_level: int | None = None
             handler.close()
         logger.handlers.clear()
 
-    # Create file handler for deidentify log (INFO level and above)
+    # Log to file (INFO level only)
     log_file_path = log_path / 'deidentification.log'
     try:
         file_handler = logging.FileHandler(str(log_file_path))
@@ -46,21 +46,13 @@ def setup_logging(log_dir: str = 'data/output', console_level: int | None = None
         error_msg = f'Cannot create log file "{log_file_path}": {e}'
         raise OSError(error_msg) from e
 
-    # Add console handler if requested
-    if console_level is not None:
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(file_formatter)
-        console_handler.setLevel(console_level)
-        logger.addHandler(console_handler)
-
     return logger
 
 
-def setup_test_logging(console_level: int = logging.INFO) -> logging.Logger:
+def setup_test_logging() -> logging.Logger:
     """Set up simplified logging specifically for tests."""
     test_formatter = logging.Formatter('%(message)s')
 
-    # Setup test logger
     logger = logging.getLogger('test')
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
@@ -74,7 +66,6 @@ def setup_test_logging(console_level: int = logging.INFO) -> logging.Logger:
     # Add console handler with simple formatting
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(test_formatter)
-    console_handler.setLevel(console_level)
     logger.addHandler(console_handler)
 
     return logger
