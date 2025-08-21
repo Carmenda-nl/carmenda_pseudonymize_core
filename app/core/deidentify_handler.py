@@ -14,15 +14,15 @@ with enhanced case-insensitive name detection. It includes:
 
 from __future__ import annotations
 
-from services.logger import setup_logging
+import re
 from pathlib import Path
-from deduce.person import Person
-from core.name_detector import DutchNameDetector, NameAnnotation
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import deduce
-import re
+from deduce.person import Person
 
+from core.name_detector import DutchNameDetector, NameAnnotation
+from services.logger import setup_logging
 
 if TYPE_CHECKING:
     from docdeid.document import Document

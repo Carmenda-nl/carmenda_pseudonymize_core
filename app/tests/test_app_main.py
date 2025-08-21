@@ -6,15 +6,16 @@
 """Unit tests for main.py module."""
 
 import argparse
-import pytest
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add the parent directory to the Python path so we can import main
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from main import parse_cli_arguments, main
+from main import main, parse_cli_arguments
 
 
 class TestParseCliArguments:

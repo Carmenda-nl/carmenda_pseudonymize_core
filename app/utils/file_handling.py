@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-import polars as pl
-import sys
 import json
 import os
+import sys
+from pathlib import Path
+
+import polars as pl
 
 
 def get_environment_paths() -> tuple[str, str]:
@@ -26,7 +27,7 @@ def get_environment_paths() -> tuple[str, str]:
         output_folder = 'data/output/'
     elif getattr(sys, 'frozen', False):
         # PyInstaller environment
-        base_path = Path(sys._MEIPASS)  # noqa: SLF001
+        base_path = Path(sys._MEIPASS)  # noqa: SLF001 (use for PyInstaller)
         input_folder = str(base_path / 'data' / 'input')
         output_folder = str(base_path / 'data' / 'output')
     else:

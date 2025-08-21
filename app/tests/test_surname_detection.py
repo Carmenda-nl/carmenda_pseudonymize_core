@@ -11,10 +11,10 @@ For complete results, run with arguments.
 
 import sys
 from pathlib import Path
-from services.logger import setup_test_logging
-from core.deidentify_handler import DeidentifyHandler
-from utils.terminal import get_separator_line
 
+from core.deidentify_handler import DeidentifyHandler
+from services.logger import setup_test_logging
+from utils.terminal import get_separator_line
 
 # Add the source directory to the Python path
 source_dir = Path(__file__).resolve().parent.parent
@@ -40,7 +40,7 @@ def test_surname_detection() -> None:
 
     results = []
     for name in test_names:
-        is_surname = handler.name_detector._surname(name)  # noqa: SLF001
+        is_surname = handler.name_detector._surname(name)  # noqa: SLF001 (ignore as it is a test)
         result_text = '✓ SURNAME' if is_surname else '✗ NOT SURNAME'
         logger.info('%s → %s', f'{name:<15}', result_text)
         results.append(is_surname)

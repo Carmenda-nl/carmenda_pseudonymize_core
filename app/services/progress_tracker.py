@@ -11,8 +11,8 @@ progress across various processing stages in the core.
 
 from __future__ import annotations
 
-from threading import Lock
 import logging
+from threading import Lock
 
 
 class ProgressTracker:

@@ -15,8 +15,17 @@ This module provides functionality for:
 
 from __future__ import annotations
 
-from core.pseudonymizer import Pseudonymizer
+import json
+import multiprocessing
+import sys
+import time
+from functools import reduce
+from typing import TYPE_CHECKING
+
+import polars as pl
+
 from core.deidentify_handler import DeidentifyHandler
+from core.pseudo_key import Pseudonymizer
 from services.logger import setup_logging
 from services.progress_tracker import progress_tracker, tracker
 from utils.file_handling import (
@@ -29,14 +38,6 @@ from utils.file_handling import (
     save_data_file,
     save_pseudonym_key,
 )
-
-from functools import reduce
-from typing import TYPE_CHECKING
-import polars as pl
-import multiprocessing
-import sys
-import time
-import json
 
 if TYPE_CHECKING:
     import logging
@@ -120,7 +121,7 @@ def _filter_null_rows(
     filter_condition = reduce(
         lambda acc, col_name: acc | pl.col(col_name).is_null(),
         df.columns,
-        pl.lit(False),  # noqa: FBT003
+        pl.lit(False),  # noqa: FBT003 (Linter false positive)
     )
     logger.info('Filtering rows with NULL in any of these columns: %s', ', '.join(df.columns))
 
@@ -267,9 +268,9 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
     df = _filter_null_rows(df, output_folder, input_fofi, output_extension, logger)
 
-    # Only print to terminal when NOT running as a frozen executable
+    # Only show example to terminal when NOT running as a frozen executable
     if not getattr(sys, 'frozen', False):
-        print('\n', df, '\n')  # noqa: T201 (show example in terminal)
+        sys.stdout.write(f'\n{df}\n')
 
     # Update progress - writing output
     progress['update'](progress['get_stage_name'](6))
