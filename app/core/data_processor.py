@@ -16,7 +16,7 @@ This module provides functionality for:
 from __future__ import annotations
 
 from core.pseudonymizer import Pseudonymizer
-from core.deduce_handler import DeduceHandler
+from core.deidentify_handler import DeidentifyHandler
 from services.logger import setup_logging
 from services.progress_tracker import progress_tracker, tracker
 from utils.file_handling import (
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 
 # Loading pseudonymization handler
-handler = DeduceHandler()
+handler = DeidentifyHandler()
 
 
 def _load_data_file(input_file_path: str, logger: logging.Logger) -> pl.DataFrame:
@@ -87,50 +87,6 @@ def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict, lo
     pseudonymizer = Pseudonymizer(logger=logger)
     pseudonymizer.load_key(pseudonym_key_dict)
     return pseudonymizer.pseudonymize(unique_names)
-
-
-def _with_patient(df: pl.DataFrame, input_cols: dict, pseudonym_key: dict, logger: logging.Logger) -> pl.DataFrame:
-    """Transform data when patient name column is available."""
-    patient_name_col = input_cols['patientName']
-
-    # Create a new column `patientID` with pseudonym keys
-    df = df.with_columns(
-        pl.col(patient_name_col)
-        # Obtain randomized string corresponding to name
-        .replace_strict(pseudonym_key, default=None)
-        .alias('patientID'),
-    )
-
-    # Create a new column `processed_report` with deduced names
-    df = df.with_columns(
-        pl.struct(df.columns)
-        .map_elements(handler.deduce_with_id(input_cols), return_dtype=pl.Utf8)
-        .alias('processed_report'),
-    )
-
-    # Replace [PATIENT] tags in `processed_report` with pseudonym keys
-    df = df.with_columns(
-        pl.struct(['processed_report', 'patientID'])
-        .map_elements(
-            lambda row: handler.replace_tags(row['processed_report'], row['patientID']),
-            return_dtype=pl.Utf8,
-        )
-        .alias('processed_report'),
-    )
-
-    logger.debug(df.head(10))
-    return df
-
-
-def _without_patient(df: pl.DataFrame, input_cols: dict, logger: logging.Logger) -> pl.DataFrame:
-    """Transform data when no patient name column is available."""
-    logger.info('No patientName column, extracting names from reports')
-
-    return df.with_columns(
-        pl.struct(df.columns)
-        .map_elements(handler.deduce_report_only(input_cols), return_dtype=pl.Utf8)
-        .alias('processed_report'),
-    )
 
 
 def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, logger: logging.Logger) -> pl.DataFrame:
@@ -270,13 +226,39 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
+    # Create a new column `processed_report` with deduced names
+    df = df.with_columns(
+        pl.struct(df.columns)
+        .map_elements(handler.deidentify_text(input_cols_dict), return_dtype=pl.Utf8)
+        .alias('processed_report'),
+    )
+
     if has_patient_name:
-        df = _with_patient(df, input_cols_dict, pseudonym_key, logger)
-    else:
-        df = _without_patient(df, input_cols_dict, logger)
+        patient_name_col = input_cols_dict['patientName']
+
+        # Create a new column `patientID` with pseudonym keys
+        df = df.with_columns(
+            pl.col(patient_name_col)
+            # Obtain randomized string corresponding to name
+            .replace_strict(pseudonym_key, default=None)
+            .alias('patientID'),
+        )
+
+        # Replace [PATIENT] tags in `processed_report` with pseudonym keys
+        df = df.with_columns(
+            pl.struct(['processed_report', 'patientID'])
+            .map_elements(
+                lambda row: handler.replace_tags(row['processed_report'], row['patientID']),
+                return_dtype=pl.Utf8,
+            )
+            .alias('processed_report'),
+        )
 
     # Prepare output data
     df = _prepare_output_data(df, input_cols_dict, output_cols_dict, logger)
+
+    # Debug: Show all collected annotations if in debug mode
+    handler.debug_deidentify_text()
 
     # Update progress - filtering nulls
     progress['update'](progress['get_stage_name'](5))
@@ -285,7 +267,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
     df = _filter_null_rows(df, output_folder, input_fofi, output_extension, logger)
 
-    # Only print to terminal when not running as a frozen executable
+    # Only print to terminal when NOT running as a frozen executable
     if not getattr(sys, 'frozen', False):
         print('\n', df, '\n')  # noqa: T201 (show example in terminal)
 
