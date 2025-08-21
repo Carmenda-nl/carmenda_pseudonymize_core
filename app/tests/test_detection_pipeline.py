@@ -12,7 +12,7 @@ For complete results, run with arguments.
 import sys
 from pathlib import Path
 from services.logger import setup_test_logging
-from core.deduce_handler import DeduceHandler
+from core.deidentify_handler import DeidentifyHandler
 from utils.terminal import get_separator_line
 
 
@@ -23,7 +23,7 @@ sys.path.insert(0, str(source_dir))
 
 def test_name_detection_pipeline() -> None:
     """Test the full extended pipeline on different sentences."""
-    handler = DeduceHandler()
+    handler = DeidentifyHandler()
     logger = setup_test_logging()
 
     test_data = [
@@ -52,7 +52,7 @@ def test_name_detection_pipeline() -> None:
     }
 
     # Get the deduce function for the full pipeline
-    deduce_function = handler.deduce_with_id(input_cols)
+    deidentify_text = handler.deidentify_text(input_cols)
 
     logger.info('(start test)')
     logger.info(get_separator_line())
@@ -63,11 +63,11 @@ def test_name_detection_pipeline() -> None:
         logger.info("  Input:   '%s'", test_case['report'])
 
         # Apply the full deduce pipeline
-        deidentified_text = deduce_function(test_case)
+        deidentified_text = deidentify_text(test_case)
         logger.info("  Output:  '%s'\n", deidentified_text)
 
         # Show what the detector alone would find for comparison
-        custom_annotations = handler.detector.names_case_insensitive(test_case['report'])
+        custom_annotations = handler.name_detector.names_case_insensitive(test_case['report'])
         if custom_annotations:
             logger.info('  Detector found:')
             for ann in custom_annotations:
