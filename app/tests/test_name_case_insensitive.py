@@ -11,10 +11,10 @@ For complete results, run with arguments.
 
 import sys
 from pathlib import Path
-from services.logger import setup_test_logging
-from core.deduce_handler import DeduceHandler
-from utils.terminal import get_separator_line
 
+from core.deidentify_handler import DeidentifyHandler
+from services.logger import setup_test_logging
+from utils.terminal import get_separator_line
 
 # Add the source directory to the Python path
 source_dir = Path(__file__).resolve().parent.parent
@@ -23,7 +23,7 @@ sys.path.insert(0, str(source_dir))
 
 def test_case_insensitive() -> None:
     """Test the case-insensitive name detection."""
-    handler = DeduceHandler()
+    handler = DeidentifyHandler()
     logger = setup_test_logging()
 
     test_sentences = [
@@ -40,7 +40,7 @@ def test_case_insensitive() -> None:
         logger.info("\nTesting: '%s'", sentence)
 
         # Test custom case-insensitive detector
-        custom_annotations = handler.detector.names_case_insensitive(sentence)
+        custom_annotations = handler.name_detector.names_case_insensitive(sentence)
 
         if custom_annotations:
             for ann in custom_annotations:

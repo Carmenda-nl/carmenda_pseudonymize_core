@@ -6,7 +6,7 @@
 """Anonymize Dutch report texts.
 
 Authors: Django Heimgartner, Joep Tummers, Pim van Oirschot
-Date: 2025-08-07
+Date: 21-08-2025
 
 Description:
     Deidentifies Dutch report texts (unstructured data) using Deduce
@@ -37,6 +37,7 @@ Script logic:
 from __future__ import annotations
 
 import argparse
+
 from core.data_processor import process_data
 
 
