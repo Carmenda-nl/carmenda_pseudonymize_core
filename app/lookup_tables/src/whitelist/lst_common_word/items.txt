@@ -39,6 +39,7 @@ april
 arm
 augustus
 auto
+autos
 avond
 avondeten
 baan
@@ -93,6 +94,7 @@ blad
 blauw
 blazen
 blij
+blije
 blijven
 bloed
 bloem
@@ -145,6 +147,7 @@ correct
 daar
 daarom
 dag
+dagen
 dak
 dan
 dansen
@@ -152,11 +155,13 @@ dapper
 dat
 de
 december
+deed
 deel
 deken
 deksel
 delen
 derde
+deden
 deze
 dichtbij
 dienen
@@ -168,6 +173,7 @@ dinsdag
 dit
 dochter
 doen
+doet
 dom
 donderdag
 donker
@@ -234,6 +240,7 @@ fout
 fris
 fruit
 gaan
+gaat
 gat
 gebeuren
 gebeurtenis
@@ -286,7 +293,6 @@ goede
 goedkoop
 goud
 graf
-grap
 grappig
 gras
 grens
@@ -303,7 +309,7 @@ grootvader
 haan
 haar
 haast
-hal
+had
 halen
 half
 hallo
@@ -315,6 +321,7 @@ haten
 hebben
 heel
 heer
+heeft
 heet
 helder
 helft
@@ -349,6 +356,7 @@ hotel
 houden
 huilen
 huis
+huizen
 hun
 huren
 hut
@@ -369,6 +377,7 @@ jaar
 jagen
 januari
 jas
+jaren
 jij
 jong
 jongen
@@ -403,6 +412,7 @@ klas
 klasse
 kleden
 klein
+kleine
 kleren
 kleur
 klimmen
@@ -418,6 +428,7 @@ kok
 koken
 kom
 komen
+komt
 kon
 koning
 koningin
@@ -425,6 +436,7 @@ koorts
 kop
 kopen
 kort
+korte
 kost
 kosten
 koud
@@ -446,6 +458,7 @@ laken
 lamp
 land
 lang
+lange
 langs
 langzaam
 laten
@@ -462,7 +475,12 @@ lepel
 leren
 les
 leuk
+lelijk
+lelijke
 leven
+leeft
+leefde
+leefden
 lezen
 lichaam
 licht
@@ -478,6 +496,7 @@ list
 lomp
 lood
 lopen
+loopt
 los
 lot
 lucht
@@ -489,6 +508,7 @@ maal
 maaltijd
 maan
 maand
+maanden
 maandag
 maar
 maart
@@ -540,6 +560,7 @@ mogen
 moment
 mond
 mooi
+mooie
 moord
 moorden
 morgen
@@ -566,6 +587,7 @@ neus
 niet
 niets
 nieuw
+nieuwe
 nieuws
 nobel
 noch
@@ -623,6 +645,7 @@ opnemen
 oranje
 orde
 oud
+oude
 ouder
 over
 overeenkomen
@@ -808,7 +831,7 @@ tekenen
 telefoon
 televisie
 tellen
-tennis
+tenis
 terug
 terugkomst
 terwijl
@@ -943,6 +966,7 @@ vrijheid
 vroeg
 vroeger
 vrolijk
+vrolijke
 vrouw
 vrouwe
 vullen
@@ -956,12 +980,13 @@ wanneer
 want
 wapen
 warm
+was
 wassen
 wat
 water
 we
 week
-weer
+weken
 weg
 welke
 welkom
@@ -969,6 +994,10 @@ wens
 wereld
 werelddeel
 werk
+werken
+werkt
+werkte
+werkten
 west
 wetenschap
 wie
@@ -987,6 +1016,10 @@ wit
 woensdag
 wolf
 wolk
+wonen
+woonde
+woonden
+woont
 wonder
 woord
 woud
@@ -1010,6 +1043,7 @@ ziek
 ziekenhuis
 ziel
 zien
+ziet
 zij
 zijn
 zilver

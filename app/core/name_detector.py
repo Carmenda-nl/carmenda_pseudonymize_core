@@ -5,8 +5,8 @@
 
 """Dutch name detector module for case-insensitive name detection.
 
-This module provides the DutchNameDetector class for detecting Dutch names
-in text using lookup tables and pattern matching with case-insensitive support.
+Functionality for detecting Dutch names in text using lookup tables
+and pattern matching with case-insensitive support.
 """
 
 from __future__ import annotations
@@ -38,19 +38,24 @@ class DutchNameDetector:
         self.common_words = lookup_sets.get('common_words', set())
         self.stop_words = lookup_sets.get('stop_words', set())
 
-    def names_case_insensitive(self, text: str) -> list[NameAnnotation]:
-        """Detect Dutch names in text case-insensitively."""
-        annotations: list[NameAnnotation] = []
+        # Load interfix patterns for regex patterns
+        self.interfix_pattern = self._interfix_patterns()
 
-        def is_overlapping(match_start: int, match_end: int) -> bool:
-            return any(ann.start <= match_start < ann.end or ann.start < match_end <= ann.end for ann in annotations)
+    def _interfix_patterns(self) -> str:
+        """Build regex pattern for interfixes from lookup data."""
+        sorted_interfixes = sorted(self.interfixes, key=len, reverse=True)
 
-        max_characters = 3
+        # Escape special regex characters and join with |
+        escaped_interfixes = [re.escape(interfix) for interfix in sorted_interfixes]
 
-        patterns = [
+        return '(?:' + '|'.join(escaped_interfixes) + ')'
+
+    def _regex_patterns(self, max_characters: int) -> list[dict]:
+        """Regex patterns validation logic for name detection."""
+        return [
             {
                 # Pattern 1: First name + interfix + surname
-                'regex': r'\b(\w+)\s+((?:de|van|den|te|ter|ten|tot)(?:\s+der|\s+den)?)\s+(\w+)\b',
+                'regex': rf'\b(\w+)\s+({self.interfix_pattern})\s+(\w+)\b',
                 'confidence': 0.95,
                 'validate': lambda g: (
                     self._first_name(g[0].lower())
@@ -75,7 +80,7 @@ class DutchNameDetector:
                 #   1. In the first names lookup table
                 #   2. At least 3 characters long (to avoid false positives)
                 #   3. Not common words or stop words
-                'regex': r'\b([A-Za-zÀ-ÖØ-öø-ÿ]+)\b',  # alleen letters, geen cijfers
+                'regex': r'\b([A-Za-zÀ-ÖØ-öø-ÿ]+)\b',
                 'confidence': 0.70,
                 'validate': lambda g: (
                     self._first_name(g[0].lower())
@@ -85,7 +90,7 @@ class DutchNameDetector:
                 ),
             },
             {
-                # Pattern 4: Alleen achternamen
+                # Pattern 4: Only detect surnames
                 'regex': r"\b([A-Za-zÀ-ÖØ-öø-ÿ'\-]+)\b",
                 'confidence': 0.80,
                 'validate': lambda g: (
@@ -97,13 +102,24 @@ class DutchNameDetector:
             },
         ]
 
-        # FIRST: Detect multi-word name combinations (3+ words) before single patterns
-        self._detect_multi_word_names(text, annotations, is_overlapping)
-        
-        for idx, pattern_info in enumerate(patterns):
+    def _overlapping(self, match_start: int, match_end: int, annotations: list) -> bool:
+        """Check if a match overlaps with any existing annotation."""
+        return any(ann.start <= match_start < ann.end or ann.start < match_end <= ann.end for ann in annotations)
+
+    def names_case_insensitive(self, text: str) -> list[NameAnnotation]:
+        """Detect Dutch names in text case-insensitively."""
+        annotations: list[NameAnnotation] = []
+
+        max_characters = 3
+        patterns = self._regex_patterns(max_characters)
+
+        # Detect multi-word names steps
+        self._detect_multi_words(text, annotations, lambda start, end: self._overlapping(start, end, annotations))
+
+        for pattern_info in patterns:
             for match in re.finditer(pattern_info['regex'], text, re.IGNORECASE):
                 # Skip if overlapping with existing annotations (including multi-word)
-                if is_overlapping(match.start(), match.end()):
+                if self._overlapping(match.start(), match.end(), annotations):
                     continue
 
                 if pattern_info['validate'](match.groups()):
@@ -116,69 +132,61 @@ class DutchNameDetector:
                             confidence=pattern_info['confidence'],
                         ),
                     )
-
         # Sort by confidence and position
-        annotations.sort(key=lambda x: (-x.confidence, x.start))
-        
+        annotations.sort(key=lambda annotation: (-annotation.confidence, annotation.start))
+
         return annotations
 
-    def _detect_multi_word_names(self, text: str, annotations: list, is_overlapping) -> None:
+    def _detect_multi_words(self, text: str, annotations: list, _overlapping: callable) -> None:
         """Detect multi-word name combinations (2+ words) and add them to annotations."""
-        
+        separators = [',', ';', '&', ' en ', ' EN ', ' of ', ' OF ', ' met ', ' MET ']
+        max_characters = 3
+
         # Split text into segments on punctuation and conjunctions
-        # This prevents names from spanning across multiple people
-        separators = [',', ';', ' en ', ' EN ', ' and ', ' AND ', ' &', ' + ']
         segments = [text]
-        
-        # Split text into segments
         for separator in separators:
-            new_segments = []
-            for segment in segments:
-                new_segments.extend(segment.split(separator))
-            segments = new_segments
-        
+            segments = [seg for segment in segments for seg in segment.split(separator)]
+
         # Process each segment separately for multi-word names
         for segment_text in segments:
-            segment_text = segment_text.strip()
-            if len(segment_text) < 3:  # Skip tiny segments
+            clean_segment = segment_text.strip()
+            if len(clean_segment) < max_characters:  # Skip tiny segments
                 continue
-                
+
             # Find the start position of this segment in the original text
-            segment_start = text.find(segment_text)
+            segment_start = text.find(clean_segment)
             if segment_start == -1:
                 continue
-            
-            self._detect_names_in_segment(segment_text, segment_start, annotations, is_overlapping)
-    
-    def _detect_names_in_segment(self, segment_text: str, segment_start: int, annotations: list, is_overlapping) -> None:
+
+            self._words_segment(clean_segment, segment_start, annotations, _overlapping)
+
+    def _words_segment(self, segment: str, segment_start: int, annotations: list, _overlapping: callable) -> None:
         """Detect multi-word names within a single segment."""
-        word_positions = []
-        
-        # Build word position map for this segment
-        for match in re.finditer(r'\b[A-Za-zÀ-ÖØ-öø-ÿ]+\b', segment_text):
-            word_positions.append({
+        word_positions = [
+            {
                 'word': match.group().lower(),
                 'original': match.group(),
                 'start': segment_start + match.start(),
                 'end': segment_start + match.end(),
-            })
-        
-        # Look for sequences of 2+ words that could be names
-        # Start with longer sequences first (higher priority)
+            }
+            for match in re.finditer(r'\b[A-Za-zÀ-ÖØ-öø-ÿ]+\b', segment)
+        ]
+
+        # Look for sequences of 2+ words that could be names, (longer sequences first)
         for length in range(min(4, len(word_positions)), 1, -1):  # Max 4 words per name
-            for i in range(len(word_positions) - length + 1):
-                sequence = word_positions[i:i + length]
-                
+            for item in range(len(word_positions) - length + 1):
+                sequence = word_positions[item : item + length]
+
                 # Check if this sequence forms a valid name combination
-                if self._is_valid_name_sequence_flexible(sequence, length):
+                if self._valid_name_sequence(sequence, length):
                     start_pos = sequence[0]['start']
                     end_pos = sequence[-1]['end']
-                    
+
                     # Check for overlap with existing annotations
-                    if not is_overlapping(start_pos, end_pos):
-                        combined_text = segment_text[start_pos - segment_start:end_pos - segment_start]
-                        confidence = self._calculate_sequence_confidence(sequence, length)
-                        
+                    if not _overlapping(start_pos, end_pos):
+                        combined_text = segment[start_pos - segment_start : end_pos - segment_start]
+                        confidence = self._sequence_confidence(sequence, length)
+
                         annotations.append(
                             NameAnnotation(
                                 start=start_pos,
@@ -186,187 +194,99 @@ class DutchNameDetector:
                                 text=combined_text,
                                 tag='persoon',
                                 confidence=confidence,
-                            )
+                            ),
                         )
-    
-    def _is_valid_name_sequence_flexible(self, sequence: list, length: int) -> bool:
-        """Check if a sequence of words forms a valid name combination with flexible criteria."""
-        # For 2-word combinations (more strict)
-        if length == 2:
-            word1, word2 = sequence[0]['word'], sequence[1]['word']
-            
+
+    def _valid_name_sequence(self, sequence: list, length: int) -> bool:
+        """Check if a sequence of words forms a valid name combination."""
+        two_words = 2
+        three_words = 3
+
+        if length == two_words:
+            word_1, word_2 = sequence[0]['word'], sequence[1]['word']
+
             # Skip very short words or common words
-            if (len(word1) < 3 or len(word2) < 3 or 
-                self._common_word(word1) or self._common_word(word2) or
-                self._stop_word(word1) or self._stop_word(word2)):
+            if (
+                len(word_1) < three_words
+                or len(word_2) < three_words
+                or self._common_word(word_1)
+                or self._common_word(word_2)
+                or self._stop_word(word_1)
+                or self._stop_word(word_2)
+            ):
                 return False
-            
+
             # At least one must be a known name
-            is_first_known = self._first_name(word1) or self._surname(word1)
-            is_second_known = self._first_name(word2) or self._surname(word2)
-            
-            return is_first_known and is_second_known
-        
-        # For 3+ word combinations - stricter validation
-        if length >= 3:
+            first_known = self._first_name(word_1) or self._surname(word_1)
+            second_known = self._first_name(word_2) or self._surname(word_2)
+            return first_known and second_known
+
+        if length >= three_words:
             # Check each word in the sequence
             known_names = 0
             unknown_but_valid = 0
-            
+
             for word_info in sequence:
                 word = word_info['word']
                 original = word_info['original']
-                
-                # Skip very short words or obvious common words
-                if len(word) < 3:
+
+                if len(word) < three_words or self._common_word(word) or self._stop_word(word):
                     return False
-                    
-                # Check for obvious non-name words (verbs, adjectives, etc.)
-                if self._is_likely_non_name(word):
-                    return False
-                
-                if self._common_word(word) or self._stop_word(word):
-                    return False
-                
+
                 if self._first_name(word) or self._surname(word):
                     known_names += 1
-                elif self._looks_like_name(original):
+                elif self._possible_name(original):
                     unknown_but_valid += 1
                 else:
-                    return False  # Unknown word that doesn't look like a name
-            
-            # Need at least 2 known names OR 1 known + majority unknown-but-valid
+                    return False
+
             total_valid = known_names + unknown_but_valid
-            return known_names >= 2 or (known_names >= 1 and unknown_but_valid >= known_names and total_valid == length)
-            
+            return known_names >= two_words or (
+                known_names >= 1 and unknown_but_valid >= known_names and total_valid == length
+            )
+
         return False
-    
-    def _is_likely_non_name(self, word: str) -> bool:
-        """Check if word is likely NOT a name (verb, adjective, etc.)."""
-        # Common Dutch verbs, adjectives, and other non-name words
-        non_name_words = {
-            'hebben', 'zijn', 'was', 'waren', 'heeft', 'had', 'gaan', 'gaat', 'ging', 'gingen',
-            'komt', 'kwam', 'komen', 'doen', 'doet', 'deed', 'deden', 'zien', 'ziet', 'zag', 'zagen',
-            'wonen', 'woont', 'woonde', 'woonden', 'leven', 'leeft', 'leefde', 'leefden',
-            'werken', 'werkt', 'werkte', 'werkten', 'lopen', 'loopt', 'liep', 'liepen',
-            'groot', 'kleine', 'goed', 'goede', 'nieuwe', 'oude', 'lang', 'lange', 'kort', 'korte',
-            'mooi', 'mooie', 'lelijk', 'lelijke', 'vrolijk', 'vrolijke', 'blij', 'blije',
-            'huis', 'huizen', 'auto', 'autos', 'werk', 'school', 'straat', 'stad', 'land',
-            'dag', 'dagen', 'week', 'weken', 'maand', 'maanden', 'jaar', 'jaren', 'tijd',
-        }
-        return word.lower() in non_name_words
-    
-    def _looks_like_name(self, original_word: str) -> bool:
+
+    def _possible_name(self, original_word: str) -> bool:
         """Check if word looks like it could be a name."""
-        # Basic criteria for name-like appearance
+        small_word = 3
+        big_word = 20
+
         if not original_word[0].isupper():
             return False
-            
         if not re.match(r'^[A-Za-zÀ-ÖØ-öø-ÿ\-]+$', original_word):
             return False
-            
-        if len(original_word) < 3 or len(original_word) > 20:
-            return False
-            
-        return True
-    
-    def _is_valid_name_sequence(self, sequence: list) -> bool:
-        """Check if a sequence of words forms a valid name combination."""
-        if len(sequence) < 3:
-            return False
-            
-        # Count known names in the sequence
-        first_name_count = 0
-        surname_count = 0
-        unknown_count = 0
-        
-        for word_info in sequence:
-            word = word_info['word']
-            
-            # Skip very short words or common words
-            if len(word) < 3 or self._common_word(word) or self._stop_word(word):
-                return False
-                
-            if self._first_name(word):
-                first_name_count += 1
-            elif self._surname(word):
-                surname_count += 1
-            else:
-                unknown_count += 1
-        
-        # Valid combinations (more flexible criteria):
-        # 1. At least 1 known first name AND at least 1 known surname
-        # 2. OR at least 2 known names (first or surname) with at most 1 unknown
-        # 3. OR at least 1 known name with all unknown names being valid name-like patterns
-        
-        total_known = first_name_count + surname_count
-        
-        if first_name_count >= 1 and surname_count >= 1:
-            return True  # Clear first name + surname pattern
-            
-        if total_known >= 2 and unknown_count <= 1:
-            return True  # Mostly known names with maybe one unknown
-            
-        # NEW: Allow 1 known name if all unknown names look name-like
-        if total_known >= 1 and self._all_words_name_like(sequence):
-            return True  # At least one known name with name-like unknowns
-            
-        return False
-    
-    def _all_words_name_like(self, sequence: list) -> bool:
-        """Check if all words in sequence appear to be name-like."""
-        for word_info in sequence:
-            word = word_info['word']
-            original = word_info['original']
-            
-            # Name-like criteria:
-            # 1. Starts with capital letter in original text
-            # 2. Contains only letters (no numbers or special chars except hyphens)
-            # 3. Not a common Dutch word
-            # 4. Reasonable length (3-20 characters)
-            
-            if not original[0].isupper():
-                return False
-                
-            if not re.match(r'^[A-Za-zÀ-ÖØ-öø-ÿ\-]+$', original):
-                return False
-                
-            if self._common_word(word) or self._stop_word(word):
-                return False
-                
-            if len(word) < 3 or len(word) > 20:
-                return False
-                
-        return True
-    
-    def _calculate_sequence_confidence(self, sequence: list, length: int = 0) -> float:
+        return not (len(original_word) < small_word or len(original_word) > big_word)
+
+    def _sequence_confidence(self, sequence: list, length: int = 0) -> float:
         """Calculate confidence score for a name sequence."""
         base_confidence = 0.75
-        
         first_name_count = 0
         surname_count = 0
-        
+        max_words = 2
+
         for word_info in sequence:
             word = word_info['word']
+
             if self._first_name(word):
                 first_name_count += 1
             elif self._surname(word):
                 surname_count += 1
-        
+
         # Higher confidence for 2-word combinations that are both known names
-        if length == 2 and first_name_count >= 1 and surname_count >= 1:
+        if length == max_words and first_name_count >= 1 and surname_count >= 1:
             base_confidence = 0.85
-        
+
         # Boost confidence if we have both first names and surnames
         if first_name_count >= 1 and surname_count >= 1:
             base_confidence += 0.1
-            
+
         # Boost confidence for more known names
         total_known = first_name_count + surname_count
         knowledge_ratio = total_known / len(sequence)
         base_confidence += knowledge_ratio * 0.1
-        
-        return min(base_confidence, 0.95)  # Cap at 0.95
+
+        return min(base_confidence, 0.95)  # cap at highest score
 
     def _first_name(self, name: str) -> bool:
         """Check if a name is in the first names lookup (case-insensitive) or a known variant."""
