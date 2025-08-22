@@ -65869,7 +65869,6 @@ Koekersestraat
 Koekkel
 Koekkoekhof
 Koekkoekplein
-Koekoek
 Koekoekboomseweg
 Koekoekdreef
 Koekoekendijk
@@ -144377,7 +144376,6 @@ de Kocksweerd
 de Koegang
 de Koegangen
 de Koekel
-de Koekoek
 de Koekoeksbloem
 de Koekoekswei
 de Koel

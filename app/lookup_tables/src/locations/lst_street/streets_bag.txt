@@ -28306,7 +28306,6 @@ De Kocksweerd
 De Koegang
 De Koegangen
 De Koekel
-De Koekoek
 De Koekoeksbloem
 De Koekoekswei
 De Koel
@@ -74297,7 +74296,6 @@ Koekersestraat
 Koekkel
 Koekkoekhof
 Koekkoekplein
-Koekoek
 Koekoekboomseweg
 Koekoekdreef
 Koekoekendijk

@@ -13,6 +13,7 @@ Generaal
 Groep
 Kamer
 Kent
+Koekoek
 Laat
 Maar
 Maat
@@ -28,6 +29,7 @@ Segment
 Standaard
 Start
 Volume
+Vries
 Vrij
 West
 Zomer

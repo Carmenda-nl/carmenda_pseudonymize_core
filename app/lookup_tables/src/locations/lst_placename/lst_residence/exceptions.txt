@@ -48,6 +48,7 @@ Uitweg
 Val
 Ven
 Verlaat
+Vries
 Vrij
 Waarde
 Zittend
