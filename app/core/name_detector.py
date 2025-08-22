@@ -31,6 +31,7 @@ class DutchNameDetector:
 
     def __init__(self, lookup_sets: dict[str, set[str]]) -> None:
         """Initialize with lookup data."""
+        self.name_prefixes = lookup_sets.get('name_prefixes', set())
         self.first_names = lookup_sets.get('first_names', set())
         self.surnames = lookup_sets.get('surnames', set())
         self.interfix_surnames = lookup_sets.get('interfix_surnames', set())
@@ -40,6 +41,50 @@ class DutchNameDetector:
 
         # Load interfix patterns for regex patterns
         self.interfix_pattern = self._interfix_patterns()
+
+    def _prefix_before_surname(self, text: str, match_start: int) -> bool:
+        """Check if there is a valid name prefix before a potential surname."""
+        prefix_text = text[:match_start].strip()
+
+        # Split on whitespace and get the last few words
+        words = prefix_text.split()
+        if not words:
+            return False
+
+        # Check the last word (most likely to be a prefix)
+        last_word = words[-1].lower().rstrip('.,;:!?')
+        if last_word in self.name_prefixes:
+            return True
+
+        # Also check the second-to-last word in case there's punctuation
+        min_words_for_second_check = 2
+        if len(words) >= min_words_for_second_check:
+            second_last = words[-2].lower().rstrip('.,;:!?')
+            if second_last in self.name_prefixes:
+                return True
+
+        return False
+
+    def _surname_with_prefix(self, match: re.Match[str], text: str, max_characters: int) -> bool:
+        """Validate a surname match by checking if it has a valid prefix."""
+        groups = match.groups()
+        surname = groups[0].lower()
+
+        # First check if it's actually a surname and meets basic criteria
+        if not (
+            self._surname(surname)
+            and len(groups[0]) >= max_characters
+            and surname not in self.common_words
+            and surname not in self.stop_words
+        ):
+            return False
+
+        # If it's also a first name, only detect it as surname if it has a prefix
+        if self._first_name(surname):
+            return self._prefix_before_surname(text, match.start())
+
+        # For pure surnames (not first names), still require prefix
+        return self._prefix_before_surname(text, match.start())
 
     def _interfix_patterns(self) -> str:
         """Build regex pattern for interfixes from lookup data."""
@@ -90,15 +135,10 @@ class DutchNameDetector:
                 ),
             },
             {
-                # Pattern 4: Only detect surnames
+                # Pattern 4: Only detect surnames when they have a valid prefix
                 'regex': r"\b([A-Za-zÀ-ÖØ-öø-ÿ'\-]+)\b",
                 'confidence': 0.80,
-                'validate': lambda g: (
-                    self._surname(g[0].lower())
-                    and len(g[0]) >= max_characters
-                    and g[0].lower() not in self.common_words
-                    and g[0].lower() not in self.stop_words
-                ),
+                'validate': 'surname_with_prefix',
             },
         ]
 
@@ -122,7 +162,20 @@ class DutchNameDetector:
                 if self._overlapping(match.start(), match.end(), annotations):
                     continue
 
-                if pattern_info['validate'](match.groups()):
+                # Handle special validation for surnames with prefix
+                if pattern_info['validate'] == 'surname_with_prefix':
+                    if self._surname_with_prefix(match, text, max_characters):
+                        annotations.append(
+                            NameAnnotation(
+                                start=match.start(),
+                                end=match.end(),
+                                text=match.group(0),
+                                tag='persoon',
+                                confidence=pattern_info['confidence'],
+                            ),
+                        )
+                # Handle regular lambda validation
+                elif callable(pattern_info['validate']) and pattern_info['validate'](match.groups()):
                     annotations.append(
                         NameAnnotation(
                             start=match.start(),
@@ -288,26 +341,32 @@ class DutchNameDetector:
 
         return min(base_confidence, 0.95)  # cap at highest score
 
+    # ---------------------------- LOOKUP TABLE QUERIES ---------------------------- #
+
+    def _in_lookup(self, word: str, lookup_set: set[str]) -> bool:
+        """Check if a word exists in the given lookup set (case-insensitive)."""
+        return word.lower() in lookup_set
+
     def _first_name(self, name: str) -> bool:
-        """Check if a name is in the first names lookup (case-insensitive) or a known variant."""
-        return name.lower() in self.first_names
+        """Check if a name is a first name."""
+        return self._in_lookup(name, self.first_names)
 
     def _surname(self, name: str) -> bool:
-        """Check if a name is in the surnames lookup (case-insensitive) or a known variant."""
-        return name.lower() in self.surnames
+        """Check if a name is a surname."""
+        return self._in_lookup(name, self.surnames)
 
     def _interfix_surname(self, name: str) -> bool:
-        """Check if a name is in the interfix surnames lookup (case-insensitive)."""
-        return name.lower() in self.interfix_surnames
+        """Check if a name is an interfix surname."""
+        return self._in_lookup(name, self.interfix_surnames)
 
     def _interfix(self, word: str) -> bool:
-        """Check if a word is an interfix (case-insensitive)."""
-        return word.lower() in self.interfixes
+        """Check if a word is an interfix."""
+        return self._in_lookup(word, self.interfixes)
 
     def _common_word(self, word: str) -> bool:
-        """Check if a word is a common Dutch word that should not be treated as a name."""
-        return word.lower() in self.common_words
+        """Check if a word is a common Dutch word."""
+        return self._in_lookup(word, self.common_words)
 
     def _stop_word(self, word: str) -> bool:
-        """Check if a word is a stop word (case-insensitive)."""
-        return word.lower() in self.stop_words
+        """Check if a word is a stop word."""
+        return self._in_lookup(word, self.stop_words)

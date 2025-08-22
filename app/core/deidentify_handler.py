@@ -74,6 +74,7 @@ class DeidentifyHandler:
             'first_names': base_path / 'lst_first_name' / 'items.txt',
             'surnames': base_path / 'lst_surname' / 'items.txt',
             'interfix_surnames': base_path / 'lst_interfix_surname' / 'items.txt',
+            'name_prefixes': base_path / 'lst_prefix' / 'items.txt',
             'interfixes': base_path / 'lst_interfix' / 'items.txt',
             'common_words': whitelist_path / 'lst_common_word' / 'items.txt',
             'stop_words': whitelist_path / 'lst_stop_word' / 'items.txt',
