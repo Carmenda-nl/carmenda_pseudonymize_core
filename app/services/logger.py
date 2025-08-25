@@ -26,7 +26,7 @@ def setup_logging(log_dir: str = 'data/output') -> logging.Logger:
 
     # Setup deidentify logger
     logger = logging.getLogger('deidentify')
-    logger.setLevel(logging.DEBUG)  # <- set logging level
+    logger.setLevel(logging.INFO)  # <- set logging level
     logger.propagate = True  # <- disables logging to console if `False`
 
     # Clear existing handlers to prevent duplicates

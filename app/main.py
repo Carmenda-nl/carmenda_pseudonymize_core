@@ -6,7 +6,7 @@
 """Anonymize Dutch report texts.
 
 Authors: Django Heimgartner, Joep Tummers, Pim van Oirschot
-Date: 21-08-2025
+Date: 25-08-2025
 
 Description:
     Deidentifies Dutch report texts (unstructured data) using Deduce
