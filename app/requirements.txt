@@ -1,0 +1,2 @@
+polars[pandas]==1.32.3
+deduce==3.0.6

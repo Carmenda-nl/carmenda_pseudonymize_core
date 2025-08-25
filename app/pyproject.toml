@@ -1,0 +1,9 @@
+[tool.ruff]
+line-length = 120
+select = ['ALL']
+
+[tool.ruff.format]
+quote-style = 'single'
+
+[tool.ruff.flake8-quotes]
+inline-quotes = 'single'

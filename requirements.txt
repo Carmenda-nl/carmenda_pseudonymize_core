@@ -1,2 +1,0 @@
-polars[pandas]==1.27.1
-deduce==3.0.3
