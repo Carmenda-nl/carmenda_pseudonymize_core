@@ -15,8 +15,6 @@ python_files = ['tests.py', 'test_*.py', '*_tests.py']
 addopts = [
     '--cov=.',
     '--cov-report=term:skip-covered',
-    '--cov-report=xml:coverage.xml',
-    '--junitxml=report.xml',
     '--cov-fail-under=25',
     '-p',
     'no:warnings'
