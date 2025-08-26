@@ -2,6 +2,9 @@
 line-length = 120
 select = ['ALL']
 exclude = ['migrations']
+ignore = [
+    'ARG002' # request & pk are mandatory for DRF
+]
 
 [tool.ruff.format]
 quote-style = 'single'

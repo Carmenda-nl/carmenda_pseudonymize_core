@@ -32,7 +32,7 @@ class DeidentificationJob(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    error_message = models.TextField(blank=True)
+    error_message = models.TextField(default='', blank=True)
 
     def __str__(self) -> str:
         """Return a string representation of the deidentification job."""

@@ -85,13 +85,13 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         },
     )
     @action(detail=True, methods=['post'])
-    def process(self, _request: HttpRequest, _pk: str | None = None) -> Response:
+    def process(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Change the job status to 'processing' and initiate the asynchronous deidentification process.
 
         Validates that the input file exists before starting.
 
         Args:
-            _request (HttpRequest): The HTTP request (unused but required by DRF)
+            request (HttpRequest): The HTTP request
             pk (str | None): The job_id of the job to process
 
         Returns:
@@ -108,7 +108,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         # Reset the status and error message on re-runs
         job.status = 'processing'
-        job.error_message = None
+        job.error_message = ''
         job.save()
 
         try:
@@ -127,12 +127,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         responses={200: OpenApiResponse(JobStatusSerializer())},
     )
     @action(detail=True, methods=['get'])
-    def check_status(self, _request: HttpRequest, _pk: str | None = None) -> Response:
+    def check_status(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Return the current status, progress percentage, and any error messages for the specified job.
 
         Args:
-            _request (HttpRequest): The HTTP request (unused but required by DRF)
-            _pk (str | None): The job_id of the job to check (unused, obtained from URL)
+            request (HttpRequest): The HTTP request
+            pk (str | None): The job_id of the job to check
 
         Returns:
             Response: HTTP_200_OK with job status details in response body
@@ -170,7 +170,7 @@ class ResetJobsViewSet(viewsets.ViewSet):
         },
     )
     @action(detail=False, methods=['delete'])
-    def select_all(self, _request: HttpRequest) -> Response:
+    def select_all(self, request: HttpRequest) -> Response:
         """Delete all jobs and associated files from the system.
 
         This operation:
