@@ -17,16 +17,12 @@ log
 
 # -------------------------- Django folders & files -------------------------- #
 
-__pycache__
 cache
-settings_local.py
-services
+__pycache__
 
 # --------------------------------- Testing ---------------------------------- #
 
-docker-compose-local.yml
 test
-coverage
 .coverage
 
 # ---------------------------------- Build ----------------------------------- #

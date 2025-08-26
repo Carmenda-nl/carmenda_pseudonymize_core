@@ -1,9 +1,23 @@
 [tool.ruff]
 line-length = 120
 select = ['ALL']
+exclude = ['migrations']
 
 [tool.ruff.format]
 quote-style = 'single'
 
 [tool.ruff.flake8-quotes]
 inline-quotes = 'single'
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = 'main.settings'
+python_files = ['tests.py', 'test_*.py', '*_tests.py']
+addopts = [
+    '--cov=.',
+    '--cov-report=term:skip-covered',
+    '--cov-report=xml:coverage.xml',
+    '--junitxml=report.xml',
+    '--cov-fail-under=25',
+    '-p',
+    'no:warnings'
+]
