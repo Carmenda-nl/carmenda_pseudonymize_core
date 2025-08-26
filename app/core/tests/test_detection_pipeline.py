@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from core.deidentify_handler import DeidentifyHandler
-from services.logger import setup_test_logging
+from utils.logger import setup_test_logging
 from utils.terminal import get_separator_line
 
 # Add the source directory to the Python path
