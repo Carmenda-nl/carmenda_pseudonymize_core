@@ -1,46 +1,57 @@
-from rest_framework import serializers
-from api.models import DeidentificationJob
-from pseudonymize.services.progress_tracker import tracker
+# ------------------------------------------------------------------------------------------------ #
+# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
+# ------------------------------------------------------------------------------------------------ #
+
+"""Serializers for API endpoints handling deidentification jobs.
+
+This module contains serializers for managing deidentification jobs,
+including validation, processing, and status tracking functionality.
+"""
+
 import re
+from typing import ClassVar
+
+from rest_framework import serializers
+
+from api.models import DeidentificationJob
+from utils.progress_tracker import tracker
 
 
 class DeidentificationJobSerializer(serializers.ModelSerializer):
-    """
-    This serializer validates job configuration parameters, particularly the input_cols
-    field which must follow a specific format. It defines which fields are read-only
-    and implements custom validation logic for the input column mapping.
+    """Validate job configuration parameters and handle deidentification job data."""
 
-    Attributes:
-        Meta: Configures the serializer with model and field specifications.
-    """
     class Meta:
+        """Set model and field specifications for the serializer."""
+
         model = DeidentificationJob
         fields = '__all__'
-        read_only_fields = [
-            'job_id', 'output_file', 'key_file', 'log_file', 'zip_file', 'zip_preview',
-            'processed_preview', 'status', 'created_at', 'updated_at', 'error_message'
+        read_only_fields: ClassVar = [
+            'job_id',
+            'output_file',
+            'key_file',
+            'log_file',
+            'zip_file',
+            'zip_preview',
+            'processed_preview',
+            'status',
+            'created_at',
+            'updated_at',
+            'error_message',
         ]
 
-    def validate_input_cols(self, value):
-        """
-        Validates that `input_cols` is:
-          1. Comma-separated
-          2. Each value follows the format: key=value
-          3. Contains at least one of the fields `patientName` or `report`
+    def validate_input_cols(self, value: str) -> str:
+        """Validate that `input_cols` follows the required format.
 
-        Args:
-            value (str): The input_cols value to validate
-
-        Returns:
-            str: The validated input_cols value
-
-        Raises:
-            ValidationError: If validation fails for any of the rules
+        1. Comma-separated
+        2. Each value follows the format: key=value
+        3. Contains at least one of the fields `patientName` or `report`
         """
         if not isinstance(value, str):
-            raise serializers.ValidationError('Input columns must be a string')
+            msg = 'Input columns must be a string'
+            raise serializers.ValidationError(msg)
 
-        # split by comma and remove whitespace
+        # Split by comma and remove whitespace
         fields = [field.strip() for field in value.split(',')]
 
         pattern = re.compile(r'^([^=]+)=(.+)$')
@@ -50,69 +61,55 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             match = pattern.match(field)
 
             if not match:
-                raise serializers.ValidationError(
-                    f"Field '{field}' does not follow the format 'key=value'"
-                )
+                msg = f"Field '{field}' does not follow the format 'key=value'"
+                raise serializers.ValidationError(msg)
+
             key = match.group(1)
             val = match.group(2)
             field_dict[key] = val
 
-        # check that at least one of the required fields is present
+        # Check that at least one of the required fields is present
         if 'patientName' not in field_dict and 'report' not in field_dict:
-            raise serializers.ValidationError("At least one of 'patientName' or 'report' must be present")
+            msg = "At least one of 'patientName' or 'report' must be present"
+            raise serializers.ValidationError(msg)
 
         return value
 
-    def create(self, validated_data):
-        """
+    def create(self, validated_data: dict) -> DeidentificationJob:
+        """Create and persist a new job in the database.
+
         After successful validation, creates and persists
         a new job in the database.
-
-        Args:
-            validated_data (dict): Data that has passed validation
-
-        Returns:
-            DeidentificationJob: The newly created job instance
         """
         return DeidentificationJob.objects.create(**validated_data)
 
 
 class ProcessJobSerializer(serializers.ModelSerializer):
-    """
-    This lightweight serializer is used when a job is submitted for processing,
-    only exposing the necessary `input_cols` field.
+    """Lightweight serializer used when a job is submitted for processing."""
 
-    Attributes:
-        Meta: Configures the serializer with model and field specifications.
-    """
     class Meta:
+        """Set model and field specifications for the serializer."""
+
         model = DeidentificationJob
-        fields = ['input_cols']
+
+        # Only exposes the necessary `input_cols` field.
+        fields: ClassVar = ['input_cols']
 
 
 class JobStatusSerializer(serializers.ModelSerializer):
-    """
-    Provides information about the current state of a deidentification job,
-    including its status, progress percentage, and any error messages.
+    """Provide information about the current state of a deidentification job.
 
-    Attributes:
-        progress (SerializerMethodField): Calculated field for job progress.
-        Meta: Configures the serializer with model and field specifications.
+    Includes its status, progress percentage, and any error messages.
     """
+
     progress = serializers.SerializerMethodField()
 
     class Meta:
+        """Set model and field specifications for the serializer."""
+
         model = DeidentificationJob
-        fields = ['status', 'progress', 'error_message']
+        fields: ClassVar = ['status', 'progress', 'error_message']
 
-    def get_progress(self, obj):
-        """
-        Uses the global tracker instance to get the current progress value.
-
-        Args:
-            obj (DeidentificationJob): The job instance being serialized
-
-        Returns:
-            int: Progress percentage from 0-100
-        """
+    def get_progress(self, _obj: DeidentificationJob) -> int:
+        """Get the current progress value from the global tracker."""
         return tracker.get_progress()

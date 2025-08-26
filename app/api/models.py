@@ -1,13 +1,18 @@
-from django.db import models
+# ------------------------------------------------------------------------------------------------ #
+# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
+# ------------------------------------------------------------------------------------------------ #
+
+"""API models for keeping track of the deidentification process."""
+
 import uuid
+
+from django.db import models
 
 
 class DeidentificationJob(models.Model):
-    """
-    Tracking the processing of healthcare data files
-    through a deidentification pipeline,
-    maintaining state information and file references.
-    """
+    """Maintaining state information and file references."""
+
     STATUS_CHOICES = (
         ('pending', 'Pending'),
         ('processing', 'Processing'),
@@ -27,7 +32,8 @@ class DeidentificationJob(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    error_message = models.TextField(blank=True, null=True)
+    error_message = models.TextField(blank=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Return a string representation of the deidentification job."""
         return f'Job {self.job_id} - {self.status}'

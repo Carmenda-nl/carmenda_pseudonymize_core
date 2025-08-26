@@ -1,25 +1,38 @@
-from rest_framework import viewsets, status
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiResponse
+# ------------------------------------------------------------------------------------------------ #
+# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
+# ------------------------------------------------------------------------------------------------ #
 
-from api.models import DeidentificationJob
-from api.serializers import DeidentificationJobSerializer, ProcessJobSerializer, JobStatusSerializer
-from api.manager import process_deidentification
-import os
+"""API views for deidentification jobs logic."""
 
-from django.conf import settings
+from __future__ import annotations
+
 import logging
 import shutil
+from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
+
+if TYPE_CHECKING:
+    from django.http import HttpRequest
+
+from django.conf import settings
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+from api.manager import process_deidentification
+from api.models import DeidentificationJob
+from api.serializers import DeidentificationJobSerializer, JobStatusSerializer, ProcessJobSerializer
 
 
 class ApiTags:
-    """
-    API tag constants for Swagger/OpenAPI documentation grouping.
+    """API tag constants for Swagger/OpenAPI documentation grouping.
 
     These tags are used to categorize endpoints in the API documentation
     for better organization and discoverability.
     """
+
     JOBS = 'Jobs'
     PROCESSING = 'Processing'
     CLEANUP = 'Cleanup'
@@ -31,20 +44,19 @@ class ApiTags:
     check_status=extend_schema(tags=[ApiTags.PROCESSING]),
 )
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for managing deidentification jobs.
+    """ViewSet for managing deidentification jobs.
 
     This ViewSet provides endpoints for creating, retrieving,
-    and deleting deidentification jobs,
-    as well as triggering processing and checking job status.
+    and deleting deidentification jobs.
     """
+
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
-    http_method_names = ['get', 'post', 'delete']
+    http_method_names: ClassVar = ['get', 'post', 'delete']
 
-    def create(self, request, *args, **kwargs):
-        """
-        Prepares a new job with an uploaded file and column mapping configuration.
+    def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> Response:
+        """Prepare a new job with an uploaded file and column mapping configuration.
+
         The job is initialized with 'pending' status and awaits explicit processing.
 
         Required parameters:
@@ -54,16 +66,14 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         Returns:
             HTTP_201_CREATED: Job created successfully
             HTTP_400_BAD_REQUEST: Validation errors in the request data
+
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(status='pending')
 
         headers = self.get_success_headers(serializer.data)
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED, headers=headers
-        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     @extend_schema(
         methods=['post'],
@@ -71,107 +81,97 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         responses={
             200: OpenApiResponse(description='Job processing started successfully'),
             400: OpenApiResponse(description='Job cannot be processed or input file is missing'),
-            500: OpenApiResponse(description='Failed to start job processing')
-        }
+            500: OpenApiResponse(description='Failed to start job processing'),
+        },
     )
     @action(detail=True, methods=['post'])
-    def process(self, request, pk=None):
-        """
-        Changes the job status to 'processing' and initiates the asynchronous
-        deidentification process. Validates that the input file exists before starting.
+    def process(self, _request: HttpRequest, _pk: str | None = None) -> Response:
+        """Change the job status to 'processing' and initiate the asynchronous deidentification process.
 
-        Parameters:
-            pk (UUID): The job_id of the job to process
+        Validates that the input file exists before starting.
+
+        Args:
+            _request (HttpRequest): The HTTP request (unused but required by DRF)
+            pk (str | None): The job_id of the job to process
 
         Returns:
-            HTTP_200_OK: Job processing started successfully
-            HTTP_400_BAD_REQUEST: Job cannot be processed or input file is missing
-            HTTP_500_INTERNAL_SERVER_ERROR: Failed to start job processing
+            Response: HTTP_200_OK if job processing started successfully,
+                     HTTP_400_BAD_REQUEST if job cannot be processed or input file is missing,
+                     HTTP_500_INTERNAL_SERVER_ERROR if failed to start job processing
+
         """
         job = self.get_object()
 
-        # check if the input file exist
-        if not job.input_file or not os.path.exists(job.input_file.path):
-            return Response(
-                {'Input file is missing'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Check if the input file exist
+        if not job.input_file or not Path(job.input_file.path).exists():
+            return Response({'Input file is missing'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # reset the status and error message on re-runs
+        # Reset the status and error message on re-runs
         job.status = 'processing'
         job.error_message = None
         job.save()
 
         try:
-            # start the anonymizing process
+            # Start the anonymizing process
             process_deidentification(job.job_id)
 
-            return Response(
-                {'Job processing started successfully'},
-                status=status.HTTP_200_OK
-            )
-        except Exception as e:
+            return Response({'Job processing started successfully'}, status=status.HTTP_200_OK)
+        except (OSError, RuntimeError, ValueError) as e:
             job.status = 'failed'
             job.save()
 
-            return Response(
-                {'Failed to start job processing': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'Failed to start job processing': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @extend_schema(
         methods=['get'],
-        responses={200: OpenApiResponse(JobStatusSerializer()), }
+        responses={200: OpenApiResponse(JobStatusSerializer())},
     )
     @action(detail=True, methods=['get'])
-    def check_status(self, request, pk=None):
-        """
-        Returns the current status, progress percentage, and any error messages
-        for the specified job.
+    def check_status(self, _request: HttpRequest, _pk: str | None = None) -> Response:
+        """Return the current status, progress percentage, and any error messages for the specified job.
 
-        Parameters:
-            pk (UUID): The job_id of the job to check
+        Args:
+            _request (HttpRequest): The HTTP request (unused but required by DRF)
+            _pk (str | None): The job_id of the job to check (unused, obtained from URL)
 
         Returns:
-            HTTP_200_OK: Job status retrieved successfully, with status details in response body
+            Response: HTTP_200_OK with job status details in response body
+
         """
         job = self.get_object()
         serializer = JobStatusSerializer(job)
 
         return Response(
             serializer.data,
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
 
 
 @extend_schema(tags=[ApiTags.CLEANUP])
 class ResetJobsViewSet(viewsets.ViewSet):
-    """
-    This ViewSet provides administrative functionality to reset the system by
-    deleting all job records and associated files. It should be used with caution
-    and properly secured in production environments.
+    """Reset the system by deleting all job records and associated files.
 
     Warnings:
         - This endpoint permanently deletes all job data
-        - It should be secured with authentication in production
         - Use only for development, testing, or when a complete system reset is needed
 
     Endpoints:
         - DELETE /reset/select_all/: Delete all jobs and associated files
+
     """
+
     serializer_class = DeidentificationJobSerializer
 
     @extend_schema(
         methods=['delete'],
         responses={
             200: OpenApiResponse(description='Jobs successfully deleted'),
-            500: OpenApiResponse(description='Error deleting jobs')
-        }
+            500: OpenApiResponse(description='Error deleting jobs'),
+        },
     )
     @action(detail=False, methods=['delete'])
-    def select_all(self, request):
-        """
-        Delete all jobs and associated files from the system.
+    def select_all(self, _request: HttpRequest) -> Response:
+        """Delete all jobs and associated files from the system.
 
         This operation:
         1. Removes all job records from the database
@@ -183,38 +183,39 @@ class ResetJobsViewSet(viewsets.ViewSet):
         Returns:
             HTTP_200_OK: All jobs successfully deleted, with count of deleted jobs
             HTTP_500_INTERNAL_SERVER_ERROR: Error occurred during deletion
+
         """
         try:
-            # get all jobs to track stats before deletion
+            # Get all jobs to track stats before deletion
             total_jobs = DeidentificationJob.objects.count()
 
-            # get paths to input and output directories
-            input_dir = os.path.join(settings.MEDIA_ROOT, 'input')
-            output_dir = os.path.join(settings.MEDIA_ROOT, 'output')
+            # Get paths to input and output directories
+            input_dir = Path(settings.MEDIA_ROOT) / 'input'
+            output_dir = Path(settings.MEDIA_ROOT) / 'output'
 
-            # ensure logger is not reserved before removal
+            # Ensure logger is not reserved before removal
             logging.shutdown()
 
-            # remove all job-related files
-            if os.path.exists(input_dir):
+            # Remove all job-related files
+            if input_dir.exists():
                 shutil.rmtree(input_dir)
-            if os.path.exists(output_dir):
+            if output_dir.exists():
                 shutil.rmtree(output_dir)
 
-            # delete all job records
+            # Delete all job records
             DeidentificationJob.objects.all().delete()
 
-            # recreate empty directories to maintain structure
-            os.makedirs(input_dir, exist_ok=True)
-            os.makedirs(output_dir, exist_ok=True)
+            # Recreate empty directories to maintain structure
+            input_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             return Response(
                 f'All {total_jobs} jobs have been removed successfully.',
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
             )
 
-        except Exception as e:
+        except (OSError, RuntimeError, PermissionError) as e:
             return Response(
                 {'An error occurred while resetting jobs.\n': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
