@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Callable
 import deduce
 from deduce.person import Person
 
-from .name_detector import DutchNameDetector, NameAnnotation
-from ..services.logger import setup_logging
+from core.name_detector import DutchNameDetector, NameAnnotation
+from utils.logger import setup_logging
 
 if TYPE_CHECKING:
     from docdeid.document import Document
@@ -40,7 +40,7 @@ class DeidentifyHandler:
         self.processed_reports = []
         self.total_processed = 0
 
-        custom_lookup = Path(__file__).parent.parent / 'lookup_tables'
+        custom_lookup = Path(__file__).parent / 'lookup_tables'
         if custom_lookup.exists():
             self.lookup_data_path = str(custom_lookup)
         else:

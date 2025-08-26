@@ -24,11 +24,9 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from .deidentify_handler import DeidentifyHandler
-from .pseudo_key import Pseudonymizer
-from ..services.logger import setup_logging
-from ..services.progress_tracker import progress_tracker, tracker
-from ..utils.file_handling import (
+from core.deidentify_handler import DeidentifyHandler
+from core.pseudo_key import Pseudonymizer
+from utils.file_handling import (
     create_output_file_path,
     get_environment_paths,
     get_file_extension,
@@ -38,6 +36,8 @@ from ..utils.file_handling import (
     save_data_file,
     save_pseudonym_key,
 )
+from utils.logger import setup_logging
+from utils.progress_tracker import progress_tracker, tracker
 
 if TYPE_CHECKING:
     import logging
