@@ -10,8 +10,26 @@
 data/*
 app/data
 
+# --------------------------------- Logging ---------------------------------- #
+
+log
+*.log
+
+# -------------------------- Django folders & files -------------------------- #
+
+__pycache__
+cache
+settings_local.py
+services
+
 # --------------------------------- Testing ---------------------------------- #
 
 docker-compose-local.yml
 test
+coverage
 .coverage
+
+# ---------------------------------- Build ----------------------------------- #
+
+build
+dist
