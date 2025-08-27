@@ -1,85 +1,80 @@
-from pseudonymize.core.data_processor import process_data
-from pseudonymize.services.logger import setup_logging
+"""Manager module for processing deidentification jobs.
 
-from api.models import DeidentificationJob
-from django.conf import settings
+This module handles the background processing of deidentification jobs,
+including file processing, status tracking, and zipping the results.
+"""
 
-from pathlib import Path
-import threading
+from __future__ import annotations
+
+import json
 import os
 import queue
-import json
+import threading
 import zipfile
+from pathlib import Path
+from typing import NamedTuple
 
+from django.conf import settings
+
+from api.models import DeidentificationJob
+from core.data_processor import process_data
+from utils.logger import setup_logging
 
 logger = setup_logging()
 
 
-def thread_target(input_fofi, input_cols, output_cols, pseudonym_key, output_extension, job, output_queue=None):
+class DeidentificationConfig(NamedTuple):
+    """Configuration for deidentification processing."""
 
-    """
-    Execute a deidentification job in a separate thread.
+    input_fofi: str
+    input_cols: dict
+    output_cols: dict
+    pseudonym_key: dict
+    output_extension: str
 
-    This function serves as the target for a thread that processes data asynchronously.
-    It orchestrates the deidentification workflow, manages job status updates, and
-    handles communication of results through a queue mechanism when provided.
 
-    Returns:
-        None. Results are communicated through side effects:
-        - The job status is updated in the database
-        - If output_queue is provided, processed data is added to the queue
-        - Error information is logged and stored in the job record if exceptions occur
-    """
+def _thread_target(config: DeidentificationConfig, job: DeidentificationJob, output_queue: queue.Queue | None) -> None:
+    """Execute a deidentification job in a separate thread."""
     try:
-        # call the main deidentification process
+        # Call the core's deidentification process (data processor)
         processed_rows_json = process_data(
-            input_fofi=input_fofi,
-            input_cols=input_cols,
-            output_cols=output_cols,
-            pseudonym_key=pseudonym_key,
-            output_extension=output_extension,
+            input_fofi=config.input_fofi,
+            input_cols=config.input_cols,
+            output_cols=config.output_cols,
+            pseudonym_key=config.pseudonym_key,
+            output_extension=config.output_extension,
         )
 
-        # if an output queue is provided, put the JSON data in the queue
+        # If an output queue is provided, put the JSON data in the queue
         if output_queue is not None:
             output_queue.put(processed_rows_json)
 
-        # if no errors, update job to 'completed'
+        # If no errors, update job to 'completed'
         job.status = 'completed'
         job.save()
 
-    except Exception as e:
-        # update job status
-        logger.error(f'Error in thread for job {job.pk}: {str(e)}')
+    except (OSError, RuntimeError, ValueError) as e:
+        # Update job status
+        logger.exception('Error in thread for job %s', job.pk)
 
-        # if an output queue is provided, put the error in the queue
+        # If an output queue is provided, put the error in the queue
         if output_queue is not None:
             output_queue.put(None)
         try:
             job.status = 'failed'
-            job.error_message = f'Job error: {str(e)}'
+            job.error_message = f'Job error: {e!s}'
             job.save()
-        except Exception as inner_e:
-            logger.error(f'Failed to update job status for job {job.id}: {str(inner_e)}')
-            pass
+        except (OSError, RuntimeError):
+            logger.exception('Failed to update job status for job %s', job.id)
 
 
-def transform_output_cols(input_cols):
-    """
-    This function takes a comma-separated string of input column mappings
-    and replaces specific key mappings with their corresponding output mappings:
-
-    Args:
-        input_cols (str): A comma-separated string of key-value pairs in the
-                         format 'key1=value1, key2=value2, ...'
-
-    Returns:
-        str: A comma-separated string with transformed mappings, maintaining
-             the same format as the input but with the replaced values.
+def _transform_output_cols(input_cols: str) -> str:
+    """Transform input column mappings to their corresponding output mappings.
 
     Example:
         transform_output_cols('patientName=name, report=text, other=value')
         'patientName=patientID, report=processed_report, other=value'
+
     """
     parts = [part.strip() for part in input_cols.split(',')]
 
@@ -92,178 +87,157 @@ def transform_output_cols(input_cols):
     return ', '.join(parts)
 
 
-def create_zip_file(job_id, file_paths, output_filename):
-    """
-    Create a zip file containing the output files
+def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, DeidentificationConfig, str]:
+    """Set up the job and create configuration for deidentification."""
+    job = DeidentificationJob.objects.get(pk=job_id)
+    job.status = 'processing'
+    job.save()
 
-    Args:
-        job_id: UUID of the job
-        file_paths: List of file paths to include in the zip
-        output_filename: Name of the output file
+    input_cols = job.input_cols
+    output_cols = _transform_output_cols(input_cols)
 
-    Returns:
-        Tuple of (path to the created zip file, list of filenames included in the zip)
-    """
-    base_name = os.path.splitext(output_filename)[0]
+    input_fofi = Path(job.input_file.name).name
+    input_extension = Path(input_fofi).suffix.lower()
+    output_extension = input_extension if input_extension in ['.csv', '.parquet'] else '.parquet'
+
+    config = DeidentificationConfig(
+        input_fofi=input_fofi,
+        input_cols=input_cols,
+        output_cols=output_cols,
+        pseudonym_key=None,
+        output_extension=output_extension,
+    )
+
+    return job, config, input_fofi
+
+
+def _run_deidentification_thread(config: DeidentificationConfig, job: DeidentificationJob) -> str | None:
+    """Run the deidentification process in a separate thread."""
+    output_queue = queue.Queue()
+
+    thread = threading.Thread(
+        target=_thread_target,
+        args=(config, job, output_queue),
+    )
+    thread.daemon = True
+    thread.start()
+    thread.join()
+
+    try:
+        return output_queue.get(block=False)
+    except queue.Empty:
+        logger.warning('No processed rows JSON retrieved for job %s', job.pk)
+        return None
+
+
+def _save_processed_preview(job: DeidentificationJob, processed_rows_json: str | None) -> None:
+    """Save the processed data preview to the job model."""
+    if processed_rows_json:
+        processed_data = json.loads(processed_rows_json)
+        job.processed_preview = processed_data
+        job.save()
+
+
+def _collect_output_files(job: DeidentificationJob, input_fofi: str) -> tuple[list[str], str]:
+    """Collect paths of all output files and update job model."""
+    data_output_dir = Path(settings.MEDIA_ROOT) / 'output'
+    output_path = data_output_dir / input_fofi
+    key_path = data_output_dir / 'pseudonym_key.json'
+    log_path = data_output_dir / 'deidentification.log'
+
+    files_to_zip = []
+    output_filename = input_fofi
+
+    if output_path.exists():
+        relative_path = output_path.relative_to(Path(settings.MEDIA_ROOT))
+        job.output_file.name = str(relative_path)
+        files_to_zip.append(str(output_path))
+        output_filename = output_path.name
+
+    if key_path.exists():
+        relative_path = key_path.relative_to(Path(settings.MEDIA_ROOT))
+        job.key_file.name = str(relative_path)
+        files_to_zip.append(str(key_path))
+
+    if log_path.exists():
+        relative_path = log_path.relative_to(Path(settings.MEDIA_ROOT))
+        job.log_file.name = str(relative_path)
+        files_to_zip.append(str(log_path))
+
+    return files_to_zip, output_filename
+
+
+def _create_zip_file(_job_id: str, file_paths: list[str], output_filename: str) -> tuple[Path, str, list[str]]:
+    """Create a zip file containing the output files."""
+    base_name = Path(output_filename).stem
     zip_filename = f'{base_name}_deidentified.zip'
 
-    # define zip file path with output file name
-    zip_path = os.path.join(settings.MEDIA_ROOT, 'output', zip_filename)
+    # Define zip file path with output file name
+    zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
 
     included_files = []
 
-    # create the zip file
+    # Create the zip file
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for file_path in file_paths:
-            if os.path.exists(file_path):
-                basename = os.path.basename(file_path)
+            file_path_obj = Path(file_path)
+            if file_path_obj.exists():
+                basename = file_path_obj.name
 
-                # add file to zip with the determined name
+                # Add file to zip with the determined name
                 zipf.write(file_path, basename)
 
-                # add to our list of included files
+                # Add to our list of included files
                 included_files.append(basename)
             else:
-                logger.warning(f'File not found for zipping: {file_path}')
+                logger.warning('File not found for zipping: %s', file_path)
 
     return zip_path, zip_filename, included_files
 
 
-def process_deidentification(job_id):
-    """
-    This function orchestrates the entire workflow for a job, including:
-    - Loading the job from the database
-    - Setting up input/output column mappings
-    - Running the deidentification process in a separate thread
-    - Collecting and saving processed data previews
-    - Managing output files (data, keys, logs)
-    - Creating a zip archive of all output files
-    - Handling job status updates and error conditions
+def _create_and_store_zip(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:
+    """Create zip file and store its information in the job model."""
+    if not files_to_zip:
+        logger.warning('No output files found to zip for job %s', job.pk)
+        return
 
-    Args:
-        job_id (UUID): Unique identifier of the job to process.
+    try:
+        zip_path, zip_filename, included_files = _create_zip_file(str(job.pk), files_to_zip, output_filename)
+        relative_zip_path = os.path.relpath(zip_path, settings.MEDIA_ROOT)
 
-    Returns:
-        None. Results are persisted through side effects:
-        - Job status and metadata updated in the database
-        - Output files created in the filesystem
-        - Errors logged to the application logger
+        job.zip_file.name = relative_zip_path
+        job.zip_preview = {
+            'zip_file': zip_filename,
+            'files': included_files,
+        }
+    except (OSError, zipfile.BadZipFile, RuntimeError):
+        logger.exception('Failed to create zip file')
 
-    Raises:
-        No exceptions are propagated as they are caught and handled internally.
-        Errors are logged and reflected in the job's status and error_message fields.
 
-    Note:
-        This function operates asynchronously by spawning a separate thread for
-        the actual deidentification work, but it blocks until that thread completes.
+def process_deidentification(job_id: str) -> None:
+    """Entire workflow for a deidentification job.
+
+    This function operates asynchronously by spawning a separate thread for
+    the actual deidentification work, but it blocks until that thread completes.
     """
     try:
-        # get the current job from the database
-        job = DeidentificationJob.objects.get(pk=job_id)
+        job, config, output_filename = _setup_deidentification_job(job_id)
+        processed_rows_json = _run_deidentification_thread(config, job)
+        _save_processed_preview(job, processed_rows_json)  # <- preview for backend
 
-        # update job status to processing
-        job.status = 'processing'
-        job.save()
+        # Collect output files and update job model
+        files_to_zip, output_filename = _collect_output_files(job, output_filename)
+        _create_and_store_zip(job, files_to_zip, output_filename)
 
-        # output has the same amount of cols as input
-        # but some cols need to be replaced with the psuedomized versions
-        input_cols = job.input_cols
-        output_cols = transform_output_cols(input_cols)
-
-        input_fofi = Path(job.input_file.name).name
-        input_extension = os.path.splitext(input_fofi)[1].lower()
-        output_extension = input_extension if input_extension in ['.csv', '.parquet'] else '.parquet'
-
-        # create a queue to receive the processed rows JSON
-        output_queue = queue.Queue()
-
-        # create a thread to run the main deidentification process
-        thread = threading.Thread(
-            target=thread_target,
-            args=(
-                input_fofi,
-                input_cols,
-                output_cols,
-                None,  # pseudonym_key
-                output_extension,
-                job,
-                output_queue
-            )
-        )
-        thread.daemon = True
-        thread.start()
-
-        # wait until thread is finished
-        thread.join()
-
-        # retrieve 10 first rows in JSON
-        try:
-            processed_rows_json = output_queue.get(block=False)
-
-            # optionally, save the first 10 processed rows to the job model
-            if processed_rows_json:
-                processed_data = json.loads(processed_rows_json)
-                job.processed_preview = processed_data
-                job.save()
-        except queue.Empty:
-            logger.warning(f'No processed rows JSON retrieved for job {job_id}')
-
-        # set the output directory and filename
-        DATA_OUTPUT_DIR = os.path.join(settings.MEDIA_ROOT, 'output')
-
-        # define paths for all output files
-        output_path = os.path.join(DATA_OUTPUT_DIR, input_fofi)
-        key_path = os.path.join(DATA_OUTPUT_DIR, 'pseudonym_key.json')
-        log_path = os.path.join(DATA_OUTPUT_DIR, 'deidentification.log')
-
-        files_to_zip = []
-
-        # output file
-        if os.path.exists(output_path):
-            relative_path = os.path.relpath(output_path, settings.MEDIA_ROOT)
-            job.output_file.name = relative_path
-            files_to_zip.append(output_path)
-            output_filename = os.path.basename(output_path)
-
-        # key file
-        if os.path.exists(key_path):
-            relative_path = os.path.relpath(key_path, settings.MEDIA_ROOT)
-            job.key_file.name = relative_path
-            files_to_zip.append(key_path)
-
-        # log file
-        if os.path.exists(log_path):
-            relative_path = os.path.relpath(log_path, settings.MEDIA_ROOT)
-            job.log_file.name = relative_path
-            files_to_zip.append(log_path)
-
-        # create zip file with all available output files
-        if files_to_zip:
-            try:
-                zip_path, zip_filename, included_files = create_zip_file(job_id, files_to_zip, output_filename)
-                relative_zip_path = os.path.relpath(zip_path, settings.MEDIA_ROOT)
-
-                # store the zip file path in the job model
-                job.zip_file.name = relative_zip_path
-
-                # store the list of included files in the job model
-                job.zip_preview = {
-                    'zip_file': zip_filename,
-                    'files': included_files
-                }
-            except Exception as e:
-                logger.error(f'Failed to create zip file: {str(e)}')
-        else:
-            logger.warning(f'No output files found to zip for job {job_id}')
-
-        # update job status
         job.status = 'completed'
         job.save()
-    except Exception as e:
-        logger.error(f'Error processing job {job_id}: {str(e)}')
+
+    except (OSError, RuntimeError, ValueError) as e:
+        logger.exception('Error processing job %s', job_id)
         try:
+            job = DeidentificationJob.objects.get(pk=job_id)
             job.status = 'failed'
             job.error_message = str(e)
             job.save()
-        except Exception as inner_e:
-            logger.error(f'Failed to update job status: {str(inner_e)}')
+        except (OSError, RuntimeError):
+            logger.exception('Failed to update job status')
