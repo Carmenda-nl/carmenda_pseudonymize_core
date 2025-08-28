@@ -15,6 +15,7 @@ with enhanced case-insensitive name detection. It includes:
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -34,17 +35,31 @@ class DeidentifyHandler:
     def __init__(self) -> None:
         """Initialize handler with a configured Deduce instance."""
         self.logger = setup_logging()
-        self.debug_level = 10
 
         # Log report results for debugging (only if debug mode is enabled)
         self.processed_reports = []
         self.total_processed = 0
 
         custom_lookup = Path(__file__).parent / 'lookup_tables'
+
+        # For PyInstaller, also check in the bundle root directory
+        if not custom_lookup.exists() and hasattr(sys, '_MEIPASS'):
+            bundle_lookup = Path(sys._MEIPASS) / 'lookup_tables'
+            if bundle_lookup.exists():
+                custom_lookup = bundle_lookup
+
+        # Check in current working directory (for manual deployment)
+        if not custom_lookup.exists():
+            cwd_lookup = Path.cwd() / 'lookup_tables'
+            if cwd_lookup.exists():
+                custom_lookup = cwd_lookup
+
         if custom_lookup.exists():
             self.lookup_data_path = str(custom_lookup)
+            self.logger.debug('Using custom lookup tables from: %s', self.lookup_data_path)
         else:
             self.lookup_data_path = None
+            self.logger.debug('No custom lookup tables found, using default lookup tables')
 
         self.deduce_instance = self._get_deduce_instance()
         self.lookup_sets = self._load_lookup_tables()
@@ -53,7 +68,15 @@ class DeidentifyHandler:
     def _get_deduce_instance(self) -> deduce.Deduce:
         """Get a configured Deduce instance with lookup data."""
         if self.lookup_data_path:
-            return deduce.Deduce(lookup_data_path=self.lookup_data_path, cache_path=Path(self.lookup_data_path))
+            cache_path = Path(self.lookup_data_path)
+            lookup_structs_file = cache_path / 'cache' / 'lookup_structs.pickle'
+
+            self.logger.debug(
+                'Cache file exists: %s, size: %d bytes',
+                lookup_structs_file.exists(),
+                lookup_structs_file.stat().st_size if lookup_structs_file.exists() else 0,
+            )
+            return deduce.Deduce(lookup_data_path=self.lookup_data_path, cache_path=cache_path)
 
         # Use default Deduce lookup tables
         return deduce.Deduce()
@@ -63,12 +86,10 @@ class DeidentifyHandler:
         if self.lookup_data_path:
             base_path = Path(self.lookup_data_path) / 'src' / 'names'
             whitelist_path = Path(self.lookup_data_path) / 'src' / 'whitelist'
-            self.logger.debug('Custom lookup tables loaded')
         else:
             deduce_lookup = Path(self.deduce_instance.lookup_data_path)
             base_path = deduce_lookup / 'src' / 'names'
             whitelist_path = deduce_lookup / 'src' / 'whitelist'
-            self.logger.debug('Deduce lookup tables loaded')
 
         lookup_files = {
             'first_names': base_path / 'lst_first_name' / 'items.txt',
@@ -107,7 +128,7 @@ class DeidentifyHandler:
                 merged_result = self._merge_detections(report_text, deduce_result.deidentified_text, extend_result)
 
                 # Optional process: Collect debug data if needed
-                if self.logger.level == self.debug_level:
+                if self.logger.level == self.logger.level:
                     self.total_processed += 1
                     self.processed_reports.append(
                         {
@@ -192,11 +213,14 @@ class DeidentifyHandler:
 
     def debug_deidentify_text(self) -> None:
         """Only show de-identification results if logger is in debug mode."""
-        if self.logger.level == self.debug_level:
+        if self.logger.level == self.logger.level:
             self.logger.debug('De-identification results for %d processed report rules:\n', self.total_processed)
 
             for report, rule in enumerate(self.processed_reports, 1):
                 self.logger.debug(
                     ' Report rule %d\n  ORIGINAL: %s\n  DEDUCE: %s\n  EXTENDED: %s\n',
-                    report, rule['report_text'], rule['deduce_result'], rule['merge_results'],
+                    report,
+                    rule['report_text'],
+                    rule['deduce_result'],
+                    rule['merge_results'],
                 )
