@@ -3,7 +3,8 @@ line-length = 120
 select = ['ALL']
 exclude = ['migrations']
 ignore = [
-    'ARG002' # request & pk are mandatory for DRF
+    'ARG002', # (`request` & `pk` are mandatory for DRF)
+    'SLF001', # (MEIPASS use for PyInstaller)
 ]
 
 [tool.ruff.format]

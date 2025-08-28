@@ -23,7 +23,7 @@ def get_environment_paths() -> tuple[str, str]:
         output_folder = '/app/data/output'
     elif getattr(sys, 'frozen', False):
         # PyInstaller environment
-        base_path = Path(sys._MEIPASS)  # noqa: SLF001 (use for PyInstaller)
+        base_path = Path(sys._MEIPASS)
         input_folder = str(base_path / 'data' / 'input')
         output_folder = str(base_path / 'data' / 'output')
     else:
