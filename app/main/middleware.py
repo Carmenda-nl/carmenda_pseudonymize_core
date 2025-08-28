@@ -37,18 +37,17 @@ class ServeMediaFilesMiddleware:
             # Checks if the file exists and is readable
             if file_path.exists() and file_path.is_file():
                 try:
-                    with file_path.open('rb') as file_obj:
-                        content_type, encoding = mimetypes.guess_type(str(file_path))
+                    file_obj = file_path.open('rb')
+                    content_type, encoding = mimetypes.guess_type(str(file_path))
 
-                        if content_type is None:
-                            content_type = 'application/octet-stream'
+                    if content_type is None:
+                        content_type = 'application/octet-stream'
 
-                        # Sends the file as response
-                        response = FileResponse(file_obj, content_type=content_type)
+                    # Sends the file as response
+                    response = FileResponse(file_obj, content_type=content_type)
 
-                        if 'download' in request.GET:
-                            response['Content-Disposition'] = f'attachment; filename="{file_path.name}"'
-                        return response
+                    if 'download' in request.GET:
+                        response['Content-Disposition'] = f'attachment; filename="{file_path.name}"'
 
                 except (OSError, PermissionError):
                     # File can not be opened
