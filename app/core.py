@@ -76,7 +76,7 @@ def parse_cli_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--output_extension',
         nargs='?',
-        default='.parquet',
+        default='.csv',
         choices=['.csv', '.parquet'],
         help='Output file format. Parquet recommended for large datasets.',
     )
