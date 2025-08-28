@@ -3,47 +3,15 @@
 import site
 import os
 import sys
-import shutil
-import glob
-import time
 from PyInstaller.utils.hooks import copy_metadata, collect_data_files, collect_submodules, collect_all
 
-# Fix lookup tables timestamps before build to prevent cache rebuilds
-def fix_lookup_timestamps():
-    lookup_path = os.path.join('app', 'core', 'lookup_tables', 'src')
-    cache_path = os.path.join('app', 'core', 'lookup_tables', 'cache', 'lookup_structs.pickle')
-    
-    if os.path.exists(lookup_path):
-        # Find all .txt files in lookup tables
-        txt_files = glob.glob(os.path.join(lookup_path, '**', '*.txt'), recursive=True)
-        current_time = time.time()
-        
-        print(f"Fixing timestamps for {len(txt_files)} lookup files...")
-        for txt_file in txt_files:
-            os.utime(txt_file, (current_time, current_time))
-        
-        # If cache exists, update its timestamp to be newer than source files
-        if os.path.exists(cache_path):
-            # Set cache timestamp to 1 second in the future to ensure it's newer
-            cache_time = current_time + 1
-            os.utime(cache_path, (cache_time, cache_time))
-            print("Cache timestamp updated to be newer than source files!")
-        
-        print("Lookup timestamps fixed!")
 
-# Run timestamp fix before build
-fix_lookup_timestamps()
-
-# check build os
-mac = sys.platform == 'darwin'
+# Check build OS
 windows = sys.platform == 'win32'
 
-if mac:
-    site_packages = site.getsitepackages()[0]
-elif windows:
+if windows:
     site_packages = site.getsitepackages()[1]
 else:
-    # Linux support
     site_packages = site.getsitepackages()[0]
 
 rest_framework_path = os.path.join(site_packages, 'rest_framework') 
@@ -71,17 +39,16 @@ datas += collect_data_files('coreschema')
 # Add the app directory and its contents
 datas.append((app_path, 'app'))
 
-# Add lookup_tables directory explicitly to the root for easier access
+# Bundle the lookup tables in the application
 lookup_tables_path = os.path.join(app_path, 'core', 'lookup_tables')
 if os.path.exists(lookup_tables_path):
-    # Add the entire lookup_tables directory
     datas.append((lookup_tables_path, 'lookup_tables'))
-    # Add specific important files explicitly  
     pickle_file = os.path.join(lookup_tables_path, 'cache', 'lookup_structs.pickle')
+
     if os.path.exists(pickle_file):
         datas.append((pickle_file, os.path.join('lookup_tables', 'cache')))
 
-# Add the .env file explicitly
+# Add the .env file if available
 env_file = os.path.join(app_path, '.env')
 if os.path.exists(env_file):
     datas.append((env_file, '.'))
@@ -92,7 +59,7 @@ drf_spectacular_imports = collect_submodules('drf_spectacular')
 datas.append((rest_framework_path, 'rest_framework')) 
 datas.append((drf_spectacular_path, 'drf_spectacular'))
 
-# Add coreschema templates explicitly
+# Add coreschema templates
 coreschema_path = os.path.join(site_packages, 'coreschema')
 datas.append((coreschema_path, 'coreschema'))
 
