@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from django.conf import settings
+from django.db import connection
 
 from api.models import DeidentificationJob
 from core.data_processor import process_data
@@ -78,6 +79,9 @@ def _thread_target(config: DeidentificationConfig, job: DeidentificationJob, out
             job.save()
         except (OSError, RuntimeError):
             logger.exception('Failed to update job status for job %s', job.id)
+    finally:
+        # Close database connection in thread to prevent ResourceWarning
+        connection.close()
 
 
 def _transform_output_cols(input_cols: str) -> str:
@@ -253,3 +257,6 @@ def process_deidentification(job_id: str) -> None:
             job.save()
         except (OSError, RuntimeError):
             logger.exception('Failed to update job status')
+    finally:
+        # Close database connection to prevent ResourceWarning
+        connection.close()
