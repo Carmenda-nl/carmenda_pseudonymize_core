@@ -25,7 +25,6 @@ from django.conf import settings
 from django.db import connection
 
 from api.models import DeidentificationJob
-from core.data_processor import process_data
 from utils.logger import setup_logging
 
 if hasattr(sys, '_MEIPASS'):
@@ -49,6 +48,8 @@ class DeidentificationConfig(NamedTuple):
 def _thread_target(config: DeidentificationConfig, job: DeidentificationJob, output_queue: queue.Queue | None) -> None:
     """Execute a deidentification job in a separate thread."""
     try:
+        from core.data_processor import process_data  # noqa: PLC0415 (Initialize core only when needed)
+
         # Call the core's deidentification process (data processor)
         processed_rows_json = process_data(
             input_fofi=config.input_fofi,
