@@ -8,11 +8,20 @@
 from __future__ import annotations
 
 import logging
+import sys
+import tempfile
 from pathlib import Path
 
 
-def setup_logging(log_dir: str = 'data/output') -> logging.Logger:
+def setup_logging(log_dir: str | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
+    if log_dir is None:
+        # Use temp directory as default if no log_dir specified
+        if hasattr(sys, '_MEIPASS'):
+            log_dir = str(Path(tempfile.gettempdir()) / 'deidentification_logs')
+        else:
+            log_dir = 'data/output'
+
     log_path = Path(log_dir)
 
     try:
