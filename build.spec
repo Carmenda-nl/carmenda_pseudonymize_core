@@ -21,20 +21,16 @@ drf_spectacular_path = os.path.join(site_packages, 'drf_spectacular')
 app_path = 'app'
 
 datas = [] 
-datas += copy_metadata('coreapi') 
 datas += copy_metadata('deduce') 
 datas += copy_metadata('djangorestframework') 
 datas += copy_metadata('drf-spectacular')
 datas += copy_metadata('polars')
-datas += copy_metadata('coreschema')
 
-datas += collect_data_files('coreapi') 
 datas += collect_data_files('deduce') 
 datas += collect_data_files('djangorestframework') 
 datas += collect_data_files('rest_framework') 
 datas += collect_data_files('drf_spectacular')
 datas += collect_data_files('polars')
-datas += collect_data_files('coreschema')
 
 # Add the app directory and its contents
 datas.append((app_path, 'app'))
@@ -59,19 +55,11 @@ drf_spectacular_imports = collect_submodules('drf_spectacular')
 datas.append((rest_framework_path, 'rest_framework')) 
 datas.append((drf_spectacular_path, 'drf_spectacular'))
 
-# Add coreschema templates
-coreschema_path = os.path.join(site_packages, 'coreschema')
-datas.append((coreschema_path, 'coreschema'))
-
 binaries = [] 
 hiddenimports = [] 
 hiddenimports += collect_submodules('deduce')
 hiddenimports += collect_submodules('polars')
 
-tmp_ret = collect_all('coreapi') 
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
-tmp_ret = collect_all('coreschema') 
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('deduce') 
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
 tmp_ret = collect_all('djangorestframework') 

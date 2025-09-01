@@ -151,7 +151,7 @@ class DeduceInstanceManager:
             with cache_file_path.open('rb') as file:
                 cache_data = pickle.load(file)
 
-            cache_data['saved_datetime'] = datetime.now(tz=datetime.timezone.utc).isoformat()
+            cache_data['saved_datetime'] = datetime.now().isoformat()
 
             with cache_file_path.open('wb') as file:
                 pickle.dump(cache_data, file)
