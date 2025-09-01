@@ -14,8 +14,14 @@ with enhanced case-insensitive name detection. It includes:
 
 from __future__ import annotations
 
+import os
+import pickle
 import re
+import shutil
 import sys
+import tempfile
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -26,7 +32,156 @@ from core.name_detector import DutchNameDetector, NameAnnotation
 from utils.logger import setup_logging
 
 if TYPE_CHECKING:
+    from logging import Logger
+
     from docdeid.document import Document
+
+
+class DeduceInstanceManager:
+    """Configuring Deduce instances."""
+
+    def __init__(self, lookup_data_path: str | None, logger: Logger) -> None:
+        """Initialize the Deduce instance manager."""
+        self.lookup_data_path = lookup_data_path
+        self.logger = logger
+
+    def create_instance(self) -> deduce.Deduce:
+        """Create a configured Deduce instance with lookup data."""
+        self._cleanup_temp_directory()
+
+        if not self.lookup_data_path:
+            return deduce.Deduce()
+
+        cache_path = Path(self.lookup_data_path)
+        lookup_structs_file = cache_path / 'cache' / 'lookup_structs.pickle'
+
+        self._log_cache_info(lookup_structs_file)
+
+        # For frozen, use temp directory approach to avoid path issues
+        if hasattr(sys, '_MEIPASS') and lookup_structs_file.exists():
+            return self._create_frozen_instance(cache_path)
+
+        return deduce.Deduce(lookup_data_path=self.lookup_data_path, cache_path=cache_path)
+
+    def _cleanup_temp_directory(self) -> None:
+        """Remove stale deduce_lookup folder before initializing Deduce."""
+        temp_dir = Path(tempfile.gettempdir()) / 'deduce_lookup'
+
+        if temp_dir.exists():
+            try:
+                shutil.rmtree(temp_dir)
+                self.logger.debug('Removed stale lookup folder: %s', temp_dir)
+            except (OSError, shutil.Error) as e:
+                self.logger.warning('Failed to remove stale lookup folder: %s, error: %s', temp_dir, e)
+
+    def _log_cache_info(self, lookup_structs_file: Path) -> None:
+        """Log information about the cache file."""
+        self.logger.debug(
+            'Cache file exists: %s, size: %d bytes',
+            lookup_structs_file.exists(),
+            lookup_structs_file.stat().st_size if lookup_structs_file.exists() else 0,
+        )
+
+    def _create_frozen_instance(self, cache_path: Path) -> deduce.Deduce:
+        """Create Deduce instance for frozen application with temp directory setup."""
+        try:
+            temp_lookup_path = Path(tempfile.gettempdir()) / 'deduce_lookup'
+            setup_needed = self._check_temp_setup_needed(temp_lookup_path)
+
+            if setup_needed:
+                self._setup_temp_lookup_directory(cache_path, temp_lookup_path)
+
+            self.logger.debug('Copied lookup structures to: %s', temp_lookup_path)
+
+            return deduce.Deduce(
+                lookup_data_path=str(temp_lookup_path),
+                cache_path=temp_lookup_path,
+                build_lookup_structs=False,
+            )
+
+        except (OSError, shutil.Error) as e:
+            self.logger.warning('Failed to copy lookup structures to temp directory: %s', e)
+            self.logger.warning('Temp directory approach failed, using original paths')
+
+            return deduce.Deduce(
+                lookup_data_path=self.lookup_data_path,
+                cache_path=cache_path,
+                build_lookup_structs=False,
+            )
+
+    def _check_temp_setup_needed(self, temp_lookup_path: Path) -> bool:
+        """Check if temp directory setup is needed."""
+        if not temp_lookup_path.exists():
+            temp_lookup_path.mkdir(parents=True, exist_ok=True)
+            return True
+
+        temp_src_dir = temp_lookup_path / 'src'
+        temp_cache_file = temp_lookup_path / 'cache' / 'lookup_structs.pickle'
+        return not (temp_src_dir.exists() and temp_cache_file.exists())
+
+    def _setup_temp_lookup_directory(self, cache_path: Path, temp_lookup_path: Path) -> None:
+        """Set up the temporary lookup directory with source files and cache."""
+        self._copy_source_files(cache_path, temp_lookup_path)
+        self._copy_and_update_cache_file(cache_path, temp_lookup_path)
+        self._update_file_timestamps(temp_lookup_path)
+
+    def _copy_source_files(self, cache_path: Path, temp_lookup_path: Path) -> None:
+        """Copy source files to temp directory."""
+        original_src = cache_path / 'src'
+        temp_src_dir = temp_lookup_path / 'src'
+
+        if original_src.exists():
+            shutil.copytree(original_src, temp_src_dir, dirs_exist_ok=True, copy_function=shutil.copy2)
+
+    def _copy_and_update_cache_file(self, cache_path: Path, temp_lookup_path: Path) -> None:
+        """Copy cache file to temp directory and update its timestamp."""
+        original_cache_file = cache_path / 'cache' / 'lookup_structs.pickle'
+        temp_cache_dir = temp_lookup_path / 'cache'
+        temp_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        if not original_cache_file.exists():
+            return
+
+        shutil.copy2(original_cache_file, temp_cache_dir / 'lookup_structs.pickle')
+        self._update_cache_datetime(temp_cache_dir / 'lookup_structs.pickle')
+
+    def _update_cache_datetime(self, cache_file_path: Path) -> None:
+        """Update cache file datetime to prevent rebuilding."""
+        try:
+            with cache_file_path.open('rb') as file:
+                cache_data = pickle.load(file)
+
+            cache_data['saved_datetime'] = datetime.now(tz=datetime.timezone.utc).isoformat()
+
+            with cache_file_path.open('wb') as file:
+                pickle.dump(cache_data, file)
+
+            self.logger.debug('Updated cache saved_datetime to prevent rebuilding')
+
+        except (FileNotFoundError, pickle.PickleError, KeyError) as e:
+            self.logger.warning('Failed to update cache datetime: %s', e)
+
+    def _update_file_timestamps(self, temp_lookup_path: Path) -> None:
+        """Update file timestamps to prevent cache rebuilding."""
+        current_time = time.time()
+        old_time = current_time - 630720000  # 20 years ago
+        temp_src_dir = temp_lookup_path / 'src'
+
+        if not temp_src_dir.exists():
+            return
+
+        # Set all source files to very old timestamp
+        for txt_file in temp_src_dir.rglob('*.txt'):
+            os.utime(txt_file, (old_time, old_time))
+
+        # Set directory timestamps
+        os.utime(temp_src_dir, (old_time, old_time))
+        os.utime(temp_lookup_path, (old_time, old_time))
+
+        # Set cache file timestamp to current time
+        cache_file_path = temp_lookup_path / 'cache' / 'lookup_structs.pickle'
+        if cache_file_path.exists():
+            os.utime(cache_file_path, (current_time, current_time))
 
 
 class DeidentifyHandler:
@@ -34,7 +189,11 @@ class DeidentifyHandler:
 
     def __init__(self) -> None:
         """Initialize handler with a configured Deduce instance."""
-        self.logger = setup_logging()
+        if hasattr(sys, '_MEIPASS'):
+            log_dir = Path(tempfile.gettempdir()) / 'deidentification_logs'
+            self.logger = setup_logging(str(log_dir))
+        else:
+            self.logger = setup_logging()
 
         # Log report results for debugging (only if debug mode is enabled)
         self.processed_reports = []
@@ -42,11 +201,10 @@ class DeidentifyHandler:
 
         custom_lookup = Path(__file__).parent / 'lookup_tables'
 
-        # For PyInstaller, also check in the bundle root directory
-        if not custom_lookup.exists() and hasattr(sys, '_MEIPASS'):
+        # If frozen, use the bundled lookup tables
+        if hasattr(sys, '_MEIPASS'):
             bundle_lookup = Path(sys._MEIPASS) / 'lookup_tables'
-            if bundle_lookup.exists():
-                custom_lookup = bundle_lookup
+            custom_lookup = bundle_lookup
 
         # Check in current working directory (for manual deployment)
         if not custom_lookup.exists():
@@ -59,27 +217,13 @@ class DeidentifyHandler:
             self.logger.debug('Using custom lookup tables from: %s', self.lookup_data_path)
         else:
             self.lookup_data_path = None
-            self.logger.debug('No custom lookup tables found, using default lookup tables')
+            self.logger.warning('No custom lookup tables found, using default lookup tables')
 
-        self.deduce_instance = self._get_deduce_instance()
+        # Use DeduceInstanceManager for Deduce setup
+        deduce_manager = DeduceInstanceManager(self.lookup_data_path, self.logger)
+        self.deduce_instance = deduce_manager.create_instance()
         self.lookup_sets = self._load_lookup_tables()
         self.name_detector = DutchNameDetector(self.lookup_sets)
-
-    def _get_deduce_instance(self) -> deduce.Deduce:
-        """Get a configured Deduce instance with lookup data."""
-        if self.lookup_data_path:
-            cache_path = Path(self.lookup_data_path)
-            lookup_structs_file = cache_path / 'cache' / 'lookup_structs.pickle'
-
-            self.logger.debug(
-                'Cache file exists: %s, size: %d bytes',
-                lookup_structs_file.exists(),
-                lookup_structs_file.stat().st_size if lookup_structs_file.exists() else 0,
-            )
-            return deduce.Deduce(lookup_data_path=self.lookup_data_path, cache_path=cache_path)
-
-        # Use default Deduce lookup tables
-        return deduce.Deduce()
 
     def _load_lookup_tables(self) -> dict[str, set[str]]:
         """Load lookup tables based on the configured paths."""
