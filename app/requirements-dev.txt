@@ -13,5 +13,6 @@ polars[pandas]==1.32.3
 # deduce packages
 deduce==3.0.6
 
-# prod server
-gunicorn==23.0.0
+pytest==8.4.1
+pytest-django==4.11.1
+pytest-cov==6.2.1
