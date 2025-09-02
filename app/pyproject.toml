@@ -5,7 +5,8 @@ exclude = ['migrations']
 ignore = [
     'ARG002', # (`request` & `pk` are mandatory for DRF)
     'SLF001', # (MEIPASS use for PyInstaller)
-    'S301',
+    'S301',   # (pickle file loading)
+    'DTZ005', # (Timezones are managed by django)
 ]
 
 [tool.ruff.format]

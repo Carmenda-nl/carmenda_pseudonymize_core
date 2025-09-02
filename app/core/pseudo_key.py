@@ -13,39 +13,32 @@ from __future__ import annotations
 
 import secrets
 import string
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import logging
+from utils.logger import setup_logging
+
+logger = setup_logging()
 
 
 class Pseudonymizer:
     """Generates and manages pseudonyms for patient names."""
 
-    def __init__(
-        self,
-        pseudonym_length: int = 14,
-        max_iterations: int = 15,
-        droplist: list[str] | None = None,
-        logger: logging.Logger | None = None,
-    ) -> None:
+    def __init__(self, pseudonym_length: int = 14, max_iterations: int = 15, droplist: list[str] | None = None) -> None:
         """Initialize the Pseudonymizer with configuration options."""
         self.pseudonym_length = pseudonym_length
         self.max_iterations = max_iterations
         self.droplist = droplist or []
-        self.logger = logger
         self.pseudonym_key: dict[str, str] = {}
 
     def load_key(self, existing_key: dict[str, str] | None = None) -> None:
         """Load existing pseudonym key."""
         if existing_key:
             self.pseudonym_key = existing_key.copy()
-            if self.logger:
-                self.logger.info('Loaded existing key with %d entries', len(self.pseudonym_key))
+            if logger:
+                logger.info('Loaded existing key with %d entries', len(self.pseudonym_key))
         else:
             self.pseudonym_key = {}
-            if self.logger:
-                self.logger.info('Building new key')
+            if logger:
+                logger.info('Building new key')
 
     def _generate_candidate(self) -> str:
         """Generate a random pseudonym candidate."""

@@ -14,8 +14,6 @@ from __future__ import annotations
 import json
 import os
 import queue
-import sys
-import tempfile
 import threading
 import zipfile
 from pathlib import Path
@@ -27,12 +25,7 @@ from django.db import connection
 from api.models import DeidentificationJob
 from utils.logger import setup_logging
 
-if hasattr(sys, '_MEIPASS'):
-    # Use temp directory for logs to avoid creating files in dist folder
-    log_dir = Path(tempfile.gettempdir()) / 'deidentification_logs'
-    logger = setup_logging(str(log_dir))
-else:
-    logger = setup_logging()
+logger = setup_logging()
 
 
 class DeidentificationConfig(NamedTuple):

@@ -10,6 +10,7 @@ with enhanced case-insensitive name detection. It includes:
 
     - deidentify_text: De-identify text with or without patient name information
     - replace_tags: Replace patient tags with pseudonymized values
+    - debug_deidentify_text: Log detailed debug information for processed texts
 """
 
 from __future__ import annotations
@@ -30,20 +31,20 @@ from deduce.person import Person
 
 from core.name_detector import DutchNameDetector, NameAnnotation
 from utils.logger import setup_logging
+from utils.terminal import colorize_tags, log_block
 
 if TYPE_CHECKING:
-    from logging import Logger
-
     from docdeid.document import Document
+
+logger = setup_logging()
 
 
 class DeduceInstanceManager:
     """Configuring Deduce instances."""
 
-    def __init__(self, lookup_data_path: str | None, logger: Logger) -> None:
+    def __init__(self, lookup_data_path: str | None) -> None:
         """Initialize the Deduce instance manager."""
         self.lookup_data_path = lookup_data_path
-        self.logger = logger
 
     def create_instance(self) -> deduce.Deduce:
         """Create a configured Deduce instance with lookup data."""
@@ -70,13 +71,13 @@ class DeduceInstanceManager:
         if temp_dir.exists():
             try:
                 shutil.rmtree(temp_dir)
-                self.logger.debug('Removed stale lookup folder: %s', temp_dir)
+                logger.debug('Removed stale lookup folder: %s', temp_dir)
             except (OSError, shutil.Error) as e:
-                self.logger.warning('Failed to remove stale lookup folder: %s, error: %s', temp_dir, e)
+                logger.warning('Failed to remove stale lookup folder: %s, error: %s', temp_dir, e)
 
     def _log_cache_info(self, lookup_structs_file: Path) -> None:
         """Log information about the cache file."""
-        self.logger.debug(
+        logger.debug(
             'Cache file exists: %s, size: %d bytes',
             lookup_structs_file.exists(),
             lookup_structs_file.stat().st_size if lookup_structs_file.exists() else 0,
@@ -91,7 +92,7 @@ class DeduceInstanceManager:
             if setup_needed:
                 self._setup_temp_lookup_directory(cache_path, temp_lookup_path)
 
-            self.logger.debug('Copied lookup structures to: %s', temp_lookup_path)
+            logger.debug('Copied lookup structures to: %s', temp_lookup_path)
 
             return deduce.Deduce(
                 lookup_data_path=str(temp_lookup_path),
@@ -100,8 +101,8 @@ class DeduceInstanceManager:
             )
 
         except (OSError, shutil.Error) as e:
-            self.logger.warning('Failed to copy lookup structures to temp directory: %s', e)
-            self.logger.warning('Temp directory approach failed, using original paths')
+            logger.warning('Failed to copy lookup structures to temp directory: %s', e)
+            logger.warning('Temp directory approach failed, using original paths')
 
             return deduce.Deduce(
                 lookup_data_path=self.lookup_data_path,
@@ -156,10 +157,10 @@ class DeduceInstanceManager:
             with cache_file_path.open('wb') as file:
                 pickle.dump(cache_data, file)
 
-            self.logger.debug('Updated cache saved_datetime to prevent rebuilding')
+            logger.debug('Updated cache saved_datetime to prevent rebuilding')
 
         except (FileNotFoundError, pickle.PickleError, KeyError) as e:
-            self.logger.warning('Failed to update cache datetime: %s', e)
+            logger.warning('Failed to update cache datetime: %s', e)
 
     def _update_file_timestamps(self, temp_lookup_path: Path) -> None:
         """Update file timestamps to prevent cache rebuilding."""
@@ -189,13 +190,6 @@ class DeidentifyHandler:
 
     def __init__(self) -> None:
         """Initialize handler with a configured Deduce instance."""
-        if hasattr(sys, '_MEIPASS'):
-            log_dir = Path(tempfile.gettempdir()) / 'deidentification_logs'
-            self.logger = setup_logging(str(log_dir))
-        else:
-            self.logger = setup_logging()
-
-        # Log report results for debugging (only if debug mode is enabled)
         self.processed_reports = []
         self.total_processed = 0
 
@@ -214,13 +208,13 @@ class DeidentifyHandler:
 
         if custom_lookup.exists():
             self.lookup_data_path = str(custom_lookup)
-            self.logger.debug('Using custom lookup tables from: %s', self.lookup_data_path)
+            logger.debug('Using custom lookup tables from: %s', self.lookup_data_path)
         else:
             self.lookup_data_path = None
-            self.logger.warning('No custom lookup tables found, using default lookup tables')
+            logger.warning('No custom lookup tables found, using default lookup tables')
 
         # Use DeduceInstanceManager for Deduce setup
-        deduce_manager = DeduceInstanceManager(self.lookup_data_path, self.logger)
+        deduce_manager = DeduceInstanceManager(self.lookup_data_path)
         self.deduce_instance = deduce_manager.create_instance()
         self.lookup_sets = self._load_lookup_tables()
         self.name_detector = DutchNameDetector(self.lookup_sets)
@@ -272,7 +266,7 @@ class DeidentifyHandler:
                 merged_result = self._merge_detections(report_text, deduce_result.deidentified_text, extend_result)
 
                 # Optional process: Collect debug data if needed
-                if self.logger.level == self.logger.level:
+                if logger.level == logger.level:
                     self.total_processed += 1
                     self.processed_reports.append(
                         {
@@ -357,14 +351,13 @@ class DeidentifyHandler:
 
     def debug_deidentify_text(self) -> None:
         """Only show de-identification results if logger is in debug mode."""
-        if self.logger.level == self.logger.level:
-            self.logger.debug('De-identification results for %d processed report rules:\n', self.total_processed)
+        logger.debug('Results for %d processed report rules:\n', self.total_processed)
 
-            for report, rule in enumerate(self.processed_reports, 1):
-                self.logger.debug(
-                    ' Report rule %d\n  ORIGINAL: %s\n  DEDUCE: %s\n  EXTENDED: %s\n',
-                    report,
-                    rule['report_text'],
-                    rule['deduce_result'],
-                    rule['merge_results'],
-                )
+        for rule in self.processed_reports:
+            title = 'De-identification Report'
+            sections = {
+                'ORIGINAL': colorize_tags(rule['report_text']),
+                'DEDUCE': colorize_tags(rule['deduce_result']),
+                'EXTENDED': colorize_tags(rule['merge_results']),
+            }
+            log_block(title, sections)

@@ -13,14 +13,12 @@ This module provides functionality for:
     - Writing processed data to output files
 """
 
-from __future__ import annotations
-
 import json
+import logging
 import multiprocessing
 import sys
 import time
 from functools import reduce
-from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -39,15 +37,11 @@ from utils.file_handling import (
 from utils.logger import setup_logging
 from utils.progress_tracker import progress_tracker, tracker
 
-if TYPE_CHECKING:
-    import logging
-
-
-# Loading pseudonymization handler
+logger = setup_logging()
 handler = DeidentifyHandler()
 
 
-def _load_data_file(input_file_path: str, logger: logging.Logger) -> pl.DataFrame:
+def _load_data_file(input_file_path: str) -> pl.DataFrame:
     """Load data file and log relevant information."""
     input_extension = get_file_extension(input_file_path)
 
@@ -76,7 +70,7 @@ def _parse_column_mappings(input_cols: str, output_cols: str) -> tuple[dict[str,
     return input_cols, output_cols
 
 
-def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict, logger: logging.Logger) -> dict[str, str]:
+def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict) -> dict[str, str]:
     """Create pseudonym key for patient names."""
     unique_names = (
         df.select(input_cols['patientName'])
@@ -85,12 +79,12 @@ def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict, lo
         .to_series()
     )
 
-    pseudonymizer = Pseudonymizer(logger=logger)
+    pseudonymizer = Pseudonymizer()
     pseudonymizer.load_key(pseudonym_key_dict)
     return pseudonymizer.pseudonymize(unique_names)
 
 
-def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, logger: logging.Logger) -> pl.DataFrame:
+def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
     """Prepare data for output by selecting and renaming columns."""
     select_cols = [col for col in output_cols.values() if col in df.columns]
     df = df.select(select_cols)
@@ -110,13 +104,7 @@ def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, 
     return df
 
 
-def _filter_null_rows(
-    df: pl.DataFrame,
-    output_folder: str,
-    input_fofi: str,
-    output_extension: str,
-    logger: logging.Logger,
-) -> pl.DataFrame:
+def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, output_extension: str) -> pl.DataFrame:
     """Filter out rows with null values and save them separately."""
     filter_condition = reduce(
         lambda acc, col_name: acc | pl.col(col_name).is_null(),
@@ -153,7 +141,7 @@ def _filter_null_rows(
     return df
 
 
-def _performance_metrics(start_time: float, df_rowcount: int, logger: logging.Logger) -> None:
+def _performance_metrics(start_time: float, df_rowcount: int) -> None:
     """Log performance metrics for the processing operation."""
     end_time = time.time()
     total_time = end_time - start_time
@@ -173,7 +161,6 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
 
     input_folder, output_folder = get_environment_paths()
-    logger = setup_logging(output_folder)
 
     logger.debug('\nParsed arguments:\n%s\n', params_str)
 
@@ -187,7 +174,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = f'{input_folder}/{input_fofi}' if not input_fofi.startswith('/') else input_fofi
-    df = _load_data_file(input_file_path, logger)
+    df = _load_data_file(input_file_path)
 
     # Update progress - pre-processing
     progress['update'](progress['get_stage_name'](2))
@@ -219,7 +206,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         # Strip whitespace from patient names
         df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
 
-        pseudonym_key = _create_key(df, input_cols_dict, pseudonym_key_dict, logger)
+        pseudonym_key = _create_key(df, input_cols_dict, pseudonym_key_dict)
         save_pseudonym_key(pseudonym_key, output_folder)
 
     # Update progress - data transformation
@@ -256,17 +243,18 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         )
 
     # Prepare output data
-    df = _prepare_output_data(df, input_cols_dict, output_cols_dict, logger)
+    df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
 
     # Debug: Show all collected annotations if in debug mode
-    handler.debug_deidentify_text()
+    if logger.level == logging.DEBUG:
+        handler.debug_deidentify_text()
 
     # Update progress - filtering nulls
     progress['update'](progress['get_stage_name'](5))
 
     # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    df = _filter_null_rows(df, output_folder, input_fofi, output_extension, logger)
+    df = _filter_null_rows(df, output_folder, input_fofi, output_extension)
 
     # Only show example to terminal when NOT running as a frozen executable
     if not getattr(sys, 'frozen', False):
@@ -289,7 +277,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         logger.warning('Selected output extension not supported, using parquet.\n')
 
     # Log performance and finalize
-    _performance_metrics(start_time, df.height, logger)
+    _performance_metrics(start_time, df.height)
 
     # Update progress - finalizing
     progress['update'](progress['get_stage_name'](7))

@@ -13,15 +13,9 @@ import tempfile
 from pathlib import Path
 
 
-def setup_logging(log_dir: str | None = None) -> logging.Logger:
+def setup_logging(log_level: int = 20) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
-    if log_dir is None:
-        # Use temp directory as default if no log_dir specified
-        if hasattr(sys, '_MEIPASS'):
-            log_dir = str(Path(tempfile.gettempdir()) / 'deidentification_logs')
-        else:
-            log_dir = 'data/output'
-
+    log_dir = str(Path(tempfile.gettempdir()) / 'deidentification_logs') if hasattr(sys, '_MEIPASS') else 'data/output'
     log_path = Path(log_dir)
 
     try:
@@ -35,7 +29,7 @@ def setup_logging(log_dir: str | None = None) -> logging.Logger:
 
     # Setup deidentify logger
     logger = logging.getLogger('deidentify')
-    logger.setLevel(logging.INFO)  # <- set logging level
+    logger.setLevel(log_level)
     logger.propagate = True  # <- disables logging to console if `False`
 
     # Clear existing handlers to prevent duplicates
@@ -54,6 +48,24 @@ def setup_logging(log_dir: str | None = None) -> logging.Logger:
     except (OSError, PermissionError) as e:
         error_msg = f'Cannot create log file "{log_file_path}": {e}'
         raise OSError(error_msg) from e
+
+    return logger
+
+
+def setup_clean_logger() -> logging.Logger:
+    """Set up a logger that outputs clean text without prefixes to console."""
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    # Remove existing handlers to prevent duplicates
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # Add console handler with no formatting
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(console_handler)
+    logger.propagate = False
 
     return logger
 

@@ -96,8 +96,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         Returns:
             Response: HTTP_200_OK if job processing started successfully,
-                     HTTP_400_BAD_REQUEST if job cannot be processed or input file is missing,
-                     HTTP_500_INTERNAL_SERVER_ERROR if failed to start job processing
+                      HTTP_400_BAD_REQUEST if job cannot be processed or input file is missing,
+                      HTTP_500_INTERNAL_SERVER_ERROR if failed to start job processing
 
         """
         job = self.get_object()
