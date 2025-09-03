@@ -15,7 +15,6 @@ This module provides functionality for:
 
 import json
 import logging
-import multiprocessing
 import sys
 import time
 from functools import reduce
@@ -141,17 +140,37 @@ def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, out
     return df
 
 
+def _batch_process_reports(df: pl.DataFrame, input_cols_dict: dict, handler: DeidentifyHandler) -> pl.DataFrame:
+    """Process reports in batches for better performance."""
+    batch_size: int = 1000
+    logger.debug('Processing %d rows in batches of %d', df.height, batch_size)
+
+    processed_batches = []
+    deidentify = handler.deidentify_text(input_cols_dict)
+
+    for start_index in range(0, df.height, batch_size):
+        end_index = min(start_index + batch_size, df.height)
+        batch_df = df.slice(start_index, end_index - start_index)
+        logger.debug('Processing batch %d-%d', start_index, end_index)
+
+        # Convert batch to list of row dicts for fast iteration
+        row_dicts = batch_df.to_dicts()
+        processed_texts = [deidentify(row_dict) for row_dict in row_dicts]
+
+        # Add processed column to batch
+        batch_with_processed = batch_df.with_columns(pl.Series('processed_report', processed_texts))
+        processed_batches.append(batch_with_processed)
+
+    return pl.concat(processed_batches)
+
+
 def _performance_metrics(start_time: float, df_rowcount: int) -> None:
     """Log performance metrics for the processing operation."""
     end_time = time.time()
     total_time = end_time - start_time
     time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
 
-    logger.info(
-        'Time passed with %d CPU cores and a total row count of %d rows',
-        multiprocessing.cpu_count(),
-        df_rowcount,
-    )
+    logger.info('Time passed with a total row count of %d rows', df_rowcount)
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
@@ -214,12 +233,8 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
-    # Create a new column `processed_report` with deduced names
-    df = df.with_columns(
-        pl.struct(df.columns)
-        .map_elements(handler.deidentify_text(input_cols_dict), return_dtype=pl.Utf8)
-        .alias('processed_report'),
-    )
+    #  Create a new column `processed_report` with deduced names
+    df = _batch_process_reports(df, input_cols_dict, handler)
 
     if has_patient_name:
         patient_name_col = input_cols_dict['patientName']
@@ -234,11 +249,8 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
         # Replace [PATIENT] tags in `processed_report` with pseudonym keys
         df = df.with_columns(
-            pl.struct(['processed_report', 'patientID'])
-            .map_elements(
-                lambda row: handler.replace_tags(row['processed_report'], row['patientID']),
-                return_dtype=pl.Utf8,
-            )
+            pl.col('processed_report')
+            .str.replace_all('[PATIENT]', '[' + pl.col('patientID') + ']')
             .alias('processed_report'),
         )
 

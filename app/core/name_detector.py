@@ -31,16 +31,17 @@ class DutchNameDetector:
 
     def __init__(self, lookup_sets: dict[str, set[str]]) -> None:
         """Initialize with lookup data."""
-        self.name_prefixes = lookup_sets.get('name_prefixes', set())
-        self.first_names = lookup_sets.get('first_names', set())
-        self.surnames = lookup_sets.get('surnames', set())
-        self.interfix_surnames = lookup_sets.get('interfix_surnames', set())
-        self.interfixes = lookup_sets.get('interfixes', set())
-        self.common_words = lookup_sets.get('common_words', set())
-        self.stop_words = lookup_sets.get('stop_words', set())
+        self.name_prefixes = frozenset(lookup_sets.get('name_prefixes', set()))
+        self.first_names = frozenset(lookup_sets.get('first_names', set()))
+        self.surnames = frozenset(lookup_sets.get('surnames', set()))
+        self.interfix_surnames = frozenset(lookup_sets.get('interfix_surnames', set()))
+        self.interfixes = frozenset(lookup_sets.get('interfixes', set()))
+        self.common_words = frozenset(lookup_sets.get('common_words', set()))
+        self.stop_words = frozenset(lookup_sets.get('stop_words', set()))
 
-        # Load interfix patterns for regex patterns
+        # Pre-compile regex patterns for better performance
         self.interfix_pattern = self._interfix_patterns()
+        self._compiled_patterns = None  # Will be compiled lazily
 
     def _prefix_before_surname(self, text: str, match_start: int) -> bool:
         """Check if there is a valid name prefix before a potential surname."""
@@ -94,6 +95,14 @@ class DutchNameDetector:
         escaped_interfixes = [re.escape(interfix) for interfix in sorted_interfixes]
 
         return '(?:' + '|'.join(escaped_interfixes) + ')'
+
+    def _get_compiled_patterns(self, max_characters: int) -> list[tuple]:
+        """Get compiled regex patterns (cached for performance)."""
+        if self._compiled_patterns is None:
+            patterns = self._regex_patterns(max_characters)
+            self._compiled_patterns = [(re.compile(pattern['regex'], re.IGNORECASE), pattern) for pattern in patterns]
+
+        return self._compiled_patterns
 
     def _regex_patterns(self, max_characters: int) -> list[dict]:
         """Regex patterns validation logic for name detection."""
@@ -151,13 +160,13 @@ class DutchNameDetector:
         annotations: list[NameAnnotation] = []
 
         max_characters = 3
-        patterns = self._regex_patterns(max_characters)
+        compiled_patterns = self._get_compiled_patterns(max_characters)
 
         # Detect multi-word names steps
         self._detect_multi_words(text, annotations, lambda start, end: self._overlapping(start, end, annotations))
 
-        for pattern_info in patterns:
-            for match in re.finditer(pattern_info['regex'], text, re.IGNORECASE):
+        for compiled_regex, pattern_info in compiled_patterns:
+            for match in compiled_regex.finditer(text):
                 # Skip if overlapping with existing annotations (including multi-word)
                 if self._overlapping(match.start(), match.end(), annotations):
                     continue
@@ -343,30 +352,30 @@ class DutchNameDetector:
 
     # ---------------------------- LOOKUP TABLE QUERIES ---------------------------- #
 
-    def _in_lookup(self, word: str, lookup_set: set[str]) -> bool:
+    def _in_lookup(self, word: str, lookup_set: frozenset[str]) -> bool:
         """Check if a word exists in the given lookup set (case-insensitive)."""
         return word.lower() in lookup_set
 
     def _first_name(self, name: str) -> bool:
         """Check if a name is a first name."""
-        return self._in_lookup(name, self.first_names)
+        return name.lower() in self.first_names
 
     def _surname(self, name: str) -> bool:
         """Check if a name is a surname."""
-        return self._in_lookup(name, self.surnames)
+        return name.lower() in self.surnames
 
     def _interfix_surname(self, name: str) -> bool:
         """Check if a name is an interfix surname."""
-        return self._in_lookup(name, self.interfix_surnames)
+        return name.lower() in self.interfix_surnames
 
     def _interfix(self, word: str) -> bool:
         """Check if a word is an interfix."""
-        return self._in_lookup(word, self.interfixes)
+        return word.lower() in self.interfixes
 
     def _common_word(self, word: str) -> bool:
         """Check if a word is a common Dutch word."""
-        return self._in_lookup(word, self.common_words)
+        return word.lower() in self.common_words
 
     def _stop_word(self, word: str) -> bool:
         """Check if a word is a stop word."""
-        return self._in_lookup(word, self.stop_words)
+        return word.lower() in self.stop_words
