@@ -7,6 +7,8 @@ This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** tool 
 algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
 Built with **Polars** for enhanced performance, it provides a scalable API for handling large datasets.
 
+[1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
+
 ## Features
 
 - **REST API for Pseudonymization**: HTTP endpoints for text de-identification using the Deduce algorithm
@@ -74,8 +76,6 @@ If you encounter issues:
 
 1. Check that port 8000 is not already in use
 2. Verify that Docker has sufficient resources allocated
-
-[1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
 
 ---
 
