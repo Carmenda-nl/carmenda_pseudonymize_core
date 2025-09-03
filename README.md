@@ -1,13 +1,22 @@
 # Carmenda Privacy Tool - Backend API
 
+![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
+![Python](https://img.shields.io/badge/python-3.13.6-blue)
+![Django](https://img.shields.io/badge/django-5.2.5-green)
 ![Linter](https://img.shields.io/badge/linter-ruff-4B8B3B)
+![Docker](https://img.shields.io/badge/docker-enabled-blue)
+![API](https://img.shields.io/badge/API-REST-orange)
+![Documentation](https://img.shields.io/badge/docs-swagger-85EA2D)
+![Privacy](https://img.shields.io/badge/privacy-GDPR%20compliant-green)
+![Healthcare](https://img.shields.io/badge/healthcare-dutch%20medical-red)
 
 **Carmenda privacy tool** is a REST API solution designed to pseudonymize textual data for care organizations.  
 This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** tool (Menger et al. 2017) [1]
 algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
 Built with **Polars** for enhanced performance, it provides a scalable API for handling large datasets.
 
-[1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
+[1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic
+de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
 
 ## Features
 
