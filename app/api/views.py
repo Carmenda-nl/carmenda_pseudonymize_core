@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from django.http import HttpRequest
 
 from django.conf import settings
+from django.http import HttpResponse
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -38,42 +40,59 @@ class ApiTags:
     CLEANUP = 'Cleanup'
 
 
+def _pretty_json(data: dict, status_code: int) -> HttpResponse:
+    """Return a pretty formatted JSON response."""
+    json_str = json.dumps(data, indent=2, ensure_ascii=False)
+    return HttpResponse(json_str, content_type='application/json', status=status_code)
+
+
 @extend_schema(tags=[ApiTags.JOBS])
 @extend_schema_view(
     process=extend_schema(tags=[ApiTags.PROCESSING]),
     check_status=extend_schema(tags=[ApiTags.PROCESSING]),
 )
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing deidentification jobs.
-
-    This ViewSet provides endpoints for creating, retrieving,
-    and deleting deidentification jobs.
-    """
+    """ViewSet for managing deidentification jobs."""
 
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
     http_method_names: ClassVar = ['get', 'post', 'delete']
 
-    def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> Response:
+    def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> HttpResponse:
         """Prepare a new job with an uploaded file and column mapping configuration.
 
         The job is initialized with 'pending' status and awaits explicit processing.
+        Returns a clean, pretty-formatted JSON response with processing instructions.
 
         Required parameters:
             - input_file: The healthcare data file to be processed
             - input_cols: Mapping configuration specifying which columns to process
 
         Returns:
-            HTTP_201_CREATED: Job created successfully
+            HttpResponse: Pretty-formatted JSON with:
+                - message: Success message with processing instructions
+                - job_id: Unique identifier for the created job
+                - curl_example: Ready-to-use curl command
+
             HTTP_400_BAD_REQUEST: Validation errors in the request data
 
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(status='pending')
+        job = serializer.save(status='pending')
 
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        message = 'Job created successfully and is ready to be processed'
+        process_url = f'{request.build_absolute_uri()}{job.job_id}/process/'
+        curl_url = f'curl -X POST {process_url}'
+
+        # Create clean response with only essential information
+        response_data = {
+            'message': message,
+            'job_id': str(job.job_id),
+            'curl_url': curl_url,
+        }
+
+        return _pretty_json(response_data, status.HTTP_201_CREATED)
 
     @extend_schema(
         methods=['post'],
