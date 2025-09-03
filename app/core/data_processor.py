@@ -249,9 +249,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
         # Replace [PATIENT] tags in `processed_report` with pseudonym keys
         df = df.with_columns(
-            pl.col('processed_report')
-            .str.replace_all('[PATIENT]', '[' + pl.col('patientID') + ']')
-            .alias('processed_report'),
+            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', '[' + pl.col('patientID').cast(pl.Utf8) + ']'),
         )
 
     # Prepare output data

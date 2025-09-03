@@ -9,7 +9,6 @@ This module provides functions for processing medical text data
 with enhanced case-insensitive name detection. It includes:
 
     - deidentify_text: De-identify text with or without patient name information
-    - replace_tags: Replace patient tags with pseudonymized values
     - debug_deidentify_text: Log detailed debug information for processed texts
 """
 
@@ -340,14 +339,6 @@ class DeidentifyHandler:
         """Count existing [PERSON-X] tags in text."""
         pattern = r'\[PERSOON-\d+\]'
         return len(re.findall(pattern, text))
-
-    @staticmethod
-    def replace_tags(text: str, new_value: str, tag: str = '[PATIENT]') -> str:
-        """Replace patient tags with pseudonymized values."""
-        try:
-            return str.replace(text, tag, f'[{new_value}]')
-        except (TypeError, AttributeError):
-            return None
 
     def debug_deidentify_text(self) -> None:
         """Only show de-identification results if logger is in debug mode."""
