@@ -1,11 +1,18 @@
 # Carmenda Privacy Tool - Backend API
 
-![Linter](https://img.shields.io/badge/linter-ruff-4B8B3B)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/downloads/release/python-3136/)
+[![Django](https://img.shields.io/badge/django-5.2.5-green)](https://docs.djangoproject.com/en/5.2/)
+[![API](https://img.shields.io/badge/api-REST-orange)](https://www.django-rest-framework.org/)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 **Carmenda privacy tool** is a REST API solution designed to pseudonymize textual data for care organizations.  
-This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** tool (Menger et al. 2017) [1]
+This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** tool **[1]**
 algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
 Built with **Polars** for enhanced performance, it provides a scalable API for handling large datasets.
+
+**[1]** *Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic
+de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853*
 
 ## Features
 
@@ -74,8 +81,6 @@ If you encounter issues:
 
 1. Check that port 8000 is not already in use
 2. Verify that Docker has sufficient resources allocated
-
-[1] Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853
 
 ---
 
