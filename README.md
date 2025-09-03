@@ -1,14 +1,10 @@
 # Carmenda Privacy Tool - Backend API
 
-![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
-![Python](https://img.shields.io/badge/python-3.13.6-blue)
-![Django](https://img.shields.io/badge/django-5.2.5-green)
-![Linter](https://img.shields.io/badge/linter-ruff-4B8B3B)
-![Docker](https://img.shields.io/badge/docker-enabled-blue)
-![API](https://img.shields.io/badge/API-REST-orange)
-![Documentation](https://img.shields.io/badge/docs-swagger-85EA2D)
-![Privacy](https://img.shields.io/badge/privacy-GDPR%20compliant-green)
-![Healthcare](https://img.shields.io/badge/healthcare-dutch%20medical-red)
+[![PYTHON](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/downloads/release/python-3136/)
+[![DJANGO](https://img.shields.io/badge/django-5.2.5-green)](https://docs.djangoproject.com/en/5.2/)
+[![API](https://img.shields.io/badge/API-REST-orange)](https://www.django-rest-framework.org/)
+[![RUFF](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![LICENCE](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 **Carmenda privacy tool** is a REST API solution designed to pseudonymize textual data for care organizations.  
 This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** tool (Menger et al. 2017) [1]
