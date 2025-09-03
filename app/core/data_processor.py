@@ -13,21 +13,16 @@ This module provides functionality for:
     - Writing processed data to output files
 """
 
-from __future__ import annotations
-
 import json
-import multiprocessing
+import logging
 import sys
 import time
 from functools import reduce
-from typing import TYPE_CHECKING
 
 import polars as pl
 
 from core.deidentify_handler import DeidentifyHandler
 from core.pseudo_key import Pseudonymizer
-from services.logger import setup_logging
-from services.progress_tracker import progress_tracker, tracker
 from utils.file_handling import (
     create_output_file_path,
     get_environment_paths,
@@ -38,16 +33,14 @@ from utils.file_handling import (
     save_data_file,
     save_pseudonym_key,
 )
+from utils.logger import setup_logging
+from utils.progress_tracker import progress_tracker, tracker
 
-if TYPE_CHECKING:
-    import logging
-
-
-# Loading pseudonymization handler
+logger = setup_logging()
 handler = DeidentifyHandler()
 
 
-def _load_data_file(input_file_path: str, logger: logging.Logger) -> pl.DataFrame:
+def _load_data_file(input_file_path: str) -> pl.DataFrame:
     """Load data file and log relevant information."""
     input_extension = get_file_extension(input_file_path)
 
@@ -76,7 +69,7 @@ def _parse_column_mappings(input_cols: str, output_cols: str) -> tuple[dict[str,
     return input_cols, output_cols
 
 
-def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict, logger: logging.Logger) -> dict[str, str]:
+def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict) -> dict[str, str]:
     """Create pseudonym key for patient names."""
     unique_names = (
         df.select(input_cols['patientName'])
@@ -85,12 +78,12 @@ def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict, lo
         .to_series()
     )
 
-    pseudonymizer = Pseudonymizer(logger=logger)
+    pseudonymizer = Pseudonymizer()
     pseudonymizer.load_key(pseudonym_key_dict)
     return pseudonymizer.pseudonymize(unique_names)
 
 
-def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, logger: logging.Logger) -> pl.DataFrame:
+def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
     """Prepare data for output by selecting and renaming columns."""
     select_cols = [col for col in output_cols.values() if col in df.columns]
     df = df.select(select_cols)
@@ -110,13 +103,7 @@ def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict, 
     return df
 
 
-def _filter_null_rows(
-    df: pl.DataFrame,
-    output_folder: str,
-    input_fofi: str,
-    output_extension: str,
-    logger: logging.Logger,
-) -> pl.DataFrame:
+def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, output_extension: str) -> pl.DataFrame:
     """Filter out rows with null values and save them separately."""
     filter_condition = reduce(
         lambda acc, col_name: acc | pl.col(col_name).is_null(),
@@ -153,17 +140,37 @@ def _filter_null_rows(
     return df
 
 
-def _performance_metrics(start_time: float, df_rowcount: int, logger: logging.Logger) -> None:
+def _batch_process_reports(df: pl.DataFrame, input_cols_dict: dict, handler: DeidentifyHandler) -> pl.DataFrame:
+    """Process reports in batches for better performance."""
+    batch_size: int = 1000
+    logger.debug('Processing %d rows in batches of %d', df.height, batch_size)
+
+    processed_batches = []
+    deidentify = handler.deidentify_text(input_cols_dict)
+
+    for start_index in range(0, df.height, batch_size):
+        end_index = min(start_index + batch_size, df.height)
+        batch_df = df.slice(start_index, end_index - start_index)
+        logger.debug('Processing batch %d-%d', start_index, end_index)
+
+        # Convert batch to list of row dicts for fast iteration
+        row_dicts = batch_df.to_dicts()
+        processed_texts = [deidentify(row_dict) for row_dict in row_dicts]
+
+        # Add processed column to batch
+        batch_with_processed = batch_df.with_columns(pl.Series('processed_report', processed_texts))
+        processed_batches.append(batch_with_processed)
+
+    return pl.concat(processed_batches)
+
+
+def _performance_metrics(start_time: float, df_rowcount: int) -> None:
     """Log performance metrics for the processing operation."""
     end_time = time.time()
     total_time = end_time - start_time
     time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
 
-    logger.info(
-        'Time passed with %d CPU cores and a total row count of %d rows',
-        multiprocessing.cpu_count(),
-        df_rowcount,
-    )
+    logger.info('Time passed with a total row count of %d rows', df_rowcount)
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
@@ -173,7 +180,6 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
 
     input_folder, output_folder = get_environment_paths()
-    logger = setup_logging(output_folder)
 
     logger.debug('\nParsed arguments:\n%s\n', params_str)
 
@@ -187,7 +193,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = f'{input_folder}/{input_fofi}' if not input_fofi.startswith('/') else input_fofi
-    df = _load_data_file(input_file_path, logger)
+    df = _load_data_file(input_file_path)
 
     # Update progress - pre-processing
     progress['update'](progress['get_stage_name'](2))
@@ -219,7 +225,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         # Strip whitespace from patient names
         df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
 
-        pseudonym_key = _create_key(df, input_cols_dict, pseudonym_key_dict, logger)
+        pseudonym_key = _create_key(df, input_cols_dict, pseudonym_key_dict)
         save_pseudonym_key(pseudonym_key, output_folder)
 
     # Update progress - data transformation
@@ -227,12 +233,8 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
-    # Create a new column `processed_report` with deduced names
-    df = df.with_columns(
-        pl.struct(df.columns)
-        .map_elements(handler.deidentify_text(input_cols_dict), return_dtype=pl.Utf8)
-        .alias('processed_report'),
-    )
+    #  Create a new column `processed_report` with deduced names
+    df = _batch_process_reports(df, input_cols_dict, handler)
 
     if has_patient_name:
         patient_name_col = input_cols_dict['patientName']
@@ -247,26 +249,24 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
         # Replace [PATIENT] tags in `processed_report` with pseudonym keys
         df = df.with_columns(
-            pl.struct(['processed_report', 'patientID'])
-            .map_elements(
-                lambda row: handler.replace_tags(row['processed_report'], row['patientID']),
-                return_dtype=pl.Utf8,
-            )
+            pl.col('processed_report')
+            .str.replace_all('[PATIENT]', '[' + pl.col('patientID') + ']')
             .alias('processed_report'),
         )
 
     # Prepare output data
-    df = _prepare_output_data(df, input_cols_dict, output_cols_dict, logger)
+    df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
 
     # Debug: Show all collected annotations if in debug mode
-    handler.debug_deidentify_text()
+    if logger.level == logging.DEBUG:
+        handler.debug_deidentify_text()
 
     # Update progress - filtering nulls
     progress['update'](progress['get_stage_name'](5))
 
     # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    df = _filter_null_rows(df, output_folder, input_fofi, output_extension, logger)
+    df = _filter_null_rows(df, output_folder, input_fofi, output_extension)
 
     # Only show example to terminal when NOT running as a frozen executable
     if not getattr(sys, 'frozen', False):
@@ -289,7 +289,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         logger.warning('Selected output extension not supported, using parquet.\n')
 
     # Log performance and finalize
-    _performance_metrics(start_time, df.height, logger)
+    _performance_metrics(start_time, df.height)
 
     # Update progress - finalizing
     progress['update'](progress['get_stage_name'](7))

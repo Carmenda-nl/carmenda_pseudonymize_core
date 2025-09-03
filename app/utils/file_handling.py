@@ -21,13 +21,9 @@ def get_environment_paths() -> tuple[str, str]:
         # Docker environment
         input_folder = '/app/data/input'
         output_folder = '/app/data/output'
-    elif sys.argv[0] == 'manage.py':
-        # Django environment
-        input_folder = 'data/input/'
-        output_folder = 'data/output/'
     elif getattr(sys, 'frozen', False):
         # PyInstaller environment
-        base_path = Path(sys._MEIPASS)  # noqa: SLF001 (use for PyInstaller)
+        base_path = Path(sys._MEIPASS)
         input_folder = str(base_path / 'data' / 'input')
         output_folder = str(base_path / 'data' / 'output')
     else:

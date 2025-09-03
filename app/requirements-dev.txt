@@ -1,0 +1,18 @@
+# django packages
+Django==5.2.5
+django-environ==0.12.0
+django-cors-headers==4.7.0
+djangorestframework==3.16.1
+
+# api
+drf-spectacular==0.28.0
+
+# large-scale data processing
+polars[pandas]==1.32.3
+
+# deduce packages
+deduce==3.0.6
+
+pytest==8.4.1
+pytest-django==4.11.1
+pytest-cov==6.2.1
