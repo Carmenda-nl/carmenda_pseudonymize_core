@@ -17,7 +17,6 @@ log
 
 # -------------------------- Django folders & files -------------------------- #
 
-db.sqlite3
 cache
 __pycache__
 
