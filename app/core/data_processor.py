@@ -148,17 +148,28 @@ def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, out
 
 def _process_batch_worker(batch: tuple) -> dict:
     """Worker function for processing a single batch in parallel."""
-    batch_data, input_cols_dict = batch
+    batch_df, input_cols_dict = batch
 
     handler = DeidentifyHandler()
     deidentify = handler.deidentify_text(input_cols_dict)
 
-    # Process all rows in this batch
-    processed_texts = [deidentify(row_dict) for row_dict in batch_data]
+    # Extract the report column as a list for processing
+    report_col = input_cols_dict['report']
 
-    # Create DataFrame directly from processed data
-    batch_df = pl.DataFrame(batch_data)
-    result_df = batch_df.with_columns(pl.Series('processed_report', processed_texts))
+    if report_col not in batch_df.columns:
+        result_df = batch_df.with_columns(pl.lit('').alias('processed_report'))
+    else:
+        reports = batch_df.select(report_col).to_series().to_list()
+        other_cols = [col for col in batch_df.columns if col != report_col]
+
+        if other_cols:
+            other_data = batch_df.select(other_cols).to_dicts()
+            batch_data = [{**row, report_col: report} for row, report in zip(other_data, reports)]
+        else:
+            batch_data = [{report_col: report} for report in reports]
+
+        processed_texts = [deidentify(row_dict) for row_dict in batch_data]
+        result_df = batch_df.with_columns(pl.Series('processed_report', processed_texts))
 
     return {
         'dataframe': result_df,
@@ -173,15 +184,14 @@ def _batch_process_reports(df: pl.DataFrame, input_cols: dict) -> tuple[pl.DataF
     """Process reports in parallel batches, when there is more than one batch."""
     total_rows = df.height
 
-    # Prepare batches efficiently with Polars
+    # Use Polars lazy evaluation for better memory efficiency
+    df_lazy = df.lazy()
+
     batches = []
     for start_index in range(0, total_rows, batch_size):
         end_index = min(start_index + batch_size, total_rows)
-        batch_df = df.slice(start_index, end_index - start_index)
-
-        # Convert to list of dicts only once per batch
-        batch_data = batch_df.to_dicts()
-        batches.append((batch_data, input_cols))
+        batch_df = df_lazy.slice(start_index, end_index - start_index).collect()
+        batches.append((batch_df, input_cols))
 
     if len(batches) == 1:
         # Single batch - no need for multiprocessing overhead
@@ -199,7 +209,7 @@ def _batch_process_reports(df: pl.DataFrame, input_cols: dict) -> tuple[pl.DataF
     all_debug_data = [result['debug_data'] for result in processed_results]
 
     # Efficiently concat DataFrames
-    combined_df = pl.concat(processed_batches, how='vertical')
+    combined_df = pl.concat(processed_batches, how='vertical', rechunk=True)
 
     return combined_df, all_debug_data, used_cores
 
