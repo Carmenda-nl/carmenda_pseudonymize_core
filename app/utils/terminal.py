@@ -22,6 +22,12 @@ def get_terminal_width() -> int:
         return 80  # Default width if unable to detect
 
 
+def get_separator_line(char: str = '-', padding: int = 0) -> str:
+    """Get a separator line that fits the terminal width."""
+    width = get_terminal_width() - padding
+    return char * width
+
+
 def colorize_tags(text: str) -> str:
     """Apply different colors to different types of tags in text."""
     colors = {
