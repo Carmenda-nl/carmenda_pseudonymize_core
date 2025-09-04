@@ -68,7 +68,7 @@ def setup_logging(log_level: int | None = None) -> logging.Logger:
     # Setup deidentify logger
     logger = logging.getLogger('deidentify')
     logger.setLevel(log_level)
-    logger.propagate = True  # <- disables logging to console if `False`
+    logger.propagate = True
 
     # Clear existing handlers to prevent duplicates
     if logger.hasHandlers():

@@ -99,7 +99,6 @@ def main() -> None:
 
     # Configure logging based on CLI argument or environment variable
     if args.log_level:
-        # Set environment variable if provided via CLI
         os.environ['LOG_LEVEL'] = args.log_level
 
     # Initialize logging (will use environment variable or default)
