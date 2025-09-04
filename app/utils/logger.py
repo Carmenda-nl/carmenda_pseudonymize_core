@@ -8,13 +8,51 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import tempfile
 from pathlib import Path
 
+try:
+    from django.conf import settings as django_settings
+except ImportError:
+    django_settings = None
 
-def setup_logging(log_level: int = 20) -> logging.Logger:
+
+def _get_log_level() -> int:
+    """Get log level from environment variable or argument."""
+    log_level = os.environ.get('LOG_LEVEL')
+
+    # If level is not set, try to get from Django settings (if available)
+    if log_level is None and django_settings is not None:
+        try:
+            if django_settings.configured and hasattr(django_settings, 'LOG_LEVEL'):
+                log_level = django_settings.LOG_LEVEL
+        except (AttributeError, ImportError):
+            # Django settings not configured, continue with default
+            pass
+
+    if log_level is None:
+        log_level = 'INFO'
+
+    log_level = log_level.upper()
+
+    # Map string levels to logging constants
+    level_mapping = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL,
+    }
+
+    return level_mapping.get(log_level, logging.INFO)
+
+
+def setup_logging(log_level: int | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
+    log_level = _get_log_level()
+
     log_dir = str(Path(tempfile.gettempdir()) / 'deidentification_logs') if hasattr(sys, '_MEIPASS') else 'data/output'
     log_path = Path(log_dir)
 

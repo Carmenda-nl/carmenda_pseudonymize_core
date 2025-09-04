@@ -6,7 +6,7 @@
 """Anonymize Dutch report texts.
 
 Authors: Django Heimgartner, Joep Tummers, Pim van Oirschot
-Date: 25-08-2025
+Date: 04-09-2025
 
 Description:
     Deidentifies Dutch report texts (unstructured data) using Deduce
@@ -37,8 +37,10 @@ Script logic:
 from __future__ import annotations
 
 import argparse
+import os
 
 from core.data_processor import process_data
+from utils.logger import setup_logging
 
 
 def parse_cli_arguments() -> argparse.Namespace:
@@ -80,6 +82,13 @@ def parse_cli_arguments() -> argparse.Namespace:
         choices=['.csv', '.parquet'],
         help='Output file format. Parquet recommended for large datasets.',
     )
+    parser.add_argument(
+        '--log_level',
+        nargs='?',
+        default=None,
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help='Logging level. If not specified, uses LOG_LEVEL environment variable or defaults to INFO.',
+    )
     # Parse and process arguments
     return parser.parse_args()
 
@@ -87,6 +96,14 @@ def parse_cli_arguments() -> argparse.Namespace:
 def main() -> None:
     """Parse command-line arguments, and call the main processing function."""
     args = parse_cli_arguments()
+
+    # Configure logging based on CLI argument or environment variable
+    if args.log_level:
+        # Set environment variable if provided via CLI
+        os.environ['LOG_LEVEL'] = args.log_level
+
+    # Initialize logging (will use environment variable or default)
+    setup_logging()
 
     process_data(
         input_fofi=args.input_fofi,

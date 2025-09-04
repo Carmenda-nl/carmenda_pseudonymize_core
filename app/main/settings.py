@@ -14,6 +14,7 @@ from django.core.management.utils import get_random_secret_key
 env = environ.FileAwareEnv(
     # Set casting, default values for env's
     DEBUG=(bool, False),
+    LOG_LEVEL=(str, 'INFO'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -24,6 +25,9 @@ environ.Env.read_env(BASE_DIR / '.env')
 
 DEBUG = env('DEBUG')
 SECRET_KEY = env('SECRET_KEY', default=get_random_secret_key())
+
+# Logging configuration
+LOG_LEVEL = env('LOG_LEVEL')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=['http://127.0.0.1'])
