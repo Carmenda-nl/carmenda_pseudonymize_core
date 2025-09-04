@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import shutil
 from pathlib import Path
@@ -17,7 +16,6 @@ if TYPE_CHECKING:
     from django.http import HttpRequest
 
 from django.conf import settings
-from django.http import HttpResponse
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -40,12 +38,6 @@ class ApiTags:
     CLEANUP = 'Cleanup'
 
 
-def _pretty_json(data: dict, status_code: int) -> HttpResponse:
-    """Return a pretty formatted JSON response."""
-    json_str = json.dumps(data, indent=2, ensure_ascii=False)
-    return HttpResponse(json_str, content_type='application/json', status=status_code)
-
-
 @extend_schema(tags=[ApiTags.JOBS])
 @extend_schema_view(
     process=extend_schema(tags=[ApiTags.PROCESSING]),
@@ -58,7 +50,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     serializer_class = DeidentificationJobSerializer
     http_method_names: ClassVar = ['get', 'post', 'delete']
 
-    def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> HttpResponse:
+    def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> Response:
         """Prepare a new job with an uploaded file and column mapping configuration.
 
         The job is initialized with 'pending' status and awaits explicit processing.
@@ -92,7 +84,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             'curl_url': curl_url,
         }
 
-        return _pretty_json(response_data, status.HTTP_201_CREATED)
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         methods=['post'],
@@ -123,7 +115,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         # Check if the input file exist
         if not job.input_file or not Path(job.input_file.path).exists():
-            return Response({'Input file is missing'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Input file is missing'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Reset the status and error message on re-runs
         job.status = 'processing'
@@ -134,12 +126,15 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             # Start the anonymizing process
             process_deidentification(job.job_id)
 
-            return Response({'Job processing started successfully'}, status=status.HTTP_200_OK)
+            return Response({'message': 'Job processing started successfully'}, status=status.HTTP_200_OK)
         except (OSError, RuntimeError, ValueError) as e:
             job.status = 'failed'
             job.save()
 
-            return Response({'Failed to start job processing': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {'error': 'Failed to start job processing', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @extend_schema(
         methods=['get'],
@@ -229,12 +224,12 @@ class ResetJobsViewSet(viewsets.ViewSet):
             output_dir.mkdir(parents=True, exist_ok=True)
 
             return Response(
-                f'All {total_jobs} jobs have been removed successfully.',
+                {'message': f'All {total_jobs} jobs have been removed successfully.'},
                 status=status.HTTP_200_OK,
             )
 
         except (OSError, RuntimeError, PermissionError) as e:
             return Response(
-                {'An error occurred while resetting jobs.\n': str(e)},
+                {'error': 'An error occurred while resetting jobs.', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
