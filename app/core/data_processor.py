@@ -8,13 +8,16 @@
 This module provides functionality for:
     - Loading data from files
     - Creating pseudonym keys for patient names
-    - Transforming and pseudonymizing patient data
+    - Transforming and pseudonymizing patient data (in parallel batches)
     - Filtering null values and handling data irregularities
     - Writing processed data to output files
 """
 
+from __future__ import annotations
+
 import json
 import logging
+import multiprocessing
 import sys
 import time
 from functools import reduce
@@ -38,6 +41,9 @@ from utils.progress_tracker import progress_tracker, tracker
 
 logger = setup_logging()
 handler = DeidentifyHandler()
+
+n_processes = min(multiprocessing.cpu_count(), 4)  # Limit to 4 processes max
+batch_size: int = 1000
 
 
 def _load_data_file(input_file_path: str) -> pl.DataFrame:
@@ -140,37 +146,96 @@ def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, out
     return df
 
 
-def _batch_process_reports(df: pl.DataFrame, input_cols_dict: dict, handler: DeidentifyHandler) -> pl.DataFrame:
-    """Process reports in batches for better performance."""
-    batch_size: int = 1000
-    logger.debug('Processing %d rows in batches of %d', df.height, batch_size)
+def _process_batch_worker(batch: tuple) -> dict:
+    """Worker function for processing a single batch in parallel."""
+    batch_data, input_cols_dict = batch
 
-    processed_batches = []
+    handler = DeidentifyHandler()
     deidentify = handler.deidentify_text(input_cols_dict)
 
-    for start_index in range(0, df.height, batch_size):
-        end_index = min(start_index + batch_size, df.height)
+    # Process all rows in this batch
+    processed_texts = [deidentify(row_dict) for row_dict in batch_data]
+
+    # Create DataFrame directly from processed data
+    batch_df = pl.DataFrame(batch_data)
+    result_df = batch_df.with_columns(pl.Series('processed_report', processed_texts))
+
+    return {
+        'dataframe': result_df,
+        'debug_data': {
+            'processed_reports': handler.processed_reports,
+            'total_processed': handler.total_processed,
+        },
+    }
+
+
+def _batch_process_reports(df: pl.DataFrame, input_cols: dict) -> tuple[pl.DataFrame, list[dict]]:
+    """Process reports in parallel batches, when there is more than one batch."""
+    total_rows = df.height
+
+    # Prepare batches efficiently with Polars
+    batches = []
+    for start_index in range(0, total_rows, batch_size):
+        end_index = min(start_index + batch_size, total_rows)
         batch_df = df.slice(start_index, end_index - start_index)
-        logger.debug('Processing batch %d-%d', start_index, end_index)
 
-        # Convert batch to list of row dicts for fast iteration
-        row_dicts = batch_df.to_dicts()
-        processed_texts = [deidentify(row_dict) for row_dict in row_dicts]
+        # Convert to list of dicts only once per batch
+        batch_data = batch_df.to_dicts()
+        batches.append((batch_data, input_cols))
 
-        # Add processed column to batch
-        batch_with_processed = batch_df.with_columns(pl.Series('processed_report', processed_texts))
-        processed_batches.append(batch_with_processed)
+    if len(batches) == 1:
+        # Single batch - no need for multiprocessing overhead
+        logger.debug('Using single process for %d batch', len(batches))
+        processed_results = [_process_batch_worker(batch) for batch in batches]
+        used_cores = 1
+    else:
+        logger.debug('Using multiprocessing for %d batches across %d processes', len(batches), n_processes)
+        with multiprocessing.Pool(processes=n_processes) as pool:
+            processed_results = pool.map(_process_batch_worker, batches)
+        used_cores = n_processes
 
-    return pl.concat(processed_batches)
+    # Extract DataFrames and debug data
+    processed_batches = [result['dataframe'] for result in processed_results]
+    all_debug_data = [result['debug_data'] for result in processed_results]
+
+    # Efficiently concat DataFrames
+    combined_df = pl.concat(processed_batches, how='vertical')
+
+    return combined_df, all_debug_data, used_cores
 
 
-def _performance_metrics(start_time: float, df_rowcount: int) -> None:
+def _debug_deidentify_text(debug_data_list: list[dict]) -> None:
+    """Consolidate and display debug data from all worker processes."""
+    if not debug_data_list or logger.level != logging.DEBUG:
+        # Show nothing if no debug data or not in debug mode
+        return
+
+    # Consolidate all debug data
+    all_processed_reports = []
+    total_processed = 0
+
+    for debug_data in debug_data_list:
+        all_processed_reports.extend(debug_data['processed_reports'])
+        total_processed += debug_data['total_processed']
+
+    if total_processed == 0:
+        logger.debug('No debug data collected from worker processes.')
+        return
+
+    # Create a temporary handler for debug display
+    temp_handler = DeidentifyHandler()
+    temp_handler.processed_reports = all_processed_reports
+    temp_handler.total_processed = total_processed
+    temp_handler.debug_deidentify_text()
+
+
+def _performance_metrics(start_time: float, df_rowcount: int, used_cores: int) -> None:
     """Log performance metrics for the processing operation."""
     end_time = time.time()
     total_time = end_time - start_time
     time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
 
-    logger.info('Time passed with a total row count of %d rows', df_rowcount)
+    logger.info('Time passed with %d CPU cores and a total of %d rows', used_cores, df_rowcount)
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
@@ -234,7 +299,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
     #  Create a new column `processed_report` with deduced names
-    df = _batch_process_reports(df, input_cols_dict, handler)
+    df, debug_data_list, used_cores = _batch_process_reports(df, input_cols_dict)
 
     if has_patient_name:
         patient_name_col = input_cols_dict['patientName']
@@ -249,15 +314,14 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
 
         # Replace [PATIENT] tags in `processed_report` with pseudonym keys
         df = df.with_columns(
-            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', '[' + pl.col('patientID').cast(pl.Utf8) + ']'),
+            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
         )
 
     # Prepare output data
     df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
 
     # Debug: Show all collected annotations if in debug mode
-    if logger.level == logging.DEBUG:
-        handler.debug_deidentify_text()
+    _debug_deidentify_text(debug_data_list)
 
     # Update progress - filtering nulls
     progress['update'](progress['get_stage_name'](5))
@@ -287,7 +351,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
         logger.warning('Selected output extension not supported, using parquet.\n')
 
     # Log performance and finalize
-    _performance_metrics(start_time, df.height)
+    _performance_metrics(start_time, df.height, used_cores)
 
     # Update progress - finalizing
     progress['update'](progress['get_stage_name'](7))

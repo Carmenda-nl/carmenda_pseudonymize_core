@@ -14,6 +14,7 @@ with enhanced case-insensitive name detection. It includes:
 
 from __future__ import annotations
 
+import logging
 import os
 import pickle
 import re
@@ -265,7 +266,7 @@ class DeidentifyHandler:
                 merged_result = self._merge_detections(report_text, deduce_result.deidentified_text, extend_result)
 
                 # Optional process: Collect debug data if needed
-                if logger.level == logger.level:
+                if logger.level == logging.DEBUG:
                     self.total_processed += 1
                     self.processed_reports.append(
                         {
