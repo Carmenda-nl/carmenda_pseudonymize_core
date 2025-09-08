@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
-import tempfile
 from pathlib import Path
 
 try:
@@ -52,8 +50,13 @@ def _get_log_level() -> int:
 def setup_logging(log_level: int | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
     log_level = _get_log_level()
+    log_dir: str = 'data/output'
 
-    log_dir = str(Path(tempfile.gettempdir()) / 'deidentification_logs') if hasattr(sys, '_MEIPASS') else 'data/output'
+    if django_settings is not None:
+        log_dir = str(Path(django_settings.BASE_DIR) / log_dir)
+    else:
+        log_dir = str(Path.cwd() / log_dir)
+
     log_path = Path(log_dir)
 
     try:
