@@ -11,6 +11,7 @@ achter
 actief
 activiteit
 addison
+adem
 ademen
 af
 afgelopen
@@ -20,10 +21,12 @@ afname
 afspraak
 afval
 al
+alert
 algemeen
 algemene
 alle
 alleen
+allen
 alles
 alpha
 als
@@ -41,6 +44,7 @@ antwoorden
 appel
 april
 arm
+armen
 arthur
 augustus
 auto
@@ -53,6 +57,7 @@ bad
 bal
 bang
 bank
+bar
 barbier
 bark
 basis
@@ -157,6 +162,7 @@ dag
 dagen
 dak
 dal
+dame
 dan
 dansen
 dapper
@@ -173,8 +179,10 @@ deksel
 delen
 derde
 deze
+diamond
 dichtbij
 dienen
+dient
 diep
 dier
 dijk
@@ -205,12 +213,14 @@ droog
 druk
 dubbel
 duits
+Duits
 dun
 dus
 duur
 duwen
 echt
 een
+één
 eend
 eenheid
 eenzaam
@@ -226,11 +236,14 @@ elektrisch
 elk
 elke
 en
+ene
 engels
 enkele
 enthousiast
 er
 erg
+erin
+ermee
 erna
 eten
 even
@@ -587,6 +600,7 @@ mol
 moment
 mond
 mooi
+mooi
 mooie
 moord
 moorden
@@ -759,8 +773,10 @@ rijk
 rijst
 rijzen
 ring
+ritme
 rok
 rond
+ronde
 rood
 rook
 roos
@@ -790,10 +806,12 @@ schrijven
 schudden
 seconde
 september
+serie
 sex
 signaal
 simpel
 sinds
+skip
 slaapkamer
 slapen
 slecht
@@ -846,6 +864,7 @@ studie
 stuk
 succes
 suiker
+super
 taal
 taart
 tafel
@@ -981,6 +1000,7 @@ voelen
 voet
 voetbal
 vogel
+voice
 vol
 volgende
 volgorde
@@ -1021,6 +1041,7 @@ walker
 wanneer
 want
 wapen
+war
 warm
 was
 wassen
@@ -1050,6 +1071,7 @@ wijn
 wijs
 wild
 willen
+wilt
 wind
 winkel
 winnen
@@ -1102,6 +1124,7 @@ zomer
 zon
 zondag
 zonder
+zong
 zonnig
 zoon
 zorg
@@ -1116,4 +1139,3 @@ zwaar
 zwak
 zwembad
 zwemmen
-één

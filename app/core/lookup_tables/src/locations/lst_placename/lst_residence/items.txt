@@ -7262,7 +7262,6 @@ Stegerhoek
 Stegerveld
 Steggerda
 Steiger
-Stein
 Steinen
 Steinweg
 Stek
@@ -8087,7 +8086,6 @@ Vriezelaar
 Vriezenveen
 Vrij
 Vrijburg
-Vrije
 Vrijenhoek
 Vrijhoef
 Vrijhoeve

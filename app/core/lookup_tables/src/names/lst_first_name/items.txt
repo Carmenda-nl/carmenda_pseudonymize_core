@@ -27031,7 +27031,6 @@ Armeljon
 Armella
 Armelle
 Armelle-Blue
-Armen
 Armén
 Armèn
 Armenac
@@ -63496,7 +63495,6 @@ Cnelsina
 Cnilles
 Cnisia
 C-Noa
-Co
 Coan
 Coang
 Coánja
@@ -68396,7 +68394,6 @@ Damchü
 Damcor
 Damcy
 Damdini
-Dame
 Damé
 Damea
 Daméa
@@ -101369,7 +101366,6 @@ Endy
 Endyka
 Endymion
 Endza
-Ene
 Ené
 Enea
 Enéa
@@ -103047,7 +103043,6 @@ Ermayra
 Ermboud
 Erme
 Ermedina
-Ermee
 Ermel
 Ermelendes
 Ermelendis
@@ -197319,6 +197314,7 @@ Leike
 Leiko
 Leikwa
 Leil
+Leiliane
 Leïla
 Léila
 Leilah
@@ -217307,6 +217303,7 @@ Marjolein-Charlotte
 Marjolèine
 Marjolein-Fleur
 Marjolein-Heleentje
+Marjolein
 Marjoleinne
 Marjoleintje
 Marjolen
@@ -243008,6 +243005,7 @@ Nellay
 Nellegje
 Nellegonda
 Nelle-Marie
+Nelleke
 Nellemie
 Nellemiek
 Nellemieke
@@ -244989,6 +244987,7 @@ Niclosine
 Niclotina
 Nicme
 Nicmi
+Nico
 Nicó
 Nicobert
 Nico-Berto
@@ -286323,7 +286322,6 @@ Roncliff
 Ronda
 Rondal
 Rondão
-Ronde
 Rondek
 Rondelie
 Rondell
@@ -359858,7 +359856,6 @@ Wilstine
 Wilstinique
 Wilston
 Wilsyl
-Wilt
 Wilta
 Wilte
 Wilten
