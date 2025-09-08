@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import json
 import os
-import queue
 import threading
 import zipfile
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
+
+if TYPE_CHECKING:
+    import queue
 
 from django.conf import settings
 from django.db import connection
@@ -51,6 +53,12 @@ def _thread_target(config: DeidentificationConfig, job: DeidentificationJob, out
             pseudonym_key=config.pseudonym_key,
             output_extension=config.output_extension,
         )
+
+        _save_processed_preview(job, processed_rows_json)
+
+        # Collect output files and update job model
+        files_to_zip, output_filename = _collect_output_files(job, config.input_fofi)
+        _create_and_store_zip(job, files_to_zip, output_filename)
 
         # If an output queue is provided, put the JSON data in the queue
         if output_queue is not None:
@@ -121,23 +129,14 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
     return job, config, input_fofi
 
 
-def _run_deidentification_thread(config: DeidentificationConfig, job: DeidentificationJob) -> str | None:
+def _run_deidentification_thread(config: DeidentificationConfig, job: DeidentificationJob) -> None:
     """Run the deidentification process in a separate thread."""
-    output_queue = queue.Queue()
-
     thread = threading.Thread(
         target=_thread_target,
-        args=(config, job, output_queue),
+        args=(config, job, None),  # No output queue needed since we're not waiting
     )
     thread.daemon = True
     thread.start()
-    thread.join()
-
-    try:
-        return output_queue.get(block=False)
-    except queue.Empty:
-        logger.warning('No processed rows JSON retrieved for job %s', job.pk)
-        return None
 
 
 def _save_processed_preview(job: DeidentificationJob, processed_rows_json: str | None) -> None:
@@ -225,25 +224,17 @@ def _create_and_store_zip(job: DeidentificationJob, files_to_zip: list[str], out
 
 
 def process_deidentification(job_id: str) -> None:
-    """Entire workflow for a deidentification job.
+    """Start the deidentification job asynchronously.
 
-    This function operates asynchronously by spawning a separate thread for
-    the actual deidentification work, but it blocks until that thread completes.
+    This function starts the deidentification process in a background thread
+    and returns immediately without waiting for completion.
     """
     try:
-        job, config, output_filename = _setup_deidentification_job(job_id)
-        processed_rows_json = _run_deidentification_thread(config, job)
-        _save_processed_preview(job, processed_rows_json)  # <- preview for backend
-
-        # Collect output files and update job model
-        files_to_zip, output_filename = _collect_output_files(job, output_filename)
-        _create_and_store_zip(job, files_to_zip, output_filename)
-
-        job.status = 'completed'
-        job.save()
+        job, config, _output_filename = _setup_deidentification_job(job_id)
+        _run_deidentification_thread(config, job)
 
     except (OSError, RuntimeError, ValueError) as e:
-        logger.exception('Error processing job %s', job_id)
+        logger.exception('Error starting job %s', job_id)
         try:
             job = DeidentificationJob.objects.get(pk=job_id)
             job.status = 'failed'
@@ -251,6 +242,3 @@ def process_deidentification(job_id: str) -> None:
             job.save()
         except (OSError, RuntimeError):
             logger.exception('Failed to update job status')
-    finally:
-        # Close database connection to prevent ResourceWarning
-        connection.close()
