@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import sys
@@ -115,18 +116,16 @@ def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.p
 
 
 def load_pseudonym_key(key_file_path: str) -> dict[str, str]:
-    """Load pseudonym key from JSON file."""
+    """Load pseudonym key from file."""
     file_path = Path(key_file_path)
 
     try:
         with file_path.open(encoding='utf-8') as file:
             data = json.load(file)
-    except FileNotFoundError as e:
+            data = csv.load(file)
+    except FileNotFoundError as error:
         error_msg = f'Pseudonym key file not found: "{key_file_path}"'
-        raise FileNotFoundError(error_msg) from e
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        error_msg = f'Invalid JSON in pseudonym key file "{key_file_path}": {e}'
-        raise ValueError(error_msg) from e
+        raise FileNotFoundError(error_msg) from error
 
     # Validate that it's a string-to-string mapping
     if not isinstance(data, dict):
