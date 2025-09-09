@@ -22,14 +22,13 @@ logger = setup_logging()
 class Pseudonymizer:
     """Generates and manages pseudonyms for patient names."""
 
-    def __init__(self, pseudonym_length: int = 14, max_iterations: int = 15, droplist: list[str] | None = None) -> None:
+    def __init__(self, pseudonym_length: int = 14, max_iterations: int = 15) -> None:
         """Initialize the Pseudonymizer with configuration options."""
         self.pseudonym_length = pseudonym_length
         self.max_iterations = max_iterations
-        self.droplist = droplist or []
         self.pseudonym_key: dict[str, str] = {}
 
-    def load_key(self, existing_key: dict[str, str] | None = None) -> None:
+    def get_existing_key(self, existing_key: dict[str, str] | None = None) -> None:
         """Load existing pseudonym key."""
         if existing_key:
             self.pseudonym_key = existing_key.copy()
@@ -51,7 +50,7 @@ class Pseudonymizer:
 
     def pseudonymize(self, unique_names: list[str]) -> dict[str, str]:
         """Generate pseudonyms for unique names."""
-        filtered_names = [name for name in unique_names if name not in self.droplist]
+        filtered_names = list(unique_names)
 
         for name in filtered_names:
             if name not in self.pseudonym_key:

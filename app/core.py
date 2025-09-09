@@ -72,7 +72,7 @@ def parse_cli_arguments() -> argparse.Namespace:
         '--pseudonym_key',
         nargs='?',
         default=None,
-        help='Path to existing pseudonymization key (JSON file) to extend. Format: {"original_name": "pseudonym"}',
+        help='Path to existing pseudonymization key. If not provided, a new key is created.',
     )
     parser.add_argument(
         '--output_extension',
@@ -86,7 +86,7 @@ def parse_cli_arguments() -> argparse.Namespace:
         nargs='?',
         default='INFO',
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        help='Logging level. If not specified, uses LOG_LEVEL environment variable or defaults to INFO.',
+        help='Logging level. If not specified, defaults to INFO.',
     )
     # Parse and process arguments
     return parser.parse_args()

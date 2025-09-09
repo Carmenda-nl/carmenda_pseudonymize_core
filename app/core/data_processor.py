@@ -85,7 +85,7 @@ def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict) ->
     )
 
     pseudonymizer = Pseudonymizer()
-    pseudonymizer.load_key(pseudonym_key_dict)
+    pseudonymizer.get_existing_key(pseudonym_key_dict)
     return pseudonymizer.pseudonymize(unique_names)
 
 

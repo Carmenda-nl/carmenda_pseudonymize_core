@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-import json
+import csv
 import os
 import sys
 from pathlib import Path
@@ -115,49 +115,51 @@ def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.p
 
 
 def load_pseudonym_key(key_file_path: str) -> dict[str, str]:
-    """Load pseudonym key from JSON file."""
+    """Load pseudonym key from file."""
     file_path = Path(key_file_path)
 
     try:
         with file_path.open(encoding='utf-8') as file:
-            data = json.load(file)
-    except FileNotFoundError as e:
+            data = csv.reader(file)
+    except FileNotFoundError as error:
         error_msg = f'Pseudonym key file not found: "{key_file_path}"'
-        raise FileNotFoundError(error_msg) from e
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        error_msg = f'Invalid JSON in pseudonym key file "{key_file_path}": {e}'
-        raise ValueError(error_msg) from e
+        raise FileNotFoundError(error_msg) from error
 
     # Validate that it's a string-to-string mapping
     if not isinstance(data, dict):
-        error_msg = f'Pseudonym key must be a JSON object, got {type(data).__name__}'
+        error_msg = f'Pseudonym key must be a CSV object, got {type(data).__name__}'
         raise TypeError(error_msg)
 
     # Ensure all keys and values are strings
     try:
         return {str(k): str(v) for k, v in data.items()}
-    except (TypeError, AttributeError) as e:
-        error_msg = f'Pseudonym key must contain string mappings: {e}'
-        raise ValueError(error_msg) from e
+    except (TypeError, AttributeError) as error:
+        error_msg = f'Pseudonym key must contain string mappings: {error}'
+        raise ValueError(error_msg) from error
 
 
-def save_pseudonym_key(pseudonym_key: dict[str, str], output_folder: str, filename: str = 'pseudonym_key.json') -> None:
-    """Save pseudonym key to JSON file."""
+def save_pseudonym_key(pseudonym_key: dict[str, str], output_folder: str, filename: str = 'pseudonym_key.csv') -> None:
+    """Save pseudonym key to CSV file."""
     output_path = Path(output_folder)
 
     try:
         output_path.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        error_msg = f'Cannot create output directory "{output_folder}": {e}'
-        raise OSError(error_msg) from e
+    except OSError as error:
+        error_msg = f'Cannot create output directory "{output_folder}": {error}'
+        raise OSError(error_msg) from error
 
     file_path = output_path / filename
     try:
-        with file_path.open('w', encoding='utf-8') as outfile:
-            json.dump(pseudonym_key, outfile, indent=2)
-    except (OSError, TypeError) as e:
-        error_msg = f'Cannot write pseudonym key to "{file_path}": {e}'
-        raise OSError(error_msg) from e
+        with file_path.open('w', encoding='utf-8', newline='') as outfile:
+            writer = csv.writer(outfile)
+            writer.writerow(['patient', 'synonym', 'pseudonym key'])
+
+            for original, pseudonym in pseudonym_key.items():
+                writer.writerow([original, '', pseudonym])
+
+    except (OSError, TypeError) as error:
+        error_msg = f'Cannot write pseudonym key to "{file_path}": {error}'
+        raise OSError(error_msg) from error
 
 
 def create_output_file_path(output_folder: str, input_filename: str, suffix: str = '') -> str:
