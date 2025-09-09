@@ -11,58 +11,24 @@ import logging
 import os
 from pathlib import Path
 
-try:
-    from django.conf import settings as django_settings
-except ImportError:
-    django_settings = None
-
 
 def _get_log_level() -> int:
-    """Get log level from environment variable or argument."""
-    log_level = os.environ.get('LOG_LEVEL')
-
-    # If level is not set, try to get from Django settings (if available)
-    if log_level is None and django_settings is not None:
-        try:
-            if django_settings.configured and hasattr(django_settings, 'LOG_LEVEL'):
-                log_level = django_settings.LOG_LEVEL
-        except (AttributeError, ImportError):
-            # Django settings not configured, continue with default
-            pass
-
-    if log_level is None:
-        log_level = 'INFO'
-
-    log_level = log_level.upper()
-
-    # Map string levels to logging constants
-    level_mapping = {
-        'DEBUG': logging.DEBUG,
-        'INFO': logging.INFO,
-        'WARNING': logging.WARNING,
-        'ERROR': logging.ERROR,
-        'CRITICAL': logging.CRITICAL,
-    }
-
-    return level_mapping.get(log_level, logging.INFO)
+    """Get log level from environment variable."""
+    log_level = os.environ['LOG_LEVEL'].upper() if os.environ.get('LOG_LEVEL') else 'INFO'
+    return logging.getLevelName(log_level)
 
 
 def setup_logging(log_level: int | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
-    log_level = _get_log_level()
-    log_dir: str = 'data/output'
+    if log_level is None:
+        log_level = _get_log_level()
 
-    if django_settings is not None:
-        log_dir = str(Path(django_settings.BASE_DIR) / log_dir)
-    else:
-        log_dir = str(Path.cwd() / log_dir)
-
-    log_path = Path(log_dir)
+    log_path = Path(__file__).resolve().parent.parent / 'data/output'
 
     try:
         log_path.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        error_msg = f'Cannot create log directory "{log_dir}": {e}'
+        error_msg = f'Cannot create log directory "{log_path}": {e}'
         raise OSError(error_msg) from e
 
     # Create formatters

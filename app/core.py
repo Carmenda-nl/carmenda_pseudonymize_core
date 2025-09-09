@@ -30,13 +30,13 @@ Script logic:
         - Apply algorithm to report text column, making use of patientName to increase likelihood of at least
           de-identifying the main subject.
         - Replace the generated [PATIENT] tags with the new patientID
+    - Collect logging information
     - Write output to disk
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 
 from core.data_processor import process_data
 from utils.logger import setup_logging
@@ -84,7 +84,7 @@ def parse_cli_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--log_level',
         nargs='?',
-        default=None,
+        default='INFO',
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         help='Logging level. If not specified, uses LOG_LEVEL environment variable or defaults to INFO.',
     )
@@ -96,12 +96,9 @@ def main() -> None:
     """Parse command-line arguments, and call the main processing function."""
     args = parse_cli_arguments()
 
-    # Configure logging based on CLI argument or environment variable
     if args.log_level:
-        os.environ['LOG_LEVEL'] = args.log_level
-
-    # Initialize logging (will use environment variable or default)
-    setup_logging()
+        log_level = args.log_level
+    setup_logging(log_level)
 
     process_data(
         input_fofi=args.input_fofi,
