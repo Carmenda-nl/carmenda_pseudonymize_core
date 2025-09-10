@@ -114,32 +114,32 @@ def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.p
         raise OSError(error_msg) from e
 
 
-def load_pseudonym_key(key_file_path: str) -> dict[str, str]:
-    """Load pseudonym key from file."""
+def load_data_key(key_file_path: str) -> dict[str, str]:
+    """Load data key from file."""
     file_path = Path(key_file_path)
 
     try:
         with file_path.open(encoding='utf-8') as file:
             data = csv.reader(file)
     except FileNotFoundError as error:
-        error_msg = f'Pseudonym key file not found: "{key_file_path}"'
+        error_msg = f'data key file not found: "{key_file_path}"'
         raise FileNotFoundError(error_msg) from error
 
     # Validate that it's a string-to-string mapping
     if not isinstance(data, dict):
-        error_msg = f'Pseudonym key must be a CSV object, got {type(data).__name__}'
+        error_msg = f'data key must be a CSV object, got {type(data).__name__}'
         raise TypeError(error_msg)
 
     # Ensure all keys and values are strings
     try:
         return {str(k): str(v) for k, v in data.items()}
     except (TypeError, AttributeError) as error:
-        error_msg = f'Pseudonym key must contain string mappings: {error}'
+        error_msg = f'data key must contain string mappings: {error}'
         raise ValueError(error_msg) from error
 
 
-def save_pseudonym_key(pseudonym_key: dict[str, str], output_folder: str, filename: str = 'pseudonym_key.csv') -> None:
-    """Save pseudonym key to CSV file."""
+def save_data_key(data_key: dict[str, str], output_folder: str, filename: str = 'data_key.csv') -> None:
+    """Save data key to CSV file."""
     output_path = Path(output_folder)
 
     try:
@@ -152,13 +152,13 @@ def save_pseudonym_key(pseudonym_key: dict[str, str], output_folder: str, filena
     try:
         with file_path.open('w', encoding='utf-8', newline='') as outfile:
             writer = csv.writer(outfile)
-            writer.writerow(['patient', 'synonym', 'pseudonym key'])
+            writer.writerow(['patient', 'synonym', 'data key'])
 
-            for original, pseudonym in pseudonym_key.items():
+            for original, pseudonym in data_key.items():
                 writer.writerow([original, '', pseudonym])
 
     except (OSError, TypeError) as error:
-        error_msg = f'Cannot write pseudonym key to "{file_path}": {error}'
+        error_msg = f'Cannot write data key to "{file_path}": {error}'
         raise OSError(error_msg) from error
 
 

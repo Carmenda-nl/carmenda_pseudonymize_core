@@ -36,7 +36,7 @@ class DeidentificationConfig(NamedTuple):
     input_fofi: str
     input_cols: dict
     output_cols: dict
-    pseudonym_key: dict
+    data_key: dict
     output_extension: str
 
 
@@ -50,7 +50,7 @@ def _thread_target(config: DeidentificationConfig, job: DeidentificationJob, out
             input_fofi=config.input_fofi,
             input_cols=config.input_cols,
             output_cols=config.output_cols,
-            pseudonym_key=config.pseudonym_key,
+            data_key=config.data_key,
             output_extension=config.output_extension,
         )
 
@@ -122,7 +122,7 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
         input_fofi=input_fofi,
         input_cols=input_cols,
         output_cols=output_cols,
-        pseudonym_key=None,
+        data_key=None,
         output_extension=output_extension,
     )
 
@@ -151,7 +151,7 @@ def _collect_output_files(job: DeidentificationJob, input_fofi: str) -> tuple[li
     """Collect paths of all output files and update job model."""
     data_output_dir = Path(settings.MEDIA_ROOT) / 'output'
     output_path = data_output_dir / input_fofi
-    key_path = data_output_dir / 'pseudonym_key.json'
+    key_path = data_output_dir / 'data_key.csv'
     log_path = data_output_dir / 'deidentification.log'
 
     files_to_zip = []

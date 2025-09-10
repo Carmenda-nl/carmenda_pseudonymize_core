@@ -7,7 +7,7 @@
 
 This module provides functionality for:
     - Loading data from files
-    - Creating pseudonym keys for patient names
+    - Creating data keys for patient names
     - Transforming and pseudonymizing patient data (in parallel batches)
     - Filtering null values and handling data irregularities
     - Writing processed data to output files
@@ -24,17 +24,17 @@ from functools import reduce
 
 import polars as pl
 
+from core.data_key import Pseudonymizer
 from core.deidentify_handler import DeidentifyHandler
-from core.pseudo_key import Pseudonymizer
 from utils.file_handling import (
     create_output_file_path,
     get_environment_paths,
     get_file_extension,
     get_file_size,
     load_data_file,
-    load_pseudonym_key,
+    load_data_key,
     save_data_file,
-    save_pseudonym_key,
+    save_data_key,
 )
 from utils.logger import setup_logging
 from utils.progress_tracker import progress_tracker, tracker
@@ -75,8 +75,8 @@ def _parse_column_mappings(input_cols: str, output_cols: str) -> tuple[dict[str,
     return input_cols, output_cols
 
 
-def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict) -> dict[str, str]:
-    """Create pseudonym key for patient names."""
+def _create_key(df: pl.DataFrame, input_cols: dict, data_key_dict: dict) -> dict[str, str]:
+    """Create data key for patient names."""
     unique_names = (
         df.select(input_cols['patientName'])
         .filter(pl.col(input_cols['patientName']).is_not_null())
@@ -85,7 +85,7 @@ def _create_key(df: pl.DataFrame, input_cols: dict, pseudonym_key_dict: dict) ->
     )
 
     pseudonymizer = Pseudonymizer()
-    pseudonymizer.get_existing_key(pseudonym_key_dict)
+    pseudonymizer.get_existing_key(data_key_dict)
     return pseudonymizer.pseudonymize(unique_names)
 
 
@@ -249,7 +249,7 @@ def _performance_metrics(start_time: float, df_rowcount: int, used_cores: int) -
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
-def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_key: str, output_extension: str) -> str:
+def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: str, output_extension: str) -> str:
     """Process and pseudonymize patient data from input files and return in Json."""
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
@@ -280,28 +280,28 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     patient_name_col = input_cols_dict.get('patientName', None)
     has_patient_name = patient_name_col in df.columns
 
-    # Step 3: Create pseudonym key if needed
+    # Step 3: Create data key if needed
     progress['update'](progress['get_stage_name'](3))
 
     start_time = time.time()
 
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
-    # Load existing pseudonym key if provided
-    pseudonym_key_dict = None
-    logger.info('Searching for pseudonym key: %s', pseudonym_key)
+    # Load existing data key if provided
+    data_key_dict = None
+    logger.info('Searching for data key: %s', data_key)
 
-    if pseudonym_key is not None:
-        key_file_path = f'{input_folder}/{pseudonym_key}'
-        pseudonym_key_dict = load_pseudonym_key(key_file_path)
-        logger.info('Loaded existing pseudonym key: %s', pseudonym_key)
+    if data_key is not None:
+        key_file_path = f'{input_folder}/{data_key}'
+        data_key_dict = load_data_key(key_file_path)
+        logger.info('Loaded existing data key: %s', data_key)
 
     if has_patient_name:
         # Strip whitespace from patient names
         df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
 
-        pseudonym_key = _create_key(df, input_cols_dict, pseudonym_key_dict)
-        save_pseudonym_key(pseudonym_key, output_folder)
+        data_key = _create_key(df, input_cols_dict, data_key_dict)
+        save_data_key(data_key, output_folder)
 
     # Update progress - data transformation
     progress['update'](progress['get_stage_name'](4))
@@ -314,15 +314,15 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, pseudonym_k
     if has_patient_name:
         patient_name_col = input_cols_dict['patientName']
 
-        # Create a new column `patientID` with pseudonym keys
+        # Create a new column `patientID` with data keys
         df = df.with_columns(
             pl.col(patient_name_col)
             # Obtain randomized string corresponding to name
-            .replace_strict(pseudonym_key, default=None)
+            .replace_strict(data_key, default=None)
             .alias('patientID'),
         )
 
-        # Replace [PATIENT] tags in `processed_report` with pseudonym keys
+        # Replace [PATIENT] tags in `processed_report` with data keys
         df = df.with_columns(
             pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
         )
