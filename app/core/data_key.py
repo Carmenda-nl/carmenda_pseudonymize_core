@@ -20,59 +20,72 @@ logger = setup_logging()
 
 
 class Pseudonymizer:
-    """Generates and manages pseudonyms for patient names."""
+    """Generates and manages pseudonyms for patient names with synonym support."""
 
     def __init__(self, pseudonym_length: int = 14, max_iterations: int = 15) -> None:
         """Initialize the Pseudonymizer with configuration options."""
         self.pseudonym_length = pseudonym_length
         self.max_iterations = max_iterations
+
         self.data_key: dict[str, str] = {}
+        self.synonym_map: dict[str, str] = {}
 
-    def get_existing_key(self, existing_key: dict[str, str] | None = None) -> None:
-        """Load existing data key."""
-        if existing_key:
-            self.data_key = existing_key.copy()
-            if logger:
-                logger.info('Loaded existing key with %d entries', len(self.data_key))
-        else:
-            self.data_key = {}
-            if logger:
-                logger.info('Building new key')
+    def get_existing_key(self, existing_key: list[dict], missing_names: list[str] | None = None) -> None:
+        """Load existing data key and add missing names."""
+        self.data_key = existing_key.copy()
 
-    def _generate_candidate(self) -> str:
-        """Generate a random pseudonym candidate."""
+        # Ensure all patients have a synonym field and pseudonym field
+        for name in self.data_key:
+            name['synonym'] = name.get('synonym') or ''
+            name['pseudonym'] = name.get('pseudonym') or ''
+
+        # Add missing names to the data key
+        if missing_names:
+            for name in missing_names:
+                logger.debug('Adding missing name to key: %s', name)
+                self.data_key.append({'patient': name, 'synonym': '', 'pseudonym': ''})
+
+        # Merge duplicate patient names and combine their synonyms
+        merged_patient_names = {}
+
+        for entry in self.data_key:
+            patient = entry['patient']
+            synonym = entry['synonym']
+            pseudonym = entry['pseudonym']
+
+            if patient in merged_patient_names:
+                if synonym and synonym not in merged_patient_names[patient]['synonym'].split(', '):
+                    if merged_patient_names[patient]['synonym']:
+                        merged_patient_names[patient]['synonym'] += ', ' + synonym
+                    else:
+                        merged_patient_names[patient]['synonym'] = synonym
+
+                # Only update pseudonym if it's not already set
+                if not merged_patient_names[patient]['pseudonym'] and pseudonym:
+                    merged_patient_names[patient]['pseudonym'] = pseudonym
+            else:
+                merged_patient_names[patient] = entry.copy()
+
+        self.data_key = list(merged_patient_names.values())
+
+        return self.data_key
+
+    def pseudonymize(self, data_key: dict[str, str]) -> dict[str, str]:
+        """Generate missing pseudonyms for unique names."""
         chars = string.ascii_uppercase + string.digits
-        return ''.join(secrets.choice(chars) for _ in range(self.pseudonym_length))
 
-    def _is_unique(self, candidate: str) -> bool:
-        """Check if pseudonym candidate is unique."""
-        return candidate not in self.data_key.values()
+        # Keep track of existing pseudonyms to ensure duplicate prevention
+        existing = {patient['pseudonym'] for patient in data_key if patient['pseudonym']}
 
-    def pseudonymize(self, unique_names: list[str]) -> dict[str, str]:
-        """Generate pseudonyms for unique names."""
-        filtered_names = list(unique_names)
+        for patient in data_key:
+            if not patient['pseudonym']:
+                for _ in range(self.max_iterations):
+                    pseudonym = ''.join(secrets.choice(chars) for _ in range(self.pseudonym_length))
+                    if pseudonym not in existing:
+                        patient['pseudonym'] = pseudonym
+                        existing.add(pseudonym)  # <- Add to prevent new duplicates
+                        break
+                else:
+                    logger.error('Failed to generate unique pseudonym.')
 
-        for name in filtered_names:
-            if name not in self.data_key:
-                self._create_pseudonym_for_name(name)
-
-        self._validate_result(filtered_names)
         return self.data_key.copy()
-
-    def _create_pseudonym_for_name(self, name: str) -> None:
-        """Create unique pseudonym for a single name."""
-        for _ in range(self.max_iterations):
-            candidate = self._generate_candidate()
-
-            if self._is_unique(candidate):
-                self.data_key[name] = candidate
-                return
-
-        error_msg = f'Failed to generate unique pseudonym for "{name}" after {self.max_iterations} attempts'
-        raise RuntimeError(error_msg)
-
-    def _validate_result(self, expected_names: list[str]) -> None:
-        """Validate that all names have pseudonyms."""
-        if len(expected_names) != len(self.data_key):
-            error_msg = 'Unique_names (input) and data_key (output) do not have the same length'
-            raise AssertionError(error_msg)
