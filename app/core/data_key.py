@@ -16,6 +16,7 @@ import string
 
 from utils.logger import setup_logging
 
+DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
 
 
@@ -26,11 +27,9 @@ class Pseudonymizer:
         """Initialize the Pseudonymizer with configuration options."""
         self.pseudonym_length = pseudonym_length
         self.max_iterations = max_iterations
+        self.data_key: DataKey = []
 
-        self.data_key: dict[str, str] = {}
-        self.synonym_map: dict[str, str] = {}
-
-    def get_existing_key(self, existing_key: list[dict], missing_names: list[str] | None = None) -> None:
+    def get_existing_key(self, existing_key: DataKey, missing_names: list[str] | None = None) -> DataKey:
         """Load existing data key and add missing names."""
         self.data_key = existing_key.copy()
 
@@ -70,7 +69,7 @@ class Pseudonymizer:
 
         return self.data_key
 
-    def pseudonymize(self, data_key: dict[str, str]) -> dict[str, str]:
+    def pseudonymize(self, data_key: DataKey) -> DataKey:
         """Generate missing pseudonyms for unique names."""
         chars = string.ascii_uppercase + string.digits
 

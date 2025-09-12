@@ -130,7 +130,7 @@ def load_data_key(key_file_path: str) -> list[dict[str, str]]:
         return key_file_rows
 
 
-def save_data_key(data_key: dict[str, str], output_folder: str) -> None:
+def save_data_key(data_key: list[dict[str, str]], output_folder: str) -> None:
     """Save the processed data key to a CSV file for future use."""
     filename = 'data_key.csv'
     file_path = Path(output_folder) / filename
