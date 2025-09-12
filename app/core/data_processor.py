@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import json
 import logging
-import multiprocessing
 import sys
 import time
 from functools import reduce
+from pathlib import Path
 
 import polars as pl
 
@@ -39,11 +39,8 @@ from utils.file_handling import (
 from utils.logger import setup_logging
 from utils.progress_tracker import progress_tracker, tracker
 
+DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
-handler = DeidentifyHandler()
-
-n_processes = min(multiprocessing.cpu_count(), 4)  # Limit to 4 processes max
-batch_size: int = 1000
 
 
 def _load_data_file(input_file_path: str) -> pl.DataFrame:
@@ -67,26 +64,32 @@ def _load_data_file(input_file_path: str) -> pl.DataFrame:
     return df
 
 
-def _parse_column_mappings(input_cols: str, output_cols: str) -> tuple[dict[str, str], dict[str, str]]:
-    """Parse column mapping strings into dictionaries."""
-    input_cols = dict(item.strip().split('=') for item in input_cols.split(','))
-    output_cols = dict(item.strip().split('=') for item in output_cols.split(','))
+def _processs_data_key(df: pl.DataFrame, input_cols: dict, data_key: str, input_folder: str) -> list[dict[str, str]]:
+    """Create a new data key or update an existing one."""
+    pseudonymizer = Pseudonymizer()
 
-    return input_cols, output_cols
-
-
-def _create_key(df: pl.DataFrame, input_cols: dict, data_key_dict: dict) -> dict[str, str]:
-    """Create data key for patient names."""
-    unique_names = (
+    df_unique_names = (
         df.select(input_cols['patientName'])
         .filter(pl.col(input_cols['patientName']).is_not_null())
         .unique()
         .to_series()
+        .to_list()
     )
 
-    pseudonymizer = Pseudonymizer()
-    pseudonymizer.get_existing_key(data_key_dict)
-    return pseudonymizer.pseudonymize(unique_names)
+    if data_key:
+        data_key_path = Path(input_folder) / data_key
+        data_key_list = load_data_key(data_key_path)
+        logger.info('Loaded existing data key: %s', data_key)
+
+        # Check if existing data_key contains all patient names
+        key_unique_names = pl.DataFrame(data_key_list).select('patient').unique().to_series().to_list()
+        missing_names = [name for name in df_unique_names if name not in key_unique_names]
+        data_key_list = pseudonymizer.get_existing_key(data_key_list, missing_names)
+    else:
+        data_key_list = [{'patient': name, 'synonym': '', 'pseudonym': ''} for name in df_unique_names]
+        logger.info('No existing data key provided, creating a new one')
+
+    return pseudonymizer.pseudonymize(data_key_list)
 
 
 def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
@@ -146,106 +149,57 @@ def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, out
     return df
 
 
-def _process_batch_worker(batch: tuple) -> dict:
-    """Worker function for processing a single batch in parallel."""
-    batch_df, input_cols_dict = batch
-
+def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> pl.DataFrame:
+    """Process to de-identify text in the report column."""
     handler = DeidentifyHandler()
-    deidentify = handler.deidentify_text(input_cols_dict)
+
+    if data_key:
+        handler.set_synonym_mapping(data_key)
+
+
+
+
+
+    deidentify = handler.deidentify_text(input_cols)
 
     # Extract the report column as a list for processing
-    report_col = input_cols_dict['report']
+    report_col = input_cols['report']
 
-    if report_col not in batch_df.columns:
-        result_df = batch_df.with_columns(pl.lit('').alias('processed_report'))
+    if report_col not in df.columns:
+        result_df = df.with_columns(pl.lit('').alias('processed_report'))
     else:
-        reports = batch_df.select(report_col).to_series().to_list()
-        other_cols = [col for col in batch_df.columns if col != report_col]
+        reports = df.select(report_col).to_series().to_list()
+        other_cols = [col for col in df.columns if col != report_col]
 
         if other_cols:
-            other_data = batch_df.select(other_cols).to_dicts()
+            other_data = df.select(other_cols).to_dicts()
             batch_data = [{**row, report_col: report} for row, report in zip(other_data, reports)]
         else:
             batch_data = [{report_col: report} for report in reports]
 
         processed_texts = [deidentify(row_dict) for row_dict in batch_data]
-        result_df = batch_df.with_columns(pl.Series('processed_report', processed_texts))
+        result_df = df.with_columns(pl.Series('processed_report', processed_texts))
 
-    return {
-        'dataframe': result_df,
-        'debug_data': {
-            'processed_reports': handler.processed_reports,
-            'total_processed': handler.total_processed,
-        },
-    }
+    return result_df
 
 
-def _batch_process_reports(df: pl.DataFrame, input_cols: dict) -> tuple[pl.DataFrame, list[dict]]:
-    """Process reports in parallel batches, when there is more than one batch."""
-    total_rows = df.height
-
-    # Use Polars lazy evaluation for better memory efficiency
-    df_lazy = df.lazy()
-
-    batches = []
-    for start_index in range(0, total_rows, batch_size):
-        end_index = min(start_index + batch_size, total_rows)
-        batch_df = df_lazy.slice(start_index, end_index - start_index).collect()
-        batches.append((batch_df, input_cols))
-
-    if len(batches) == 1:
-        # Single batch - no need for multiprocessing overhead
-        logger.debug('Using single process for %d batch', len(batches))
-        processed_results = [_process_batch_worker(batch) for batch in batches]
-        used_cores = 1
-    else:
-        logger.debug('Using multiprocessing for %d batches across %d processes', len(batches), n_processes)
-        with multiprocessing.Pool(processes=n_processes) as pool:
-            processed_results = pool.map(_process_batch_worker, batches)
-        used_cores = n_processes
-
-    # Extract DataFrames and debug data
-    processed_batches = [result['dataframe'] for result in processed_results]
-    all_debug_data = [result['debug_data'] for result in processed_results]
-
-    # Efficiently concat DataFrames
-    combined_df = pl.concat(processed_batches, how='vertical', rechunk=True)
-
-    return combined_df, all_debug_data, used_cores
 
 
-def _debug_deidentify_text(debug_data_list: list[dict]) -> None:
-    """Consolidate and display debug data from all worker processes."""
-    if not debug_data_list or logger.level != logging.DEBUG:
-        # Show nothing if no debug data or not in debug mode
+
+
+def _debug_deidentify_text() -> None:
+    """Display debug data; Show nothing if not in debug mode."""
+    if logger.level != logging.DEBUG:
         return
 
-    # Consolidate all debug data
-    all_processed_reports = []
-    total_processed = 0
 
-    for debug_data in debug_data_list:
-        all_processed_reports.extend(debug_data['processed_reports'])
-        total_processed += debug_data['total_processed']
-
-    if total_processed == 0:
-        logger.debug('No debug data collected from worker processes.')
-        return
-
-    # Create a temporary handler for debug display
-    temp_handler = DeidentifyHandler()
-    temp_handler.processed_reports = all_processed_reports
-    temp_handler.total_processed = total_processed
-    temp_handler.debug_deidentify_text()
-
-
-def _performance_metrics(start_time: float, df_rowcount: int, used_cores: int) -> None:
+def _performance_metrics(start_time: float, df_rowcount: int) -> None:
     """Log performance metrics for the processing operation."""
     end_time = time.time()
     total_time = end_time - start_time
     time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
 
-    logger.info('Time passed with %d CPU cores and a total of %d rows', used_cores, df_rowcount)
+    logger.info('Time passed with a total of %d rows', df_rowcount)
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
@@ -253,10 +207,9 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     """Process and pseudonymize patient data from input files and return in Json."""
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
+    logger.debug('\nParsed arguments:\n%s\n', params_str)
 
     input_folder, output_folder = get_environment_paths()
-
-    logger.debug('\nParsed arguments:\n%s\n', params_str)
 
     # Start progress tracking
     progress = progress_tracker(tracker)
@@ -274,33 +227,25 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     progress['update'](progress['get_stage_name'](2))
 
     # Convert string mappings to dictionaries
-    input_cols_dict, output_cols_dict = _parse_column_mappings(input_cols, output_cols)
+    input_cols_dict = dict(item.strip().split('=') for item in input_cols.split(','))
+    output_cols_dict = dict(item.strip().split('=') for item in output_cols.split(','))
 
     # Check if the `patientName` column is available
-    patient_name_col = input_cols_dict.get('patientName', None)
+    patient_name_col = input_cols_dict.get('patientName')
     has_patient_name = patient_name_col in df.columns
+
+    # Strip whitespace from patient names
+    df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
+
+    start_time = time.time()
 
     # Step 3: Create data key if needed
     progress['update'](progress['get_stage_name'](3))
 
-    start_time = time.time()
-
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
-    # Load existing data key if provided
-    data_key_dict = None
-    logger.info('Searching for data key: %s', data_key)
-
-    if data_key is not None:
-        key_file_path = f'{input_folder}/{data_key}'
-        data_key_dict = load_data_key(key_file_path)
-        logger.info('Loaded existing data key: %s', data_key)
-
     if has_patient_name:
-        # Strip whitespace from patient names
-        df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
-
-        data_key = _create_key(df, input_cols_dict, data_key_dict)
+        data_key = _processs_data_key(df, input_cols_dict, data_key, input_folder)
         save_data_key(data_key, output_folder)
 
     # Update progress - data transformation
@@ -308,63 +253,101 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
-    #  Create a new column `processed_report` with deduced names
-    df, debug_data_list, used_cores = _batch_process_reports(df, input_cols_dict)
+    df = _data_transformer(df, input_cols_dict, data_key)
+
+
+
+
+
+
+
+
+
+
+
 
     if has_patient_name:
         patient_name_col = input_cols_dict['patientName']
 
-        # Create a new column `patientID` with data keys
-        df = df.with_columns(
-            pl.col(patient_name_col)
-            # Obtain randomized string corresponding to name
-            .replace_strict(data_key, default=None)
-            .alias('patientID'),
-        )
+        # # Create a new column `patientID` with data keys
+        # df = df.with_columns(
+        #     pl.col(patient_name_col)
+        #     # Obtain randomized string corresponding to name
+        #     .replace_strict(data_key, default=None)
+        #     .alias('patientID'),
+        # )
 
-        # Replace [PATIENT] tags in `processed_report` with data keys
-        df = df.with_columns(
-            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
-        )
+    #     # Replace [PATIENT] tags in `processed_report` with data keys
+    #     df = df.with_columns(
+    #         pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
+    #     )
 
-    # Prepare output data
-    df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
+    # # Prepare output data
+    # df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
 
-    # Debug: Show all collected annotations if in debug mode
-    _debug_deidentify_text(debug_data_list)
+    # # Debug: Show all collected annotations if in debug mode
+    # _debug_deidentify_text(debug_data_list)
 
-    # Update progress - filtering nulls
-    progress['update'](progress['get_stage_name'](5))
+    # # Update progress - filtering nulls
+    # progress['update'](progress['get_stage_name'](5))
 
-    # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
+    # # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    df = _filter_null_rows(df, output_folder, input_fofi, output_extension)
+    # df = _filter_null_rows(df, output_folder, input_fofi, output_extension)
 
-    # Only show example to terminal when NOT running as a frozen executable
-    if not getattr(sys, 'frozen', False):
-        sys.stdout.write(f'\n{df}\n')
+    # # Only show example to terminal when NOT running as a frozen executable
+    # if not getattr(sys, 'frozen', False):
+    #     sys.stdout.write(f'\n{df}\n')
 
-    # Update progress - writing output
-    progress['update'](progress['get_stage_name'](6))
+    # # Update progress - writing output
+    # progress['update'](progress['get_stage_name'](6))
 
-    # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
+    # # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
 
-    # Extract first 10 rows as JSON for return value
-    processed_preview = df.head(10).to_dicts()
+    # # Extract first 10 rows as JSON for return value
+    # processed_preview = df.head(10).to_dicts()
 
-    output_file = create_output_file_path(output_folder, input_fofi)
-    save_data_file(df, output_file, output_extension)
+    # output_file = create_output_file_path(output_folder, input_fofi)
+    # save_data_file(df, output_file, output_extension)
 
-    if output_extension == '.csv':
-        logger.info('Selected output extension is .csv\n')
-    elif output_extension != '.parquet':
-        logger.warning('Selected output extension not supported, using parquet.\n')
+    # if output_extension == '.csv':
+    #     logger.info('Selected output extension is .csv\n')
+    # elif output_extension != '.parquet':
+    #     logger.warning('Selected output extension not supported, using parquet.\n')
 
-    # Log performance and finalize
-    _performance_metrics(start_time, df.height, used_cores)
+    # # Log performance and finalize
+    # _performance_metrics(start_time, df.height, used_cores)
 
-    # Update progress - finalizing
-    progress['update'](progress['get_stage_name'](7))
+    # # Update progress - finalizing
+    # progress['update'](progress['get_stage_name'](7))
 
-    result = {'data': processed_preview}
-    return json.dumps(result)
+    # result = {'data': processed_preview}
+    # return json.dumps(result)
+
+
+
+
+
+
+
+
+
+
+
+    # def _build_synonym_map(self) -> None:
+    #     """Build reverse mapping from synonyms to main names."""
+    #     # Group names by their pseudonym to find synonyms
+    #     pseudonym_groups: dict[str, list[str]] = {}
+    #     for name, pseudonym in self.data_key.items():
+    #         if pseudonym not in pseudonym_groups:
+    #             pseudonym_groups[pseudonym] = []
+    #         pseudonym_groups[pseudonym].append(name)
+
+    #     # For each group, designate the longest name as main and others as synonyms
+    #     for names in pseudonym_groups.values():
+    #         if len(names) > 1:
+    #             # Sort by length (descending) to get main name first
+    #             names.sort(key=len, reverse=True)
+    #             main_name = names[0]
+    #             for synonym in names[1:]:
+    #                 self.synonym_map[synonym] = main_name
