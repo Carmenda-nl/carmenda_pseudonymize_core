@@ -13,6 +13,10 @@ polars[pandas]==1.32.3
 # deduce packages
 deduce==3.0.6
 
+# unit testing
 pytest==8.4.1
 pytest-django==4.11.1
 pytest-cov==6.2.1
+
+# package builder
+pyinstaller==5.15.0
