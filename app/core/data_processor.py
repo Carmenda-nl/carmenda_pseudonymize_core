@@ -153,9 +153,6 @@ def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, out
 
 def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> pl.DataFrame:
     """Process to de-identify text in the report column."""
-    if data_key:
-        handler.set_synonym_mapping(data_key)
-
     deidentify = handler.deidentify_text(input_cols, data_key)
 
     # Extract the report column as a list for processing
