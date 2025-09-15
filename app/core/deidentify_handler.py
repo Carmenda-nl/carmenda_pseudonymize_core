@@ -253,18 +253,30 @@ class DeidentifyHandler:
     def _get_datakey_synonyms(self, text: str, data_key: DataKey) -> str:
         """Replace all (comma-separated) synonyms with their main names in text."""
         result_text = text
+        replacements = []
 
         for entry in data_key:
             patient_name = entry.get('patient')
             synonym_field = entry.get('synonym')
 
-            # Split on comma
-            synonyms = [name.strip() for name in synonym_field.split(',') if name.strip()]
+            if synonym_field:
+                synonyms = [name.strip() for name in synonym_field.split(',')]
 
-            for synonym in synonyms:
-                # `\b` will match the word, but not the surrounding text
-                pattern = r'\b' + re.escape(synonym) + r'\b'
-                result_text = re.sub(pattern, patient_name, result_text)
+                replacements.extend(
+                    [
+                        (synonym, patient_name)
+                        for synonym in synonyms
+                        if synonym and synonym.lower() not in patient_name.lower()
+                    ],
+                )
+
+        # Sort by synonym length, longest first to prevent partial replacements
+        replacements.sort(key=lambda x: -len(x[0]))
+
+        for synonym, patient_name in replacements:
+            # `\b` will match the word, but not the surrounding text
+            pattern = r'\b' + re.escape(synonym) + r'\b'
+            result_text = re.sub(pattern, patient_name, result_text)
 
         return result_text
 
