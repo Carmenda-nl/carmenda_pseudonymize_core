@@ -69,10 +69,10 @@ def parse_cli_arguments() -> argparse.Namespace:
         help='Output column mappings as comma-separated key=value pairs. Maps to: patientID and processed_report.',
     )
     parser.add_argument(
-        '--pseudonym_key',
+        '--data_key',
         nargs='?',
         default=None,
-        help='Path to existing pseudonymization key (JSON file) to extend. Format: {"original_name": "pseudonym"}',
+        help='Path to existing data key. If not provided, a new key is created.',
     )
     parser.add_argument(
         '--output_extension',
@@ -86,7 +86,7 @@ def parse_cli_arguments() -> argparse.Namespace:
         nargs='?',
         default='INFO',
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        help='Logging level. If not specified, uses LOG_LEVEL environment variable or defaults to INFO.',
+        help='Logging level. If not specified, defaults to INFO.',
     )
     # Parse and process arguments
     return parser.parse_args()
@@ -104,7 +104,7 @@ def main() -> None:
         input_fofi=args.input_fofi,
         input_cols=args.input_cols,
         output_cols=args.output_cols,
-        pseudonym_key=args.pseudonym_key,
+        data_key=args.data_key,
         output_extension=args.output_extension,
     )
 

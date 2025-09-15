@@ -36,6 +36,7 @@ from utils.terminal import colorize_tags, log_block
 if TYPE_CHECKING:
     from docdeid.document import Document
 
+DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
 
 
@@ -249,12 +250,34 @@ class DeidentifyHandler:
 
         return {attr: load_word_set(file_path) for attr, file_path in lookup_files.items()}
 
-    def deidentify_text(self, input_cols: dict) -> Callable[[dict], str]:
+    def _get_datakey_synonyms(self, text: str, data_key: DataKey) -> str:
+        """Replace all (comma-separated) synonyms with their main names in text."""
+        result_text = text
+
+        for entry in data_key:
+            patient_name = entry.get('patient')
+            synonym_field = entry.get('synonym')
+
+            # Split on comma
+            synonyms = [name.strip() for name in synonym_field.split(',') if name.strip()]
+
+            for synonym in synonyms:
+                # `\b` will match the word, but not the surrounding text
+                pattern = r'\b' + re.escape(synonym) + r'\b'
+                result_text = re.sub(pattern, patient_name, result_text)
+
+        return result_text
+
+    def deidentify_text(self, input_cols: dict, data_key: DataKey | None = None) -> Callable[[dict], str]:
         """De-identify report text with or without patient name column."""
 
         def inner_func(row: dict) -> str:
             try:
                 report_text = row[input_cols['report']]
+
+                # Synonyms to main names for consistent detection
+                if data_key:
+                    report_text = self._get_datakey_synonyms(report_text, data_key)
 
                 # Process 1: Apply Deduce detection
                 deduce_result = self._deduce_detector(row, input_cols, report_text)

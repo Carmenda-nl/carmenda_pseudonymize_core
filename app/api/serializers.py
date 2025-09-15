@@ -29,7 +29,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         read_only_fields: ClassVar = [
             'job_id',
             'output_file',
-            'key_file',
             'log_file',
             'zip_file',
             'zip_preview',

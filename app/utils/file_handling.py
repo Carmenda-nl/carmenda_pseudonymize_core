@@ -8,12 +8,15 @@
 from __future__ import annotations
 
 import csv
-import json
 import os
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.logger import setup_logging
+
+logger = setup_logging()
 
 
 def get_environment_paths() -> tuple[str, str]:
@@ -47,25 +50,22 @@ def get_file_size(file_path: str) -> int:
     """Get the size of a file in bytes."""
     try:
         return Path(file_path).stat().st_size
-    except (FileNotFoundError, PermissionError) as e:
-        error_msg = f'Cannot access file "{file_path}": {e}'
-        raise type(e)(error_msg) from e
+    except (FileNotFoundError, PermissionError):
+        logger.exception('Cannot access file "%s"', file_path)
 
 
-def detect_separator(input_file: str) -> str:
+def _detect_separator(input_file: str) -> str:
     """Determine the separator from the first header row."""
     file_path = Path(input_file)
 
     try:
         with file_path.open(encoding='utf-8') as file:
             header = file.readline().strip()
-    except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
-        error_msg = f'Cannot read file "{input_file}": {e}'
-        raise ValueError(error_msg) from e
+    except (FileNotFoundError, PermissionError, UnicodeDecodeError):
+        logger.exception('Cannot read file "%s"', input_file)
 
     if not header:
-        error_msg = f'File "{input_file}" is empty or has no header'
-        raise ValueError(error_msg)
+        logger.exception('File "%s" is empty or has no header', input_file)
 
     candidates = [',', ';', '\t', '|']
     scores = {separator: header.count(separator) for separator in candidates}
@@ -73,8 +73,7 @@ def detect_separator(input_file: str) -> str:
 
     # Ensure we found at least one separator
     if scores[best_separator] == 0:
-        error_msg = f'No valid separator found in "{input_file}". Tried: {candidates}'
-        raise ValueError(error_msg)
+        logger.exception('No valid separator found in "%s". Tried: %s', input_file, candidates)
 
     return best_separator
 
@@ -82,24 +81,26 @@ def detect_separator(input_file: str) -> str:
 def load_data_file(file_path: str, separator: str | None = None) -> pl.DataFrame:
     """Load data from CSV or Parquet file."""
     file_extension = get_file_extension(file_path)
-
-    if file_extension == '.csv':
-        if separator is None:
-            separator = detect_separator(file_path)
-        return pl.read_csv(file_path, separator=separator)
-
-    if file_extension == '.parquet':
-        return pl.read_parquet(file_path)
-
     supported_formats = ['.csv', '.parquet']
-    message = f'Unsupported file format: {file_extension}. Supported: {supported_formats}'
-    raise ValueError(message)
+
+    try:
+        if file_extension == '.csv':
+            if separator is None:
+                separator = _detect_separator(file_path)
+            return pl.read_csv(file_path, separator=separator)
+
+        if file_extension == '.parquet':
+            return pl.read_parquet(file_path)
+
+    except Exception:
+        logger.exception('Unsupported file format: %s. Supported: %s', file_extension, supported_formats)
 
 
-def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.parquet') -> None:
+def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.csv') -> None:
     """Save DataFrame to file in specified format."""
     output_path = Path(file_path).parent
     output_path.mkdir(parents=True, exist_ok=True)
+    supported_formats = ['.csv', '.parquet']
 
     try:
         if output_extension == '.csv':
@@ -107,56 +108,46 @@ def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.p
         elif output_extension == '.parquet':
             df.write_parquet(f'{file_path}.parquet')
         else:
-            supported_formats = ['.csv', '.parquet']
-            error_msg = f'Unsupported output format: {output_extension}. Supported: {supported_formats}'
-            raise ValueError(error_msg)
-    except (OSError, PermissionError) as e:
-        error_msg = f'Cannot write file "{file_path}{output_extension}": {e}'
-        raise OSError(error_msg) from e
+            logger.exception('Unsupported output format: %s. Supported: %s', output_extension, supported_formats)
+    except (OSError, PermissionError):
+        logger.exception('Cannot write file "%s": %s', file_path, output_extension)
 
 
-def load_pseudonym_key(key_file_path: str) -> dict[str, str]:
-    """Load pseudonym key from file."""
-    file_path = Path(key_file_path)
+def load_data_key(key_file_path: str) -> list[dict[str, str]]:
+    """Load data key from file and return list of rows."""
+    with key_file_path.open(encoding='utf-8') as file:
+        key_file_dict = csv.DictReader(file)
+        key_file_rows = []
 
-    try:
-        with file_path.open(encoding='utf-8') as file:
-            data = json.load(file)
-            data = csv.load(file)
-    except FileNotFoundError as error:
-        error_msg = f'Pseudonym key file not found: "{key_file_path}"'
-        raise FileNotFoundError(error_msg) from error
+        for row in key_file_dict:
+            patient_name = row.get('patient')
 
-    # Validate that it's a string-to-string mapping
-    if not isinstance(data, dict):
-        error_msg = f'Pseudonym key must be a JSON object, got {type(data).__name__}'
-        raise TypeError(error_msg)
+            # Only add rows with valid patient names
+            if patient_name:
+                row['patient'] = patient_name.strip()
+                key_file_rows.append(dict(row))
 
-    # Ensure all keys and values are strings
-    try:
-        return {str(k): str(v) for k, v in data.items()}
-    except (TypeError, AttributeError) as e:
-        error_msg = f'Pseudonym key must contain string mappings: {e}'
-        raise ValueError(error_msg) from e
+        return key_file_rows
 
 
-def save_pseudonym_key(pseudonym_key: dict[str, str], output_folder: str, filename: str = 'pseudonym_key.json') -> None:
-    """Save pseudonym key to JSON file."""
-    output_path = Path(output_folder)
+def save_data_key(data_key: list[dict[str, str]], output_folder: str) -> None:
+    """Save the processed data key to a CSV file for future use."""
+    filename = 'data_key.csv'
+    file_path = Path(output_folder) / filename
 
     try:
+        output_path = Path(output_folder)
         output_path.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        error_msg = f'Cannot create output directory "{output_folder}": {e}'
-        raise OSError(error_msg) from e
 
-    file_path = output_path / filename
-    try:
-        with file_path.open('w', encoding='utf-8') as outfile:
-            json.dump(pseudonym_key, outfile, indent=2)
-    except (OSError, TypeError) as e:
-        error_msg = f'Cannot write pseudonym key to "{file_path}": {e}'
-        raise OSError(error_msg) from e
+        with file_path.open('w', encoding='utf-8', newline='') as outfile:
+            writer = csv.writer(outfile)
+            writer.writerow(['patient', 'synonym', 'pseudonym'])
+
+            for entry in data_key:
+                writer.writerow([entry.get('patient'), entry.get('synonym'), entry.get('pseudonym')])
+
+    except (OSError, TypeError, AttributeError):
+        logger.exception('Cannot write data key to "%s"', file_path)
 
 
 def create_output_file_path(output_folder: str, input_filename: str, suffix: str = '') -> str:
