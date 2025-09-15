@@ -27,14 +27,11 @@ class Pseudonymizer:
         """Initialize the Pseudonymizer with configuration options."""
         self.pseudonym_length = pseudonym_length
         self.max_iterations = max_iterations
-        self.data_key: DataKey = []
 
-    def get_existing_key(self, existing_key: DataKey, missing_names: list[str] | None = None) -> DataKey:
+    def get_existing_key(self, data_key: DataKey, missing_names: list[str] | None = None) -> DataKey:
         """Load existing data key and add missing names."""
-        self.data_key = existing_key.copy()
-
-        # Ensure all patients have a synonym field and pseudonym field
-        for name in self.data_key:
+        for name in data_key:
+            # Ensure all patients have a synonym field and pseudonym field
             name['synonym'] = name.get('synonym') or ''
             name['pseudonym'] = name.get('pseudonym') or ''
 
@@ -42,12 +39,12 @@ class Pseudonymizer:
         if missing_names:
             for name in missing_names:
                 logger.debug('Adding missing name to key: %s', name)
-                self.data_key.append({'patient': name, 'synonym': '', 'pseudonym': ''})
+                data_key.append({'patient': name, 'synonym': '', 'pseudonym': ''})
 
         # Merge duplicate patient names and combine their synonyms
         merged_patient_names = {}
 
-        for entry in self.data_key:
+        for entry in data_key:
             patient = entry['patient']
             synonym = entry['synonym']
             pseudonym = entry['pseudonym']
@@ -65,9 +62,7 @@ class Pseudonymizer:
             else:
                 merged_patient_names[patient] = entry.copy()
 
-        self.data_key = list(merged_patient_names.values())
-
-        return self.data_key
+        return list(merged_patient_names.values())
 
     def pseudonymize(self, data_key: DataKey) -> DataKey:
         """Generate missing pseudonyms for unique names."""
@@ -87,4 +82,4 @@ class Pseudonymizer:
                 else:
                     logger.error('Failed to generate unique pseudonym.')
 
-        return self.data_key.copy()
+        return data_key
