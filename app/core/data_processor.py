@@ -42,6 +42,8 @@ from utils.progress_tracker import progress_tracker, tracker
 DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
 
+handler = DeidentifyHandler()
+
 
 def _load_data_file(input_file_path: str) -> pl.DataFrame:
     """Load data file and log relevant information."""
@@ -151,16 +153,10 @@ def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, out
 
 def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> pl.DataFrame:
     """Process to de-identify text in the report column."""
-    handler = DeidentifyHandler()
-
     if data_key:
         handler.set_synonym_mapping(data_key)
 
-
-
-
-
-    deidentify = handler.deidentify_text(input_cols)
+    deidentify = handler.deidentify_text(input_cols, data_key)
 
     # Extract the report column as a list for processing
     report_col = input_cols['report']
@@ -181,16 +177,6 @@ def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> 
         result_df = df.with_columns(pl.Series('processed_report', processed_texts))
 
     return result_df
-
-
-
-
-
-
-def _debug_deidentify_text() -> None:
-    """Display debug data; Show nothing if not in debug mode."""
-    if logger.level != logging.DEBUG:
-        return
 
 
 def _performance_metrics(start_time: float, df_rowcount: int) -> None:
@@ -255,99 +241,62 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     df = _data_transformer(df, input_cols_dict, data_key)
 
-
-
-
-
-
-
-
-
-
-
-
     if has_patient_name:
         patient_name_col = input_cols_dict['patientName']
 
-        # # Create a new column `patientID` with data keys
-        # df = df.with_columns(
-        #     pl.col(patient_name_col)
-        #     # Obtain randomized string corresponding to name
-        #     .replace_strict(data_key, default=None)
-        #     .alias('patientID'),
-        # )
+        # Create a new column `patientID` with data keys
+        name_to_pseudonym = {entry['patient']: entry['pseudonym'] for entry in data_key}
+        df = df.with_columns(
+            pl.col(patient_name_col)
+            # Obtain randomized string corresponding to name
+            .replace_strict(name_to_pseudonym, default=None)
+            .alias('patientID'),
+        )
 
-    #     # Replace [PATIENT] tags in `processed_report` with data keys
-    #     df = df.with_columns(
-    #         pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
-    #     )
+        # Replace [PATIENT] tags in `processed_report` with data keys
+        df = df.with_columns(
+            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
+        )
 
-    # # Prepare output data
-    # df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
+    # Prepare output data
+    df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
 
-    # # Debug: Show all collected annotations if in debug mode
-    # _debug_deidentify_text(debug_data_list)
+    # Show pseudonymized reports in debug mode
+    if logger.level == logging.DEBUG:
+        handler.debug_deidentify_text()
 
-    # # Update progress - filtering nulls
-    # progress['update'](progress['get_stage_name'](5))
+    # Update progress - filtering nulls
+    progress['update'](progress['get_stage_name'](5))
 
-    # # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
+    # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    # df = _filter_null_rows(df, output_folder, input_fofi, output_extension)
+    df = _filter_null_rows(df, output_folder, input_fofi, output_extension)
 
-    # # Only show example to terminal when NOT running as a frozen executable
-    # if not getattr(sys, 'frozen', False):
-    #     sys.stdout.write(f'\n{df}\n')
+    # Only show example to terminal when NOT running as a frozen executable
+    if not getattr(sys, 'frozen', False):
+        sys.stdout.write(f'\n{df}\n')
 
-    # # Update progress - writing output
-    # progress['update'](progress['get_stage_name'](6))
+    # Update progress - writing output
+    progress['update'](progress['get_stage_name'](6))
 
-    # # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
+    # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
 
-    # # Extract first 10 rows as JSON for return value
-    # processed_preview = df.head(10).to_dicts()
+    # Extract first 10 rows as JSON for return value
+    processed_preview = df.head(10).to_dicts()
 
-    # output_file = create_output_file_path(output_folder, input_fofi)
-    # save_data_file(df, output_file, output_extension)
+    output_file = create_output_file_path(output_folder, input_fofi)
+    save_data_file(df, output_file, output_extension)
 
-    # if output_extension == '.csv':
-    #     logger.info('Selected output extension is .csv\n')
-    # elif output_extension != '.parquet':
-    #     logger.warning('Selected output extension not supported, using parquet.\n')
+    if output_extension == '.csv':
+        logger.info('Selected output extension is .csv\n')
+    elif output_extension != '.parquet':
+        logger.warning('Selected output extension not supported, using parquet.\n')
 
-    # # Log performance and finalize
-    # _performance_metrics(start_time, df.height, used_cores)
+    # Log performance and finalize
+    _performance_metrics(start_time, df.height)
 
-    # # Update progress - finalizing
-    # progress['update'](progress['get_stage_name'](7))
+    # Update progress - finalizing
+    progress['update'](progress['get_stage_name'](7))
 
-    # result = {'data': processed_preview}
-    # return json.dumps(result)
-
-
-
-
-
-
-
-
-
-
-
-    # def _build_synonym_map(self) -> None:
-    #     """Build reverse mapping from synonyms to main names."""
-    #     # Group names by their pseudonym to find synonyms
-    #     pseudonym_groups: dict[str, list[str]] = {}
-    #     for name, pseudonym in self.data_key.items():
-    #         if pseudonym not in pseudonym_groups:
-    #             pseudonym_groups[pseudonym] = []
-    #         pseudonym_groups[pseudonym].append(name)
-
-    #     # For each group, designate the longest name as main and others as synonyms
-    #     for names in pseudonym_groups.values():
-    #         if len(names) > 1:
-    #             # Sort by length (descending) to get main name first
-    #             names.sort(key=len, reverse=True)
-    #             main_name = names[0]
-    #             for synonym in names[1:]:
-    #                 self.synonym_map[synonym] = main_name
+    result = {'data': processed_preview}
+    return json.dumps(result)
