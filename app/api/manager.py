@@ -116,13 +116,14 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
 
     input_fofi = Path(job.input_file.name).name
     input_extension = Path(input_fofi).suffix.lower()
-    output_extension = input_extension if input_extension in ['.csv', '.parquet'] else '.parquet'
+    output_extension = input_extension if input_extension in ['.csv', '.parquet'] else '.csv'
+    data_key = Path(job.key_file.name).name if job.key_file else None
 
     config = DeidentificationConfig(
         input_fofi=input_fofi,
         input_cols=input_cols,
         output_cols=output_cols,
-        data_key=None,
+        data_key=data_key,
         output_extension=output_extension,
     )
 

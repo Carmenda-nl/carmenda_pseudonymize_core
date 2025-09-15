@@ -24,7 +24,7 @@ class DeidentificationJob(models.Model):
     input_cols = models.CharField(max_length=500, null=False, blank=False)
     input_file = models.FileField(upload_to='input')
     output_file = models.FileField(upload_to='output', null=True, blank=True)
-    key_file = models.FileField(upload_to='output', null=True, blank=True)
+    key_file = models.FileField(upload_to='input', null=True, blank=True)
     log_file = models.FileField(upload_to='output', null=True, blank=True)
     zip_file = models.FileField(upload_to='output', null=True, blank=True)
     zip_preview = models.JSONField(null=True, blank=True)
