@@ -220,9 +220,6 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     patient_name_col = input_cols_dict.get('patientName')
     has_patient_name = patient_name_col in df.columns
 
-    # Strip whitespace from patient names
-    df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
-
     start_time = time.time()
 
     # Step 3: Create data key if needed
@@ -231,6 +228,9 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
     if has_patient_name:
+        # Strip whitespace from patient names
+        df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
+
         data_key = _processs_data_key(df, input_cols_dict, data_key, input_folder)
         save_data_key(data_key, output_folder)
 
