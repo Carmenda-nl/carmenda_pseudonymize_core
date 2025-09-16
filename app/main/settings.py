@@ -26,8 +26,6 @@ environ.Env.read_env(BASE_DIR / '.env')
 DEBUG = env('DEBUG')
 SECRET_KEY = env('SECRET_KEY', default=get_random_secret_key())
 
-# Logging configuration
-LOG_LEVEL = env('LOG_LEVEL')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=['http://127.0.0.1'])
@@ -172,3 +170,11 @@ STATIC_ROOT = BASE_DIR / 'static'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Load additional log settings
+
+LOG_LEVEL = env('LOG_LEVEL')
+
+if LOG_LEVEL == 'DEBUG':
+    from .settings_log import LOGGING  # noqa: F401
