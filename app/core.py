@@ -96,9 +96,7 @@ def main() -> None:
     """Parse command-line arguments, and call the main processing function."""
     args = parse_cli_arguments()
 
-    if args.log_level:
-        log_level = args.log_level
-    setup_logging(log_level)
+    setup_logging(args.log_level)
 
     process_data(
         input_fofi=args.input_fofi,

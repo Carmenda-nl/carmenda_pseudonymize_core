@@ -197,11 +197,9 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     # Start progress tracking
     progress = progress_tracker(tracker)
     progress['update'](progress['get_stage_name'](0))
-    time.sleep(1)
 
     # Update progress - Loading data
     progress['update'](progress['get_stage_name'](1))
-    time.sleep(1)
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 

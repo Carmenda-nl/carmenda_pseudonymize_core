@@ -12,17 +12,18 @@ import os
 from pathlib import Path
 
 
-def _get_log_level() -> int:
-    """Get log level from environment variable."""
-    log_level = os.environ['LOG_LEVEL'].upper() if os.environ.get('LOG_LEVEL') else 'INFO'
+def _get_log_level(arg_log_level: str | None = None) -> int:
+    """Get log level from argument or environment variable."""
+    if arg_log_level:
+        return logging.getLevelName(arg_log_level.upper())
+
+    log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
     return logging.getLevelName(log_level)
 
 
-def setup_logging(log_level: int | None = None) -> logging.Logger:
+def setup_logging(log_level: str | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
-    if log_level is None:
-        log_level = _get_log_level()
-
+    log_level = _get_log_level(log_level)
     log_path = Path(__file__).resolve().parent.parent / 'data/output'
 
     try:
@@ -56,6 +57,19 @@ def setup_logging(log_level: int | None = None) -> logging.Logger:
         error_msg = f'Cannot create log file "{log_file_path}": {e}'
         raise OSError(error_msg) from e
 
+    # debug file handler if log level is DEBUG
+    if log_level == logging.DEBUG:
+        debug_file_path = log_path / 'debug.log'
+
+        try:
+            debug_handler = logging.FileHandler(str(debug_file_path))
+            debug_handler.setFormatter(file_formatter)
+            debug_handler.setLevel(logging.DEBUG)
+            logger.addHandler(debug_handler)
+        except (OSError, PermissionError) as e:
+            error_msg = f'Cannot create debug log file "{debug_file_path}": {e}'
+            raise OSError(error_msg) from e
+
     return logger
 
 
@@ -69,6 +83,24 @@ def setup_clean_logger() -> logging.Logger:
         logger.handlers.clear()
 
     # Add console handler with no formatting
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(console_handler)
+    logger.propagate = False
+
+    return logger
+
+
+def setup_progress_logger() -> logging.Logger:
+    """Set up a dedicated logger for progress tracking that outputs to console."""
+    logger = logging.getLogger('progress')
+    logger.setLevel(logging.DEBUG)
+
+    # Remove existing handlers to prevent duplicates
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # Add console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter('%(message)s'))
     logger.addHandler(console_handler)

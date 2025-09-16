@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from threading import Lock
 
-from utils.logger import setup_logging
+from utils.logger import setup_logging, setup_progress_logger
 
 logger = setup_logging()
 
@@ -84,12 +84,14 @@ def progress_tracker(tracker: ProgressTracker) -> dict:
         return f'[{bar}]'
 
     def _log_progress(percentage: int, stage_name: str) -> None:
-        """Log the progress with colored output."""
+        """Log the progress bar to a terminal."""
+        progress_logger = setup_progress_logger()
+
         green = '\033[92m'
         reset = '\033[0m'
         bar = _generate_progress_bar(percentage)
 
-        logger.debug('%s[%3d%%]%s %s %s', green, percentage, reset, bar, stage_name)
+        progress_logger.debug('%s[%3d%%]%s %s %s', green, percentage, reset, bar, stage_name)
 
     def update_progress(stage_name: str | None = None) -> int:
         """Update progress to next stage and return current percentage."""
@@ -103,7 +105,7 @@ def progress_tracker(tracker: ProgressTracker) -> dict:
         # Update the global progress tracker
         tracker.update_progress(progress_percentage, stage_name)
 
-        # Only log progress if logger is set to DEBUG level
+        # Only log progress if logger is set to DEBUG
         if logger.level == logging.DEBUG:
             _log_progress(progress_percentage, stage_name)
 
