@@ -197,9 +197,11 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     # Start progress tracking
     progress = progress_tracker(tracker)
     progress['update'](progress['get_stage_name'](0))
+    time.sleep(1)
 
     # Update progress - Loading data
     progress['update'](progress['get_stage_name'](1))
+    time.sleep(1)
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
@@ -208,6 +210,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     # Update progress - pre-processing
     progress['update'](progress['get_stage_name'](2))
+    time.sleep(1)
 
     # Convert string mappings to dictionaries
     input_cols_dict = dict(item.strip().split('=') for item in input_cols.split(','))
@@ -221,6 +224,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     # Step 3: Create data key if needed
     progress['update'](progress['get_stage_name'](3))
+    time.sleep(1)
 
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
@@ -264,6 +268,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     # Update progress - filtering nulls
     progress['update'](progress['get_stage_name'](5))
+    time.sleep(1)
 
     # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
@@ -275,6 +280,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     # Update progress - writing output
     progress['update'](progress['get_stage_name'](6))
+    time.sleep(1)
 
     # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
 
