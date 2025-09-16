@@ -91,7 +91,7 @@ def progress_tracker(tracker: ProgressTracker) -> dict:
         reset = '\033[0m'
         bar = _generate_progress_bar(percentage)
 
-        progress_logger.debug('%s[%3d%%]%s %s %s', green, percentage, reset, bar, stage_name)
+        progress_logger.debug('%s[%3d%%]%s %s %s\n', green, percentage, reset, bar, stage_name)
 
     def update_progress(stage_name: str | None = None) -> int:
         """Update progress to next stage and return current percentage."""
