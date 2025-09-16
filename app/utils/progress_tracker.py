@@ -14,6 +14,10 @@ from __future__ import annotations
 import logging
 from threading import Lock
 
+from utils.logger import setup_logging
+
+logger = setup_logging()
+
 
 class ProgressTracker:
     """Singleton class to track progress across multiple stages of data processing."""
@@ -47,8 +51,6 @@ tracker = ProgressTracker()
 
 def progress_tracker(tracker: ProgressTracker) -> dict:
     """Create a progress tracker for multi-stage processing."""
-    logger = logging.getLogger(__name__)
-
     progress_stages = [
         'Prepare data',
         'Loading data',
@@ -73,11 +75,21 @@ def progress_tracker(tracker: ProgressTracker) -> dict:
         """Calculate current progress percentage."""
         return int((progress_data['current_stage'] / total_stages) * 100)
 
-    def _log_progress(percentage: int, bar: str, stage_name: str) -> None:
+    def _generate_progress_bar(percentage: int) -> str:
+        """Generate a visual progress bar."""
+        width = 30
+
+        filled = int(width * percentage / 100)
+        bar = '█' * filled + '░' * (width - filled)
+        return f'[{bar}]'
+
+    def _log_progress(percentage: int, stage_name: str) -> None:
         """Log the progress with colored output."""
         green = '\033[92m'
         reset = '\033[0m'
-        logger.debug('\n%s[%3d%%]%s %s %s\n', green, percentage, reset, bar, stage_name)
+        bar = _generate_progress_bar(percentage)
+
+        logger.debug('%s[%3d%%]%s %s %s', green, percentage, reset, bar, stage_name)
 
     def update_progress(stage_name: str | None = None) -> int:
         """Update progress to next stage and return current percentage."""
@@ -90,6 +102,10 @@ def progress_tracker(tracker: ProgressTracker) -> dict:
 
         # Update the global progress tracker
         tracker.update_progress(progress_percentage, stage_name)
+
+        # Only log progress if logger is set to DEBUG level
+        if logger.level == logging.DEBUG:
+            _log_progress(progress_percentage, stage_name)
 
         return progress_percentage
 
