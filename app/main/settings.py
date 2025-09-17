@@ -173,7 +173,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # Load additional log settings
-
 LOG_LEVEL = env('LOG_LEVEL')
 
 if LOG_LEVEL == 'DEBUG':

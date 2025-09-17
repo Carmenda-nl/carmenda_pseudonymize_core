@@ -5,7 +5,16 @@
 
 """Django logging configuration."""
 
-from django.conf import settings
+from pathlib import Path
+
+LOG_LEVEL = 'DEBUG'
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# Create directory if it doesn't exist
+logs_dir = BASE_DIR / 'data' / 'output'
+logs_dir.mkdir(parents=True, exist_ok=True)
+
 
 LOGGING = {
     'version': 1,
@@ -23,20 +32,20 @@ LOGGING = {
     },
     'handlers': {
         'file': {
-            'level': settings.LOG_LEVEL,
+            'level': LOG_LEVEL,
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': settings.BASE_DIR / 'data' / 'output' / 'backend-api.log',
+            'filename': logs_dir / 'backend-api.log',
             'formatter': 'verbose',
         },
         'console': {
-            'level': settings.LOG_LEVEL,
+            'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
             'formatter': 'console',
         },
     },
     'root': {
         'handlers': ['console'],
-        'level': settings.LOG_LEVEL,
+        'level': LOG_LEVEL,
     },
     'loggers': {
         'django': {
@@ -56,27 +65,23 @@ LOGGING = {
         },
         'api': {
             'handlers': ['console'],
-            'level': settings.LOG_LEVEL,
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'core': {
             'handlers': ['console'],
-            'level': settings.LOG_LEVEL,
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'main': {
             'handlers': ['console'],
-            'level': settings.LOG_LEVEL,
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'utils': {
             'handlers': ['console'],
-            'level': settings.LOG_LEVEL,
+            'level': LOG_LEVEL,
             'propagate': False,
         },
     },
 }
-
-# Create directory if it doesn't exist
-logs_dir = settings.BASE_DIR / 'data' / 'output'
-logs_dir.mkdir(parents=True, exist_ok=True)
