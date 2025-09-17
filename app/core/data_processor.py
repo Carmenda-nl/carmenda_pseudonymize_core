@@ -260,8 +260,8 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     # Prepare output data
     df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
 
-    # Show pseudonymized reports in debug mode
-    if logger.level == logging.DEBUG:
+    # Show pseudonymized reports in debug mode and when NOT running as a frozen executable
+    if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
         handler.debug_deidentify_text()
 
     # Update progress - filtering nulls

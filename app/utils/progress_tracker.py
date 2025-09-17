@@ -12,6 +12,7 @@ progress across various processing stages in the core.
 from __future__ import annotations
 
 import logging
+import sys
 from threading import Lock
 
 from utils.logger import setup_logging, setup_progress_logger
@@ -105,8 +106,8 @@ def progress_tracker(tracker: ProgressTracker) -> dict:
         # Update the global progress tracker
         tracker.update_progress(progress_percentage, stage_name)
 
-        # Only log progress if logger is set to DEBUG
-        if logger.level == logging.DEBUG:
+        # Only log progress if logger is set to DEBUG and NOT running as a frozen executable
+        if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
             _log_progress(progress_percentage, stage_name)
 
         return progress_percentage
