@@ -83,12 +83,12 @@ def _processs_data_key(df: pl.DataFrame, input_cols: dict, data_key: str, input_
         data_key_list = load_data_key(data_key_path)
         logger.info('Loaded existing data key: %s', data_key)
 
-        # Check if existing data_key contains all patient names
-        key_unique_names = pl.DataFrame(data_key_list).select('patient').unique().to_series().to_list()
+        # Check if existing data_key contains all client names
+        key_unique_names = pl.DataFrame(data_key_list).select('Clientnaam').unique().to_series().to_list()
         missing_names = [name for name in df_unique_names if name not in key_unique_names]
         data_key_list = pseudonymizer.get_existing_key(data_key_list, missing_names)
     else:
-        data_key_list = [{'patient': name, 'synonym': '', 'pseudonym': ''} for name in df_unique_names]
+        data_key_list = [{'Clientnaam': name, 'Synoniemen': '', 'Code': ''} for name in df_unique_names]
         logger.info('No existing data key provided, creating a new one')
 
     return pseudonymizer.pseudonymize(data_key_list)
@@ -244,7 +244,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         patient_name_col = input_cols_dict['patientName']
 
         # Create a new column `patientID` with data keys
-        name_to_pseudonym = {entry['patient']: entry['pseudonym'] for entry in data_key}
+        name_to_pseudonym = {entry['Clientnaam']: entry['Code'] for entry in data_key}
         df = df.with_columns(
             pl.col(patient_name_col)
             # Obtain randomized string corresponding to name

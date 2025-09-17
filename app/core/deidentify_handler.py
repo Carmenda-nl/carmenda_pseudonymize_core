@@ -255,8 +255,8 @@ class DeidentifyHandler:
         result_text = text
 
         for entry in data_key:
-            patient_name = entry.get('patient')
-            synonym_field = entry.get('synonym')
+            client_name = entry.get('Clientnaam')
+            synonym_field = entry.get('Synoniemen')
 
             # Split on comma
             synonyms = [name.strip() for name in synonym_field.split(',') if name.strip()]
@@ -264,7 +264,7 @@ class DeidentifyHandler:
             for synonym in synonyms:
                 # `\b` will match the word, but not the surrounding text
                 pattern = r'\b' + re.escape(synonym) + r'\b'
-                result_text = re.sub(pattern, patient_name, result_text)
+                result_text = re.sub(pattern, client_name, result_text)
 
         return result_text
 

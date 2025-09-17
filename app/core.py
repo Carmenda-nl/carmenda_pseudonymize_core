@@ -59,7 +59,7 @@ def parse_cli_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--input_cols',
         nargs='?',
-        default='patientName=Cliëntnaam, report=rapport',
+        default='patientName=Clientnaam, report=rapport',
         help='Input column mappings as comma-separated key=value pairs. Required keys: patientName and report.',
     )
     parser.add_argument(

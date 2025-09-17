@@ -21,7 +21,7 @@ logger = setup_logging()
 
 
 class Pseudonymizer:
-    """Generates and manages pseudonyms for patient names with synonym support."""
+    """Generates and manages pseudonyms for client names with synonym support."""
 
     def __init__(self, pseudonym_length: int = 14, max_iterations: int = 15) -> None:
         """Initialize the Pseudonymizer with configuration options."""
@@ -31,52 +31,52 @@ class Pseudonymizer:
     def get_existing_key(self, data_key: DataKey, missing_names: list[str] | None = None) -> DataKey:
         """Load existing data key and add missing names."""
         for name in data_key:
-            # Ensure all patients have a synonym field and pseudonym field
-            name['synonym'] = name.get('synonym') or ''
-            name['pseudonym'] = name.get('pseudonym') or ''
+            # Ensure all clients have a synonym field and pseudonym field
+            name['Synoniemen'] = name.get('Synoniemen') or ''
+            name['Code'] = name.get('Code') or ''
 
         # Add missing names to the data key
         if missing_names:
             for name in missing_names:
                 logger.debug('Adding missing name to key: %s', name)
-                data_key.append({'patient': name, 'synonym': '', 'pseudonym': ''})
+                data_key.append({'Clientnaam': name, 'Synoniemen': '', 'Code': ''})
 
-        # Merge duplicate patient names and combine their synonyms
-        merged_patient_names = {}
+        # Merge duplicate client names and combine their synonyms
+        merged_client_names = {}
 
         for entry in data_key:
-            patient = entry['patient']
-            synonym = entry['synonym']
-            pseudonym = entry['pseudonym']
+            clientname = entry['Clientnaam']
+            synonym = entry['Synoniemen']
+            pseudonym = entry['Code']
 
-            if patient in merged_patient_names:
-                if synonym and synonym not in merged_patient_names[patient]['synonym'].split(', '):
-                    if merged_patient_names[patient]['synonym']:
-                        merged_patient_names[patient]['synonym'] += ', ' + synonym
+            if clientname in merged_client_names:
+                if synonym and synonym not in merged_client_names[clientname]['Synoniemen'].split(', '):
+                    if merged_client_names[clientname]['Synoniemen']:
+                        merged_client_names[clientname]['Synoniemen'] += ', ' + synonym
                     else:
-                        merged_patient_names[patient]['synonym'] = synonym
+                        merged_client_names[clientname]['Synoniemen'] = synonym
 
                 # Only update pseudonym if it's not already set
-                if not merged_patient_names[patient]['pseudonym'] and pseudonym:
-                    merged_patient_names[patient]['pseudonym'] = pseudonym
+                if not merged_client_names[clientname]['Code'] and pseudonym:
+                    merged_client_names[clientname]['Code'] = pseudonym
             else:
-                merged_patient_names[patient] = entry.copy()
+                merged_client_names[clientname] = entry.copy()
 
-        return list(merged_patient_names.values())
+        return list(merged_client_names.values())
 
     def pseudonymize(self, data_key: DataKey) -> DataKey:
         """Generate missing pseudonyms for unique names."""
         chars = string.ascii_uppercase + string.digits
 
         # Keep track of existing pseudonyms to ensure duplicate prevention
-        existing = {patient['pseudonym'] for patient in data_key if patient['pseudonym']}
+        existing = {client['Code'] for client in data_key if client['Code']}
 
-        for patient in data_key:
-            if not patient['pseudonym']:
+        for client in data_key:
+            if not client['Code']:
                 for _ in range(self.max_iterations):
                     pseudonym = ''.join(secrets.choice(chars) for _ in range(self.pseudonym_length))
                     if pseudonym not in existing:
-                        patient['pseudonym'] = pseudonym
+                        client['Code'] = pseudonym
                         existing.add(pseudonym)  # <- Add to prevent new duplicates
                         break
                 else:

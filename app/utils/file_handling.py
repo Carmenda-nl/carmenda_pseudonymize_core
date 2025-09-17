@@ -116,15 +116,15 @@ def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.c
 def load_data_key(key_file_path: str) -> list[dict[str, str]]:
     """Load data key from file and return list of rows."""
     with key_file_path.open(encoding='utf-8') as file:
-        key_file_dict = csv.DictReader(file)
+        key_file_dict = csv.DictReader(file, delimiter=';')
         key_file_rows = []
 
         for row in key_file_dict:
-            patient_name = row.get('patient')
+            client_name = row.get('Clientnaam')
 
-            # Only add rows with valid patient names
-            if patient_name:
-                row['patient'] = patient_name.strip()
+            # Only add rows with valid client names
+            if client_name:
+                row['Clientnaam'] = client_name.strip()
                 key_file_rows.append(dict(row))
 
         return key_file_rows
@@ -140,11 +140,11 @@ def save_data_key(data_key: list[dict[str, str]], output_folder: str) -> None:
         output_path.mkdir(parents=True, exist_ok=True)
 
         with file_path.open('w', encoding='utf-8', newline='') as outfile:
-            writer = csv.writer(outfile)
-            writer.writerow(['patient', 'synonym', 'pseudonym'])
+            writer = csv.writer(outfile, delimiter=';')
+            writer.writerow(['Clientnaam', 'Synoniemen', 'Code'])
 
             for entry in data_key:
-                writer.writerow([entry.get('patient'), entry.get('synonym'), entry.get('pseudonym')])
+                writer.writerow([entry.get('Clientnaam'), entry.get('Synoniemen'), entry.get('Code')])
 
     except (OSError, TypeError, AttributeError):
         logger.exception('Cannot write data key to "%s"', file_path)
