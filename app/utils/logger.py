@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from pathlib import Path
 
 
@@ -28,9 +29,8 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
 
     try:
         log_path.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        error_msg = f'Cannot create log directory "{log_path}": {e}'
-        raise OSError(error_msg) from e
+    except OSError as error:
+        warnings.warn(f'Cannot create log directory "{log_path}": {error}', stacklevel=2)
 
     # Create formatters
     file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -53,9 +53,8 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
         file_handler.setFormatter(file_formatter)
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
-    except (OSError, PermissionError) as e:
-        error_msg = f'Cannot create log file "{log_file_path}": {e}'
-        raise OSError(error_msg) from e
+    except (OSError, PermissionError) as error:
+        warnings.warn(f'Cannot create log file "{log_file_path}": {error}', stacklevel=2)
 
     # debug file handler if log level is DEBUG
     if log_level == logging.DEBUG:
@@ -66,9 +65,8 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
             debug_handler.setFormatter(file_formatter)
             debug_handler.setLevel(logging.DEBUG)
             logger.addHandler(debug_handler)
-        except (OSError, PermissionError) as e:
-            error_msg = f'Cannot create debug log file "{debug_file_path}": {e}'
-            raise OSError(error_msg) from e
+        except (OSError, PermissionError) as error:
+            warnings.warn(f'Cannot create debug log file "{debug_file_path}": {error}', stacklevel=2)
 
     return logger
 
