@@ -8,7 +8,7 @@
 This module provides functionality for:
     - Loading data from files
     - Creating data keys for patient names
-    - Transforming and pseudonymizing patient data (in parallel batches)
+    - Transforming and pseudonymizing patient data
     - Filtering null values and handling data irregularities
     - Writing processed data to output files
 """
@@ -19,7 +19,6 @@ import json
 import logging
 import sys
 import time
-from functools import reduce
 from pathlib import Path
 
 import polars as pl
@@ -114,14 +113,13 @@ def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) 
     return df
 
 
-def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, output_extension: str) -> pl.DataFrame:
-    """Filter out rows with null values and save them separately."""
-    filter_condition = reduce(
-        lambda acc, col_name: acc | pl.col(col_name).is_null(),
-        df.columns,
-        pl.lit(False),  # noqa: FBT003 (Linter false positive)
-    )
-    logger.info('Filtering rows with NULL in any of these columns: %s', ', '.join(df.columns))
+def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_extension: str, output_folder: str) -> pl.DataFrame:
+    """Filter out rows with null values in reports column and save them separately."""
+    report_col = input_cols['report']
+
+    # Only filter on report column
+    filter_condition = pl.col(report_col).is_null()
+    logger.info('Filtering rows with NULL only in report column: %s', report_col)
 
     # Collecting rows with problems
     df_with_nulls = df.filter(filter_condition)
@@ -129,11 +127,11 @@ def _filter_null_rows(df: pl.DataFrame, output_folder: str, input_fofi: str, out
     # If null rows found, collect rows and build file
     if not df_with_nulls.is_empty():
         try:
-            logger.warning('Number of rows with problems: %d\n', df_with_nulls.height)
+            logger.warning('Number of rows with problems in report column: %d\n', df_with_nulls.height)
             logger.debug('%s\n', df_with_nulls)
 
             logger.info('Attempting to write dataframe of rows with nulls to file.')
-            output_file = create_output_file_path(output_folder, input_fofi, '_with_nulls')
+            output_file = create_output_file_path(output_folder, 'processed_with_nulls')
             save_data_file(df_with_nulls, output_file, output_extension)
 
         except (OSError, PermissionError, ValueError):
@@ -270,7 +268,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    df = _filter_null_rows(df, output_folder, input_fofi, output_extension)
+    df = _filter_null_rows(df, input_cols_dict, output_extension, output_folder)
 
     # Only show example to terminal when NOT running as a frozen executable
     if not getattr(sys, 'frozen', False):
