@@ -36,6 +36,7 @@ LOGGING = {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': logs_dir / 'backend-api.log',
             'formatter': 'verbose',
+            'encoding': 'utf-8',
         },
         'console': {
             'level': LOG_LEVEL,

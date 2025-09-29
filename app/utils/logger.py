@@ -49,7 +49,7 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
     # Log to file (INFO level only)
     log_file_path = log_path / 'deidentification.log'
     try:
-        file_handler = logging.FileHandler(str(log_file_path))
+        file_handler = logging.FileHandler(str(log_file_path), encoding='utf-8')
         file_handler.setFormatter(file_formatter)
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
@@ -61,7 +61,7 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
         debug_file_path = log_path / 'debug.log'
 
         try:
-            debug_handler = logging.FileHandler(str(debug_file_path))
+            debug_handler = logging.FileHandler(str(debug_file_path), encoding='utf-8')
             debug_handler.setFormatter(file_formatter)
             debug_handler.setLevel(logging.DEBUG)
             logger.addHandler(debug_handler)
