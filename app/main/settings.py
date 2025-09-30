@@ -122,12 +122,11 @@ if DEBUG:
     SPECTACULAR_SETTINGS = {
         'TITLE': 'Deidentification API',
         'DESCRIPTION': 'API for file-based deidentification',
-        'VERSION': '1.0.0',
+        'VERSION': '1.0.1',
         'SERVE_INCLUDE_SCHEMA': False,
         'TAGS': [
             {'name': 'Jobs', 'description': 'general job management endpoints'},
             {'name': 'Processing', 'description': 'endpoints related to job deidentification processing'},
-            {'name': 'Cleanup', 'description': 'removes all the created jobs and leftover files'},
         ],
     }
 else:
@@ -148,8 +147,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = 'nl'
+TIME_ZONE = 'Europe/Amsterdam'
 USE_I18N = True
 USE_TZ = True
 
