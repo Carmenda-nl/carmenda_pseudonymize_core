@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from threading import Lock
 
 from utils.logger import setup_logging, setup_progress_logger
 
@@ -27,12 +26,10 @@ class ProgressTracker:
         """Initialize the ProgressTracker with default values."""
         self.progress = 0
         self.current_stage = None
-        self.lock = Lock()
 
     def update_progress(self, percentage: float, stage: str | None = None) -> None:
         """Update the progress tracker with new percentage and stage information."""
-        with self.lock:
-            self._update_internal_state(percentage, stage)
+        self._update_internal_state(percentage, stage)
 
     def _update_internal_state(self, percentage: float, stage: str | None) -> None:
         """Update the progress and stage safely."""
@@ -42,8 +39,7 @@ class ProgressTracker:
 
     def get_progress(self) -> dict[str, int | str | None]:
         """Retrieve the current progress and stage information."""
-        with self.lock:
-            return {'percentage': self.progress, 'stage': self.current_stage}
+        return {'percentage': self.progress, 'stage': self.current_stage}
 
 
 # Singleton instance (only one instance needed)

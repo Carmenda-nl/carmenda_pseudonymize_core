@@ -13,16 +13,11 @@ from __future__ import annotations
 
 import json
 import os
-import threading
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
-
-if TYPE_CHECKING:
-    import queue
+from typing import NamedTuple
 
 from django.conf import settings
-from django.db import connection
 
 from api.models import DeidentificationJob
 from utils.logger import setup_logging
@@ -40,8 +35,8 @@ class DeidentificationConfig(NamedTuple):
     output_extension: str
 
 
-def _thread_target(config: DeidentificationConfig, job: DeidentificationJob, output_queue: queue.Queue | None) -> None:
-    """Execute a deidentification job in a separate thread."""
+def _execute_deidentification(config: DeidentificationConfig, job: DeidentificationJob) -> None:
+    """Execute a deidentification job."""
     try:
         from core.data_processor import process_data  # noqa: PLC0415 (Initialize core only when needed)
 
@@ -60,30 +55,19 @@ def _thread_target(config: DeidentificationConfig, job: DeidentificationJob, out
         files_to_zip, output_filename = _collect_output_files(job, config.input_fofi)
         _create_and_store_zip(job, files_to_zip, output_filename)
 
-        # If an output queue is provided, put the JSON data in the queue
-        if output_queue is not None:
-            output_queue.put(processed_rows_json)
-
         # If no errors, update job to 'completed'
         job.status = 'completed'
         job.save()
 
     except (OSError, RuntimeError, ValueError) as e:
         # Update job status
-        logger.exception('Error in thread for job %s', job.pk)
-
-        # If an output queue is provided, put the error in the queue
-        if output_queue is not None:
-            output_queue.put(None)
+        logger.exception('Error processing job %s', job.pk)
         try:
             job.status = 'failed'
             job.error_message = f'Job error: {e!s}'
             job.save()
         except (OSError, RuntimeError):
             logger.exception('Failed to update job status for job %s', job.id)
-    finally:
-        # Close database connection in thread to prevent ResourceWarning
-        connection.close()
 
 
 def _transform_output_cols(input_cols: str) -> str:
@@ -128,16 +112,6 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
     )
 
     return job, config, input_fofi
-
-
-def _run_deidentification_thread(config: DeidentificationConfig, job: DeidentificationJob) -> None:
-    """Run the deidentification process in a separate thread."""
-    thread = threading.Thread(
-        target=_thread_target,
-        args=(config, job, None),  # No output queue needed since we're not waiting
-    )
-    thread.daemon = True
-    thread.start()
 
 
 def _save_processed_preview(job: DeidentificationJob, processed_rows_json: str | None) -> None:
@@ -225,14 +199,13 @@ def _create_and_store_zip(job: DeidentificationJob, files_to_zip: list[str], out
 
 
 def process_deidentification(job_id: str) -> None:
-    """Start the deidentification job asynchronously.
+    """Process the deidentification job synchronously.
 
-    This function starts the deidentification process in a background thread
-    and returns immediately without waiting for completion.
+    This function executes the deidentification process and waits for completion.
     """
     try:
         job, config, _output_filename = _setup_deidentification_job(job_id)
-        _run_deidentification_thread(config, job)
+        _execute_deidentification(config, job)
 
     except (OSError, RuntimeError, ValueError) as e:
         logger.exception('Error starting job %s', job_id)
