@@ -192,12 +192,9 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     input_folder, output_folder = get_environment_paths()
 
-    # Start progress tracking
+    # Start progress tracking & update progress - Loading data
     progress = progress_tracker(tracker)
     progress['update'](progress['get_stage_name'](0))
-
-    # Update progress - Loading data
-    progress['update'](progress['get_stage_name'](1))
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
@@ -205,7 +202,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     df = _load_data_file(input_file_path)
 
     # Update progress - pre-processing
-    progress['update'](progress['get_stage_name'](2))
+    progress['update'](progress['get_stage_name'](1))
     time.sleep(1)
 
     # Convert string mappings to dictionaries
@@ -219,7 +216,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     start_time = time.time()
 
     # Step 3: Create data key if needed
-    progress['update'](progress['get_stage_name'](3))
+    progress['update'](progress['get_stage_name'](2))
     time.sleep(1)
 
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
@@ -232,7 +229,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         save_data_key(data_key, output_folder)
 
     # Update progress - data transformation
-    progress['update'](progress['get_stage_name'](4))
+    progress['update'](progress['get_stage_name'](3))
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
@@ -263,7 +260,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         handler.debug_deidentify_text()
 
     # Update progress - filtering nulls
-    progress['update'](progress['get_stage_name'](5))
+    progress['update'](progress['get_stage_name'](4))
     time.sleep(1)
 
     # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
@@ -275,7 +272,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         sys.stdout.write(f'\n{df}\n')
 
     # Update progress - writing output
-    progress['update'](progress['get_stage_name'](6))
+    progress['update'](progress['get_stage_name'](5))
     time.sleep(1)
 
     # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
@@ -295,7 +292,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     _performance_metrics(start_time, df.height)
 
     # Update progress - finalizing
-    progress['update'](progress['get_stage_name'](7))
+    progress['update'](progress['get_stage_name'](6))
 
     result = {'data': processed_preview}
     return json.dumps(result)

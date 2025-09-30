@@ -49,7 +49,6 @@ tracker = ProgressTracker()
 def progress_tracker(tracker: ProgressTracker) -> dict:
     """Create a progress tracker for multi-stage processing."""
     progress_stages = [
-        'Prepare data',
         'Loading data',
         'Pre-processing',
         'Pseudonymization',
