@@ -8,15 +8,20 @@
 from __future__ import annotations
 
 import csv
+import logging
 import os
 import sys
 from pathlib import Path
 
+import chardet
 import polars as pl
 
 from utils.logger import setup_logging
 
 logger = setup_logging()
+
+# Suppress chardet debug logs (noise)
+logging.getLogger('chardet').setLevel(logging.WARNING)
 
 
 def get_environment_paths() -> tuple[str, str]:
@@ -54,18 +59,28 @@ def get_file_size(file_path: str) -> int:
         logger.exception('Cannot access file "%s"', file_path)
 
 
-def _detect_separator(input_file: str) -> str:
-    """Determine the separator from the first header row."""
+def _check_file_header(input_file: str) -> tuple[str, str]:
+    """Determine the encoding and separator from the first header row."""
     file_path = Path(input_file)
 
+    with file_path.open('rb') as file:
+        # Read the first 10KB to avoid memory issues
+        sample_data = file.read(10240)
+        encoding_result = chardet.detect(sample_data)
+        encoding = encoding_result['encoding'] or 'utf-8'
+        logger.info('Detected file encoding: "%s"', encoding)
     try:
-        with file_path.open(encoding='utf-8') as file:
+        with file_path.open(encoding=encoding) as file:
             header = file.readline().strip()
-    except (FileNotFoundError, PermissionError, UnicodeDecodeError):
-        logger.exception('Cannot read file "%s"', input_file)
+    except (UnicodeDecodeError, LookupError) as exception:
+        message = f'File cannot be decoded with encoding "{encoding}"'
+        logger.exception(message)
+        raise ValueError(message) from exception
 
     if not header:
-        logger.exception('File "%s" is empty or has no header', input_file)
+        message = 'File is empty or has no header'
+        logger.exception(message)
+        raise ValueError(message)
 
     candidates = [',', ';', '\t', '|']
     scores = {separator: header.count(separator) for separator in candidates}
@@ -73,27 +88,25 @@ def _detect_separator(input_file: str) -> str:
 
     # Ensure we found at least one separator
     if scores[best_separator] == 0:
-        logger.exception('No valid separator found in "%s". Tried: %s', input_file, candidates)
+        message = f'No valid separator found. Tried: {candidates}'
+        logger.exception(message)
+        raise ValueError(message)
 
-    return best_separator
+    return best_separator, encoding
 
 
-def load_data_file(file_path: str, separator: str | None = None) -> pl.DataFrame:
+def load_data_file(file_path: str | None = None) -> pl.DataFrame:
     """Load data from CSV or Parquet file."""
     file_extension = get_file_extension(file_path)
-    supported_formats = ['.csv', '.parquet']
 
     try:
         if file_extension == '.csv':
-            if separator is None:
-                separator = _detect_separator(file_path)
-            return pl.read_csv(file_path, separator=separator)
-
+            separator, encoding = _check_file_header(file_path)
+            return pl.read_csv(file_path, separator=separator, encoding=encoding)
         if file_extension == '.parquet':
             return pl.read_parquet(file_path)
-
     except Exception:
-        logger.exception('Unsupported file format: %s. Supported: %s', file_extension, supported_formats)
+        logger.exception('An error occurred while loading the data file.')
 
 
 def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.csv') -> None:
