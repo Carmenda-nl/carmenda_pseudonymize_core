@@ -36,7 +36,7 @@ from utils.file_handling import (
     save_data_key,
 )
 from utils.logger import setup_logging
-from utils.progress_tracker import progress_tracker, tracker
+from utils.progress_tracker import tracker
 
 DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
@@ -157,8 +157,12 @@ def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> 
     report_col = input_cols['report']
 
     if report_col not in df.columns:
+        tracker.update('Data transformation', 'Text deidentification skipped (no report column)')
         result_df = df.with_columns(pl.lit('').alias('processed_report'))
     else:
+        total_rows = df.height
+        tracker.update('Data transformation', f'Extracting data from {total_rows:,} rows')
+
         reports = df.select(report_col).to_series().to_list()
         other_cols = [col for col in df.columns if col != report_col]
 
@@ -168,7 +172,23 @@ def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> 
         else:
             batch_data = [{report_col: report} for report in reports]
 
-        processed_texts = [deidentify(row_dict) for row_dict in batch_data]
+        tracker.update('Data transformation', f'Processing text in {total_rows:,} rows')
+
+        # Process texts with progress tracking
+        processed_texts = []
+
+        for data_row, row_dict in enumerate(batch_data):
+            processed_text = deidentify(row_dict)
+            processed_texts.append(processed_text)
+
+            # Update progress every 1000 rows
+            if data_row % 1000 == 0 and data_row > 0:
+                step_progress = (data_row / total_rows) * 100
+                tracker.update_with_percentage(
+                    'Data transformation', f'Processed {data_row:,}/{total_rows:,} rows', step_progress,
+                )
+
+        tracker.update('Data transformation', 'Creating processed DataFrame')
         result_df = df.with_columns(pl.Series('processed_report', processed_texts))
 
     return result_df
@@ -193,8 +213,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     input_folder, output_folder = get_environment_paths()
 
     # Start progress tracking & update progress - Loading data
-    progress = progress_tracker(tracker)
-    progress['update'](progress['get_stage_name'](0))
+    tracker.update('Loading data')
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
@@ -202,8 +221,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     df = _load_data_file(input_file_path)
 
     # Update progress - pre-processing
-    progress['update'](progress['get_stage_name'](1))
-    time.sleep(1)
+    tracker.update('Pre-processing')
 
     # Convert string mappings to dictionaries
     input_cols_dict = dict(item.strip().split('=') for item in input_cols.split(','))
@@ -215,10 +233,6 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
 
     start_time = time.time()
 
-    # Step 3: Create data key if needed
-    progress['update'](progress['get_stage_name'](2))
-    time.sleep(1)
-
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
     if has_patient_name:
@@ -229,7 +243,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         save_data_key(data_key, output_folder)
 
     # Update progress - data transformation
-    progress['update'](progress['get_stage_name'](3))
+    tracker.update('Data transformation')
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
@@ -260,8 +274,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         handler.debug_deidentify_text()
 
     # Update progress - filtering nulls
-    progress['update'](progress['get_stage_name'](4))
-    time.sleep(1)
+    tracker.update('Filtering nulls')
 
     # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
@@ -272,8 +285,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         sys.stdout.write(f'\n{df}\n')
 
     # Update progress - writing output
-    progress['update'](progress['get_stage_name'](5))
-    time.sleep(1)
+    tracker.update('Writing output')
 
     # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
 
@@ -292,7 +304,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     _performance_metrics(start_time, df.height)
 
     # Update progress - finalizing
-    progress['update'](progress['get_stage_name'](6))
+    tracker.update('Finalizing')
 
     result = {'data': processed_preview}
     return json.dumps(result)
