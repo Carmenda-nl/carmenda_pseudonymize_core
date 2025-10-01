@@ -28,8 +28,6 @@ from core.deidentify_handler import DeidentifyHandler
 from utils.file_handling import (
     create_output_file_path,
     get_environment_paths,
-    get_file_extension,
-    get_file_size,
     load_data_file,
     load_data_key,
     save_data_file,
@@ -42,27 +40,6 @@ DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
 
 handler = DeidentifyHandler()
-
-
-def _load_data_file(input_file_path: str) -> pl.DataFrame:
-    """Load data file and log relevant information."""
-    input_extension = get_file_extension(input_file_path)
-
-    if input_extension == '.csv':
-        file_size = get_file_size(input_file_path)
-        logger.info('CSV input file of size: %s', file_size)
-
-    # Load data using file utilities
-    df = load_data_file(input_file_path)
-
-    # Log a columns schema
-    schema_str = 'root\n' + '\n'.join([f' |-- {name}: {dtype}' for name, dtype in df.schema.items()])
-    logger.debug('%s \n', schema_str)
-
-    # Count rows
-    df_rowcount = df.height
-    logger.info('Row count: %d', df_rowcount)
-    return df
 
 
 def _processs_data_key(df: pl.DataFrame, input_cols: dict, data_key: str, input_folder: str) -> list[dict[str, str]]:
@@ -185,7 +162,9 @@ def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> 
             if data_row % 1000 == 0 and data_row > 0:
                 step_progress = (data_row / total_rows) * 100
                 tracker.update_with_percentage(
-                    'Data transformation', f'Processed {data_row:,}/{total_rows:,} rows', step_progress,
+                    'Data transformation',
+                    f'Processed {data_row:,}/{total_rows:,} rows',
+                    step_progress,
                 )
 
         tracker.update('Data transformation', 'Creating processed DataFrame')
@@ -208,7 +187,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     """Process and pseudonymize patient data from input files and return in Json."""
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
-    logger.debug('\nParsed arguments:\n%s\n', params_str)
+    logger.debug('Parsed arguments:\n%s\n', params_str)
 
     input_folder, output_folder = get_environment_paths()
 
@@ -218,20 +197,25 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = f'{input_folder}/{input_fofi}' if not input_fofi.startswith('/') else input_fofi
-    df = _load_data_file(input_file_path)
 
-    # Update progress - pre-processing
-    tracker.update('Pre-processing')
+    df = load_data_file(input_file_path)
 
-    # Convert string mappings to dictionaries
-    input_cols_dict = dict(item.strip().split('=') for item in input_cols.split(','))
-    output_cols_dict = dict(item.strip().split('=') for item in output_cols.split(','))
+    if df:
+        tracker.update('Pre-processing')
 
-    # Check if the `patientName` column is available
-    patient_name_col = input_cols_dict.get('patientName')
-    has_patient_name = patient_name_col in df.columns
+        # Convert string mappings to dictionaries
+        input_cols_dict = dict(item.strip().split('=') for item in input_cols.split(','))
+        output_cols_dict = dict(item.strip().split('=') for item in output_cols.split(','))
 
-    start_time = time.time()
+        # Check if the `patientName` column is available
+        patient_name_col = input_cols_dict.get('patientName')
+        has_patient_name = patient_name_col in df.columns
+
+        start_time = time.time()
+    else:
+        msg = f'Input file "{input_file_path}" could not be loaded.'
+        logger.error(msg)
+        return json.dumps({'error': msg})
 
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 

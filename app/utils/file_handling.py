@@ -46,19 +46,6 @@ def get_environment_paths() -> tuple[str, str]:
     return input_folder, output_folder
 
 
-def get_file_extension(file_path: str) -> str:
-    """Get file extension from a file path."""
-    return Path(file_path).suffix
-
-
-def get_file_size(file_path: str) -> int:
-    """Get the size of a file in bytes."""
-    try:
-        return Path(file_path).stat().st_size
-    except (FileNotFoundError, PermissionError):
-        logger.exception('Cannot access file "%s"', file_path)
-
-
 def _check_file_header(input_file: str) -> tuple[str, str]:
     """Determine the encoding and separator from the first header row."""
     file_path = Path(input_file)
@@ -95,18 +82,31 @@ def _check_file_header(input_file: str) -> tuple[str, str]:
     return best_separator, encoding
 
 
-def load_data_file(file_path: str | None = None) -> pl.DataFrame:
-    """Load data from CSV or Parquet file."""
-    file_extension = get_file_extension(file_path)
+def load_data_file(input_file_path: str) -> pl.DataFrame | None:
+    """Check data file availability and log relevant information."""
+    if Path(input_file_path).is_file():
+        input_extension = Path(input_file_path).suffix
+        file_size = Path(input_file_path).stat().st_size
+        logger.info('%s file of size: %s', input_extension, file_size)
 
-    try:
-        if file_extension == '.csv':
-            separator, encoding = _check_file_header(file_path)
-            return pl.read_csv(file_path, separator=separator, encoding=encoding)
-        if file_extension == '.parquet':
-            return pl.read_parquet(file_path)
-    except Exception:
-        logger.exception('An error occurred while loading the data file.')
+        if input_extension == '.csv':
+            separator, encoding = _check_file_header(input_file_path)
+            df = pl.read_csv(input_file_path, separator=separator, encoding=encoding)
+        elif input_extension == '.parquet':
+            df = pl.read_parquet(input_file_path)
+        else:
+            return None
+
+        # Log columns schema
+        schema_str = 'root\n' + '\n'.join([f' |-- {name}: {dtype}' for name, dtype in df.schema.items()])
+        logger.debug('%s \n', schema_str)
+
+        df_rowcount = df.height
+        logger.info('Row count: %d', df_rowcount)
+        return df
+
+    # File does not exist
+    return None
 
 
 def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.csv') -> None:
