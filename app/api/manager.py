@@ -31,7 +31,7 @@ class DeidentificationConfig(NamedTuple):
     input_fofi: str
     input_cols: dict
     output_cols: dict
-    data_key: dict
+    datakey: dict
     output_extension: str
 
 
@@ -45,7 +45,7 @@ def _execute_deidentification(config: DeidentificationConfig, job: Deidentificat
             input_fofi=config.input_fofi,
             input_cols=config.input_cols,
             output_cols=config.output_cols,
-            data_key=config.data_key,
+            datakey=config.datakey,
             output_extension=config.output_extension,
         )
 
@@ -101,13 +101,13 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
     input_fofi = Path(job.input_file.name).name
     input_extension = Path(input_fofi).suffix.lower()
     output_extension = input_extension if input_extension in ['.csv', '.parquet'] else '.csv'
-    data_key = Path(job.key_file.name).name if job.key_file else None
+    datakey = Path(job.key_file.name).name if job.key_file else None
 
     config = DeidentificationConfig(
         input_fofi=input_fofi,
         input_cols=input_cols,
         output_cols=output_cols,
-        data_key=data_key,
+        datakey=datakey,
         output_extension=output_extension,
     )
 
@@ -126,7 +126,7 @@ def _collect_output_files(job: DeidentificationJob, input_fofi: str) -> tuple[li
     """Collect paths of all output files and update job model."""
     data_output_dir = Path(settings.MEDIA_ROOT) / 'output'
     output_path = data_output_dir / input_fofi
-    key_path = data_output_dir / 'data_key.csv'
+    key_path = data_output_dir / 'datakey.csv'
     log_path = data_output_dir / 'deidentification.log'
 
     files_to_zip = []

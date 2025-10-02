@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import csv
 import logging
 import os
 import sys
@@ -24,7 +23,7 @@ logger = setup_logging()
 logging.getLogger('chardet').setLevel(logging.WARNING)
 
 
-def get_environment_paths() -> tuple[str, str]:
+def get_environment() -> tuple[str, str]:
     """Get input and output folder paths based on the current environment."""
     if os.environ.get('DOCKER_ENV') == 'true':
         # Docker environment
@@ -40,10 +39,58 @@ def get_environment_paths() -> tuple[str, str]:
         input_folder = 'data/input'
         output_folder = 'data/output'
 
-    # Ensure output directory exists
     Path(output_folder).mkdir(parents=True, exist_ok=True)
-
     return input_folder, output_folder
+
+
+def create_output_path(output_folder: str, input_filename: str, suffix: str = '') -> str:
+    """Create output file path based on input filename."""
+    input_path = Path(input_filename)
+    base_name = input_path.stem
+
+    if suffix:
+        base_name = f'{base_name}{suffix}'
+    return str(Path(output_folder) / base_name)
+
+
+def _check_encoding(input_file: str) -> tuple[str, str]:
+    """Determine the encoding and line ending of a file."""
+    file_path = Path(input_file)
+
+    with file_path.open('rb') as file:
+        # Read the first 10KB to avoid memory issues
+        sample_data = file.read(10240)
+        encoding_result = chardet.detect(sample_data)
+        detected_encoding = encoding_result['encoding'] or 'utf-8'
+
+        # Handle common Windows ANSI detection issues
+        if detected_encoding == 'ascii':
+            # Try to detect if it's actually Windows ANSI (cp1252)
+            try:
+                sample_data.decode('cp1252')
+                detected_encoding = 'cp1252'  # Windows ANSI
+            except UnicodeDecodeError:
+                # Keep as ascii if cp1252 fails
+                pass
+
+        # Detect line endings - Polars only supports single-byte eol_char
+        if b'\r\n' in sample_data:
+            line_ending = '\n'    # Use \n for Windows (Polars will handle \r\n automatically)
+        elif b'\r' in sample_data:
+            line_ending = '\r'    # Macintosh
+        elif b'\n' in sample_data:
+            line_ending = '\n'    # Unix
+        else:
+            line_ending = '\n'    # Default
+
+        return detected_encoding, line_ending
+
+
+
+
+
+
+
 
 
 def _check_file_header(input_file: str) -> tuple[str, str]:
@@ -55,7 +102,7 @@ def _check_file_header(input_file: str) -> tuple[str, str]:
         sample_data = file.read(10240)
         encoding_result = chardet.detect(sample_data)
         encoding = encoding_result['encoding'] or 'utf-8'
-        logger.info('Detected file encoding: "%s"', encoding)
+        logger.info('Detected file encoding: %s', encoding)
     try:
         with file_path.open(encoding=encoding) as file:
             header = file.readline().strip()
@@ -92,8 +139,6 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
         if input_extension == '.csv':
             separator, encoding = _check_file_header(input_file_path)
             df = pl.read_csv(input_file_path, separator=separator, encoding=encoding)
-        elif input_extension == '.parquet':
-            df = pl.read_parquet(input_file_path)
         else:
             return None
 
@@ -102,7 +147,7 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
         logger.debug('%s \n', schema_str)
 
         df_rowcount = df.height
-        logger.info('Row count: %d', df_rowcount)
+        logger.info('Row count: %s rows\n', df_rowcount)
         return df
 
     # File does not exist
@@ -122,52 +167,45 @@ def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.c
             df.write_parquet(f'{file_path}.parquet')
         else:
             logger.exception('Unsupported output format: %s. Supported: %s', output_extension, supported_formats)
-    except (OSError, PermissionError):
-        logger.exception('Cannot write file "%s": %s', file_path, output_extension)
+    except (OSError, PermissionError) as error:
+        error_msg = str(error).replace('\n', ' ').replace('\r', ' ')
+        logger.exception('Cannot write file "%s": %s', file_path, error_msg)
 
 
-def load_data_key(key_file_path: str) -> list[dict[str, str]]:
-    """Load data key from file and return list of rows."""
-    with key_file_path.open(encoding='utf-8') as file:
-        key_file_dict = csv.DictReader(file, delimiter=';')
-        key_file_rows = []
-
-        for row in key_file_dict:
-            client_name = row.get('Clientnaam')
-
-            # Only add rows with valid client names
-            if client_name:
-                row['Clientnaam'] = client_name.strip()
-                key_file_rows.append(dict(row))
-
-        return key_file_rows
 
 
-def save_data_key(data_key: list[dict[str, str]], output_folder: str) -> None:
-    """Save the processed data key to a CSV file for future use."""
-    filename = 'data_key.csv'
+
+
+
+
+
+
+
+
+
+def load_datakey(datakey_path: str) -> pl.DataFrame:
+    """Grab valid names from file and return as a Polars DataFrame."""
+    file_encoding, line_ending = _check_encoding(datakey_path)
+    accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252')
+
+    if file_encoding not in accepted_encodings:
+        logger.warning('Datakey encoding not supported, provided: %s.', file_encoding)
+        return None
+
+    df = pl.read_csv(datakey_path, separator=';', encoding=file_encoding, eol_char=line_ending)
+    return (df.with_columns(pl.col('Clientnaam').str.strip_chars()).filter(pl.col('Clientnaam') != ''))
+
+
+def save_datakey(datakey: pl.DataFrame, output_folder: str) -> None:
+    """Save the processed datakey to a CSV file for future use."""
+    filename = 'datakey.csv'
     file_path = Path(output_folder) / filename
 
     try:
         output_path = Path(output_folder)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        with file_path.open('w', encoding='utf-8', newline='') as outfile:
-            writer = csv.writer(outfile, delimiter=';')
-            writer.writerow(['Clientnaam', 'Synoniemen', 'Code'])
-
-            for entry in data_key:
-                writer.writerow([entry.get('Clientnaam'), entry.get('Synoniemen'), entry.get('Code')])
-
-    except (OSError, TypeError, AttributeError):
-        logger.exception('Cannot write data key to "%s"', file_path)
-
-
-def create_output_file_path(output_folder: str, input_filename: str, suffix: str = '') -> str:
-    """Create output file path based on input filename."""
-    input_path = Path(input_filename)
-    base_name = input_path.stem
-
-    if suffix:
-        base_name = f'{base_name}{suffix}'
-    return str(Path(output_folder) / base_name)
+        datakey.write_csv(file_path, separator=';')
+        logger.debug('Saving new datakey: %s\n%s\n', filename, datakey)
+    except OSError:
+        logger.warning('Cannot write datakey to "%s".', file_path)

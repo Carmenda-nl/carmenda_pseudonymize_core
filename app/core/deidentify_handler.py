@@ -250,11 +250,11 @@ class DeidentifyHandler:
 
         return {attr: load_word_set(file_path) for attr, file_path in lookup_files.items()}
 
-    def _get_datakey_synonyms(self, text: str, data_key: DataKey) -> str:
+    def _get_datakey_synonyms(self, text: str, datakey: DataKey) -> str:
         """Replace all (comma-separated) synonyms with their main names in text."""
         result_text = text
 
-        for entry in data_key:
+        for entry in datakey:
             client_name = entry.get('Clientnaam')
             synonym_field = entry.get('Synoniemen')
 
@@ -268,7 +268,7 @@ class DeidentifyHandler:
 
         return result_text
 
-    def deidentify_text(self, input_cols: dict, data_key: DataKey | None = None) -> Callable[[dict], str]:
+    def deidentify_text(self, input_cols: dict, datakey: DataKey | None = None) -> Callable[[dict], str]:
         """De-identify report text with or without patient name column."""
 
         def inner_func(row: dict) -> str:
@@ -276,8 +276,8 @@ class DeidentifyHandler:
                 report_text = row[input_cols['report']]
 
                 # Synonyms to main names for consistent detection
-                if data_key:
-                    report_text = self._get_datakey_synonyms(report_text, data_key)
+                if datakey:
+                    report_text = self._get_datakey_synonyms(report_text, datakey)
 
                 # Process 1: Apply Deduce detection
                 deduce_result = self._deduce_detector(row, input_cols, report_text)

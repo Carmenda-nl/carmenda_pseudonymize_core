@@ -7,7 +7,7 @@
 
 This module provides functionality for:
     - Loading data from files
-    - Creating data keys for patient names
+    - Creating datakeys for patient names
     - Transforming and pseudonymizing patient data
     - Filtering null values and handling data irregularities
     - Writing processed data to output files
@@ -19,20 +19,12 @@ import json
 import logging
 import sys
 import time
-from pathlib import Path
 
 import polars as pl
 
-from core.data_key import Pseudonymizer
+from core.datakey import process_datakey
 from core.deidentify_handler import DeidentifyHandler
-from utils.file_handling import (
-    create_output_file_path,
-    get_environment_paths,
-    load_data_file,
-    load_data_key,
-    save_data_file,
-    save_data_key,
-)
+from utils.file_handling import create_output_path, get_environment, load_data_file, save_data_file, save_datakey
 from utils.logger import setup_logging
 from utils.progress_tracker import tracker
 
@@ -40,34 +32,6 @@ DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
 
 handler = DeidentifyHandler()
-
-
-def _processs_data_key(df: pl.DataFrame, input_cols: dict, data_key: str, input_folder: str) -> list[dict[str, str]]:
-    """Create a new data key or update an existing one."""
-    pseudonymizer = Pseudonymizer()
-
-    df_unique_names = (
-        df.select(input_cols['patientName'])
-        .filter(pl.col(input_cols['patientName']).is_not_null())
-        .unique()
-        .to_series()
-        .to_list()
-    )
-
-    if data_key:
-        data_key_path = Path(input_folder) / data_key
-        data_key_list = load_data_key(data_key_path)
-        logger.info('Loaded existing data key: %s', data_key)
-
-        # Check if existing data_key contains all client names
-        key_unique_names = pl.DataFrame(data_key_list).select('Clientnaam').unique().to_series().to_list()
-        missing_names = [name for name in df_unique_names if name not in key_unique_names]
-        data_key_list = pseudonymizer.get_existing_key(data_key_list, missing_names)
-    else:
-        data_key_list = [{'Clientnaam': name, 'Synoniemen': '', 'Code': ''} for name in df_unique_names]
-        logger.info('No existing data key provided, creating a new one')
-
-    return pseudonymizer.pseudonymize(data_key_list)
 
 
 def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
@@ -108,7 +72,7 @@ def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_extension: str,
             logger.debug('%s\n', df_with_nulls)
 
             logger.info('Attempting to write dataframe of rows with nulls to file.')
-            output_file = create_output_file_path(output_folder, 'processed_with_nulls')
+            output_file = create_output_path(output_folder, 'processed_with_nulls')
             save_data_file(df_with_nulls, output_file, output_extension)
 
         except (OSError, PermissionError, ValueError):
@@ -126,9 +90,9 @@ def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_extension: str,
     return df
 
 
-def _data_transformer(df: pl.DataFrame, input_cols: dict, data_key: DataKey) -> pl.DataFrame:
+def _data_transformer(df: pl.DataFrame, input_cols: dict, datakey: DataKey) -> pl.DataFrame:
     """Process to de-identify text in the report column."""
-    deidentify = handler.deidentify_text(input_cols, data_key)
+    deidentify = handler.deidentify_text(input_cols, datakey)
 
     # Extract the report column as a list for processing
     report_col = input_cols['report']
@@ -183,24 +147,23 @@ def _performance_metrics(start_time: float, df_rowcount: int) -> None:
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
-def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: str, output_extension: str) -> str:
+def process_data(input_fofi: str, input_cols: str, output_cols: str, datakey: str, output_extension: str) -> str:
     """Process and pseudonymize patient data from input files and return in Json."""
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
     logger.debug('Parsed arguments:\n%s\n', params_str)
 
-    input_folder, output_folder = get_environment_paths()
+    input_folder, output_folder = get_environment()
 
-    # Start progress tracking & update progress - Loading data
+    # Start progress tracking
     tracker.update('Loading data')
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = f'{input_folder}/{input_fofi}' if not input_fofi.startswith('/') else input_fofi
-
     df = load_data_file(input_file_path)
 
-    if df:
+    if df is not None:
         tracker.update('Pre-processing')
 
         # Convert string mappings to dictionaries
@@ -223,21 +186,20 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
         # Strip whitespace from patient names
         df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
 
-        data_key = _processs_data_key(df, input_cols_dict, data_key, input_folder)
-        save_data_key(data_key, output_folder)
-
-    # Update progress - data transformation
-    tracker.update('Data transformation')
+        datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
+        save_datakey(datakey, output_folder)
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
-    df = _data_transformer(df, input_cols_dict, data_key)
+    tracker.update('Data transformation')
+
+    df = _data_transformer(df, input_cols_dict, datakey)
 
     if has_patient_name:
         patient_name_col = input_cols_dict['patientName']
 
-        # Create a new column `patientID` with data keys
-        name_to_pseudonym = {entry['Clientnaam']: entry['Code'] for entry in data_key}
+        # Create a new column `patientID` with datakeys
+        name_to_pseudonym = {entry['Clientnaam']: entry['Code'] for entry in datakey}
         df = df.with_columns(
             pl.col(patient_name_col)
             # Obtain randomized string corresponding to name
@@ -245,7 +207,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
             .alias('patientID'),
         )
 
-        # Replace [PATIENT] tags in `processed_report` with data keys
+        # Replace [PATIENT] tags in `processed_report` with datakeys
         df = df.with_columns(
             pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
         )
@@ -276,7 +238,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, data_key: s
     # Extract first 10 rows as JSON for return value
     processed_preview = df.head(10).to_dicts()
 
-    output_file = create_output_file_path(output_folder, input_fofi)
+    output_file = create_output_path(output_folder, input_fofi)
     save_data_file(df, output_file, output_extension)
 
     if output_extension == '.csv':
