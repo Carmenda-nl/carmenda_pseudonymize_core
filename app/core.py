@@ -65,8 +65,8 @@ def parse_cli_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--output_cols',
         nargs='?',
-        default='clientID=clientID, processed_report=processed_report',
-        help='Output column mappings as comma-separated key=value pairs. Maps to: clientID and processed_report.',
+        default='client_id=client_id, processed_report=processed_report',
+        help='Output column mappings as comma-separated key=value pairs. Maps to: client_id and processed_report.',
     )
     parser.add_argument(
         '--datakey',

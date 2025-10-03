@@ -193,7 +193,9 @@ def load_datakey(datakey_path: str) -> pl.DataFrame:
         return None
 
     df = pl.read_csv(datakey_path, separator=';', encoding=file_encoding, eol_char=line_ending)
-    return (df.with_columns(pl.col('Clientnaam').str.strip_chars()).filter(pl.col('Clientnaam') != ''))
+    df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
+
+    return (df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != ''))
 
 
 def save_datakey(datakey: pl.DataFrame, output_folder: str) -> None:
@@ -205,6 +207,7 @@ def save_datakey(datakey: pl.DataFrame, output_folder: str) -> None:
         output_path = Path(output_folder)
         output_path.mkdir(parents=True, exist_ok=True)
 
+        datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=';')
         logger.debug('Saving new datakey: %s\n%s\n', filename, datakey)
     except OSError:

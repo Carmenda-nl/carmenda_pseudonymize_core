@@ -23,18 +23,18 @@ from utils.logger import setup_logging
 logger = setup_logging()
 
 
-def _create_empty_datakey(names: pl.Series) -> pl.DataFrame:
-    """Create a DataFrame with empty Synonym and Code columns for given names."""
-    return pl.DataFrame({'Clientnaam': names, 'Synoniemen': [''] * len(names), 'Code': [''] * len(names)})
+def _create_new_entry(names: pl.Series) -> pl.DataFrame:
+    """Create an entry for missing names with empty synonym and code columns."""
+    return pl.DataFrame({'clientname': names, 'synonyms': [''] * len(names), 'code': [''] * len(names)})
 
 
 def _add_clientcodes(df: pl.DataFrame) -> pl.DataFrame:
     """Generate missing pseudonym codes for unique names."""
-    missing_codes = df.filter(pl.col('Code') == '').height
+    missing_codes = df.filter(pl.col('code') == '').height
     if missing_codes == 0:
         return df
 
-    existing_codes = df.filter(pl.col('Code') != '').get_column('Code')
+    existing_codes = df.filter(pl.col('code') != '').get_column('code')
 
     # Create a large random-code pool to select from.
     pool_size = missing_codes * 15
@@ -48,54 +48,48 @@ def _add_clientcodes(df: pl.DataFrame) -> pl.DataFrame:
         .head(missing_codes).with_row_index('temp_index')
     )
 
-    empty_rows = df.filter(pl.col('Code') == '')
-    filled_rows = df.filter(pl.col('Code') != '')
+    empty_rows = df.filter(pl.col('code') == '')
+    filled_rows = df.filter(pl.col('code') != '')
 
     apply_codes = (
         empty_rows.with_row_index('temp_index')
         .join(available_codes, on='temp_index', how='left')
-        .with_columns(pl.col('temp_code').alias('Code'))
+        .with_columns(pl.col('temp_code').alias('code'))
         .drop(['temp_index', 'temp_code'])
     )
 
     return pl.concat([filled_rows, apply_codes])
 
 
-def _get_existing_key(datakey_df: pl.DataFrame, df_missing_names: pl.Series | None = None) -> pl.DataFrame:
-    """Load existing datakey, add missing names and merge duplicates."""
-    datakey_df = datakey_df.with_columns(
-        [
-            # Ensure all clients have a synonym field and code field.
-            pl.col('Synoniemen').fill_null('').alias('Synoniemen'),
-            pl.col('Code').fill_null('').alias('Code'),
-        ],
-    )
-
-    if df_missing_names is not None:
-        missing_df = _create_empty_datakey(df_missing_names)
+def _check_existing_key(datakey_df: pl.DataFrame, missing_names_df: pl.Series | None = None) -> pl.DataFrame:
+    """Check existing datakey, add missing names and merge duplicates."""
+    if missing_names_df.is_empty():
+        logger.debug('No missing names found to add to datakey')
+    else:
+        missing_df = _create_new_entry(missing_names_df)
         datakey_df = pl.concat([datakey_df, missing_df])
 
     # Merge duplicate client names and combine their synonyms.
     return (
-        datakey_df.group_by('Clientnaam')
+        datakey_df.group_by('clientname')
         .agg(
             [
-                pl.col('Synoniemen').filter(pl.col('Synoniemen') != '').str.join(', ').alias('Synoniemen'),
-                pl.col('Code').filter(pl.col('Code') != '').first().alias('Code'),
+                pl.col('synonyms').filter(pl.col('synonyms') != '').str.join(', ').alias('synonyms'),
+                pl.col('code').filter(pl.col('code') != '').first().alias('code'),
             ],
         )
         .with_columns(
             [
-                pl.col('Synoniemen').fill_null('').alias('Synoniemen'),
-                pl.col('Code').fill_null('').alias('Code'),
+                pl.col('synonyms').fill_null('').alias('synonyms'),
+                pl.col('code').fill_null('').alias('code'),
             ],
         )
     )
 
 
-def process_datakey(df: pl.DataFrame,input_cols: dict, datakey_file: str | None, input_folder: str) -> pl.DataFrame:
+def process_datakey(df: pl.DataFrame, input_cols: dict, datakey_file: str | None, input_folder: str) -> pl.DataFrame:
     """Create a new datakey or update an existing one."""
-    df_unique_names = df[input_cols['clientname']].drop_nulls().unique()
+    unique_names_df = df[input_cols['clientname']].drop_nulls().unique()
 
     if datakey_file:
         datakey_path = Path(input_folder) / datakey_file
@@ -108,13 +102,13 @@ def process_datakey(df: pl.DataFrame,input_cols: dict, datakey_file: str | None,
                 logger.debug('%s\n', datakey_df)
 
                 # Collect unique missing names from patient column
-                key_unique_names = datakey_df.get_column('Clientnaam').drop_nulls().unique()
-                df_missing_names = df_unique_names.filter(~df_unique_names.is_in(key_unique_names.implode()))
+                key_unique_names = datakey_df.get_column('clientname').drop_nulls().unique()
+                missing_names_df = unique_names_df.filter(~unique_names_df.is_in(key_unique_names.implode()))
 
-                datakey_df = _get_existing_key(datakey_df, df_missing_names)
-                return _add_clientcodes(datakey_df).sort('Clientnaam')
+                datakey_df = _check_existing_key(datakey_df, missing_names_df)
+                return _add_clientcodes(datakey_df).sort('clientname')
 
-    logger.info('Creating a fresh new datakey')
-    datakey_df = _create_empty_datakey(df_unique_names)
+    logger.info('Datakey not provided. Creating a fresh new datakey')
+    datakey_df = _create_new_entry(unique_names_df)
 
-    return _add_clientcodes(datakey_df).sort('Clientnaam')
+    return _add_clientcodes(datakey_df).sort('clientname')
