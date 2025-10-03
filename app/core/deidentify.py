@@ -219,6 +219,20 @@ class DeidentifyHandler:
         self.lookup_sets = self._load_lookup_tables()
         self.name_detector = DutchNameDetector(self.lookup_sets)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def _load_lookup_tables(self) -> dict[str, set[str]]:
         """Load lookup tables based on the configured paths."""
         if self.lookup_data_path:
@@ -249,34 +263,23 @@ class DeidentifyHandler:
 
         return {attr: load_word_set(file_path) for attr, file_path in lookup_files.items()}
 
-    def replace_synonyms(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
-        """Replace all synonyms in the report text with their main names."""
-        synonym_df = (
-            datakey.with_columns(pl.col('synonyms').str.split(','))
-            .explode('synonyms')
-            .with_columns(pl.col('synonyms').str.strip_chars())
-            .filter(pl.col('synonyms') != '')
-            .select(
-                [
-                    pl.col('clientname'),
-                    pl.col('synonyms').alias('synonyms'),
-                ],
-            )
-        )
 
-        report_col = input_cols['report']
-        synonym_pairs = synonym_df.select(['synonyms', 'clientname']).rows()
 
-        replaced_synonyms = reduce(
-            lambda expr, pair: expr.str.replace_all(
-                r'\b' + re.escape(pair[0]) + r'\b',
-                pair[1],
-                literal=False,
-            ),
-            synonym_pairs,
-            pl.col(report_col),
-        )
-        return df.with_columns(replaced_synonyms)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def _client_object(self, clientname: str) -> Person:
         """Create a Person object from clientname string."""
@@ -298,6 +301,29 @@ class DeidentifyHandler:
         """Apply Deduce detection WITHOUT clientname."""
         result = self.deduce_instance.deidentify(report_text)
         return result.deidentified_text
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def _merge_detections(self, report_text: str, deduce_result: str, extend_result: list[NameAnnotation]) -> str:
         """Merge Deduce and custom detections."""
@@ -328,9 +354,63 @@ class DeidentifyHandler:
         pattern = r'\[PERSOON-\d+\]'
         return len(re.findall(pattern, text))
 
+
+
+
+    def debug_deidentify_text(self) -> None:
+        """Only show de-identification results if logger is in debug mode."""
+        logger.debug('Results for %d processed report rules:\n', self.total_processed)
+
+        for rule in self.processed_reports:
+            title = 'De-identification Report'
+            sections = {
+                'ORIGINAL': colorize_tags(rule['report_text']),
+                'DEDUCE': colorize_tags(rule['deduce_result']),
+                'EXTENDED': colorize_tags(rule['merge_results']),
+            }
+            log_block(title, sections)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def _process_report(self, report_text: str, clientname: str | None = None) -> str:
-        """Process a single report - centrale verwerkingsfunctie."""
+        """Process a single report with optional progress tracking."""
         try:
+            # Update progress counter if tracking is enabled
+            if hasattr(self, 'processed_count'):
+                self.processed_count += 1
+
+                # Update tracker every 100 rows to avoid overhead
+                if self.processed_count - self.last_update >= 100:
+                    progress = (self.processed_count / self.total_count) * 100
+                    tracker.update_with_percentage(
+                        'Data transformation',
+                        f'Processed {self.processed_count:,}/{self.total_count:,} rows',
+                        progress,
+                    )
+                    self.last_update = self.processed_count
+
             if clientname:
                 deduce_result = self._deduce_with_patient(report_text, clientname)
             else:
@@ -356,58 +436,6 @@ class DeidentifyHandler:
 
 
 
-
-
-
-
-
-
-
-
-
-
-    def _deduce_with_patient(self, report_text: str, clientname: str) -> str:
-        """Apply Deduce detection WITH clientname."""
-        patient = self._client_object(clientname)
-        result = self.deduce_instance.deidentify(report_text, metadata={'patient': patient})
-        return result.deidentified_text
-
-
-    def _deduce_without_patient(self, report_text: str) -> str:
-        """Apply Deduce detection WITHOUT clientname."""
-        result = self.deduce_instance.deidentify(report_text)
-        return result.deidentified_text
-
-
-
-
-
-
-
-    def _process_report(self, report_text: str, clientname: str | None = None) -> str:
-        """Process a single report."""
-        try:
-            if clientname:
-                deduce_result = self._deduce_with_patient(report_text, clientname)
-            else:
-                deduce_result = self._deduce_without_patient(report_text)
-
-            extend_result = self.name_detector.names_case_insensitive(report_text)
-            merged_result = self._merge_detections(report_text, deduce_result, extend_result)
-
-            if logger.level == logging.DEBUG:
-                self.total_processed += 1
-                self.processed_reports.append({
-                    'report_text': report_text,
-                    'deduce_result': deduce_result,
-                    'merge_results': merged_result,
-                })
-
-            return merged_result
-
-        except (KeyError, IndexError, AttributeError, ValueError, TypeError) as e:
-            logger.warning('Failed to process report: %s', e)
-            return ''
 
 
 
@@ -440,7 +468,7 @@ class DeidentifyHandler:
         total_rows = df.height
 
         logger.info('Processing %d rows with clientname=%s', total_rows, has_clientname)
-        
+
         # Initialize progress counter
         self.processed_count = 0
         self.total_count = total_rows
@@ -452,66 +480,60 @@ class DeidentifyHandler:
             processed_reports = df.select([
                 pl.struct([
                     pl.col(report_col).alias('report'),
-                    pl.col(clientname_col).alias('clientname')
+                    pl.col(clientname_col).alias('clientname'),
                 ])
                 .map_elements(
-                    lambda row: self._process_report_with_progress(row['report'], row['clientname']),
-                    return_dtype=pl.String
+                    lambda row: self._process_report(row['report'], row['clientname']),
+                    return_dtype=pl.String,
                 )
-                .alias('processed_report')
+                .alias('processed_report'),
             ])
         else:
             processed_reports = df.select([
                 pl.col(report_col)
                 .map_elements(
-                    lambda text: self._process_report_with_progress(text, clientname=None),
-                    return_dtype=pl.String
+                    lambda text: self._process_report(text, clientname=None),
+                    return_dtype=pl.String,
                 )
-                .alias('processed_report')
+                .alias('processed_report'),
             ])
 
         result = df.with_columns(processed_reports)
-        
+
         tracker.update('Data transformation', f'Completed {total_rows:,} rows')
-        
+
         # Debug: print all results with full text
-        print('\n--- ALLE PROCESSED REPORTS ---')
         with pl.Config(
             set_tbl_rows=-1,  # Show all rows
             set_fmt_str_lengths=1000,  # Show full string length (up to 1000 chars)
             set_tbl_width_chars=200,  # Wider table
         ):
             print(result.select(['processed_report']))
-        print('-------------------------------\n')
-        
+
         return result
 
-    def _process_report_with_progress(self, report_text: str, clientname: str | None = None) -> str:
-        """Process report with progress tracking."""
-        # Update progress counter
-        self.processed_count += 1
 
-        # Update tracker every 100 rows to avoid overhead
-        if self.processed_count - self.last_update >= 100:
-            progress = (self.processed_count / self.total_count) * 100
-            tracker.update_with_percentage(
-                'Data transformation',
-                f'Processed {self.processed_count:,}/{self.total_count:,} rows',
-                progress,
-            )
-            self.last_update = self.processed_count
 
-        return self._process_report(report_text, clientname)
 
-    def debug_deidentify_text(self) -> None:
-        """Only show de-identification results if logger is in debug mode."""
-        logger.debug('Results for %d processed report rules:\n', self.total_processed)
 
-        for rule in self.processed_reports:
-            title = 'De-identification Report'
-            sections = {
-                'ORIGINAL': colorize_tags(rule['report_text']),
-                'DEDUCE': colorize_tags(rule['deduce_result']),
-                'EXTENDED': colorize_tags(rule['merge_results']),
-            }
-            log_block(title, sections)
+
+def replace_synonyms(df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+    """Replace all synonyms in the report text with their main names."""
+    synonym_df = (
+        datakey.with_columns(pl.col('synonyms').str.split(','))
+        .explode('synonyms')
+        .with_columns(pl.col('synonyms').str.strip_chars())
+        .filter(pl.col('synonyms') != '')
+        .select([pl.col('clientname'),  pl.col('synonyms').alias('synonyms')])
+    )
+
+    report_col = input_cols['report']
+    synonym_pairs = synonym_df.select(['synonyms', 'clientname']).rows()
+
+    replaced_synonyms = reduce(
+        lambda expr, pair: expr.str.replace_all(r'\b' + re.escape(pair[0]) + r'\b', pair[1], literal=False),
+        synonym_pairs,
+        pl.col(report_col),
+    )
+
+    return df.with_columns(replaced_synonyms)
