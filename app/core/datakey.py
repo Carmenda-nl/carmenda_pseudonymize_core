@@ -93,9 +93,9 @@ def _get_existing_key(datakey_df: pl.DataFrame, df_missing_names: pl.Series | No
     )
 
 
-def process_datakey(df: pl.DataFrame, input_cols: dict, datakey_file: str, input_folder: str) -> pl.DataFrame:
+def process_datakey(df: pl.DataFrame,input_cols: dict, datakey_file: str | None, input_folder: str) -> pl.DataFrame:
     """Create a new datakey or update an existing one."""
-    df_unique_names = df[input_cols['patientName']].drop_nulls().unique()
+    df_unique_names = df[input_cols['clientname']].drop_nulls().unique()
 
     if datakey_file:
         datakey_path = Path(input_folder) / datakey_file

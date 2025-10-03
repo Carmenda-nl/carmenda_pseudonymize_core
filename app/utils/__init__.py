@@ -5,5 +5,5 @@
 
 """Utilities package.
 
-This package provides utility functions for pseudonymizing data.
+This package provides utility and helper functions for pseudonymizing data.
 """

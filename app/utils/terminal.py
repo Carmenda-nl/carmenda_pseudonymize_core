@@ -15,11 +15,11 @@ from utils.logger import setup_clean_logger
 
 
 def get_terminal_width() -> int:
-    """Get current terminal width."""
+    """Get current terminal width (defaults to 80)."""
     try:
         return os.get_terminal_size().columns
     except OSError:
-        return 80  # Default width if unable to detect
+        return 80
 
 
 def get_separator_line(char: str = '-', padding: int = 0) -> str:
@@ -52,7 +52,6 @@ def log_block(title: str, content: str | dict) -> None:
     logger = setup_clean_logger()
     width = get_terminal_width()
 
-    # Count log blocks (title)
     if not hasattr(log_block, 'counter'):
         log_block.counter = 0
     log_block.counter += 1
@@ -62,9 +61,7 @@ def log_block(title: str, content: str | dict) -> None:
     bottom_line = '└' + '─' * (width - 2) + '┘'
     separator_line = '├' + '─' * (width - 2) + '┤'
 
-    # Header box with automatic report numbering
     header_title = f'{title.upper()} {log_block.counter}'
-
     title_padding = (width - len(header_title) - 2) // 2  # Align title to center
     header = f'│{" " * title_padding}{header_title}{" " * (width - len(header_title) - title_padding - 2)}│'
 
@@ -76,7 +73,7 @@ def log_block(title: str, content: str | dict) -> None:
     # Log the content into box to terminal
     section_count = len(content)
 
-    for i, (section_name, text) in enumerate(content.items()):
+    for item, (section_name, text) in enumerate(content.items()):
         section_header = f'│  {section_name}:'
         section_header += ' ' * (width - len(section_header) - 1) + '│'
         logger.info(section_header)
@@ -91,8 +88,7 @@ def log_block(title: str, content: str | dict) -> None:
             content_line += ' ' * padding_needed + '│'
             logger.info(content_line)
 
-        # Empty line between sections (except after last section)
-        if i < section_count - 1:
+        if item < section_count - 1:
             empty_line = '│' + ' ' * (width - 2) + '│'
             logger.info(empty_line)
 
