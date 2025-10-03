@@ -32,7 +32,6 @@ class DeidentificationConfig(NamedTuple):
     input_cols: dict
     output_cols: dict
     datakey: dict
-    output_extension: str
 
 
 def _execute_deidentification(config: DeidentificationConfig, job: DeidentificationJob) -> None:
@@ -46,7 +45,6 @@ def _execute_deidentification(config: DeidentificationConfig, job: Deidentificat
             input_cols=config.input_cols,
             output_cols=config.output_cols,
             datakey=config.datakey,
-            output_extension=config.output_extension,
         )
 
         _save_processed_preview(job, processed_rows_json)
@@ -99,8 +97,6 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
     output_cols = _transform_output_cols(input_cols)
 
     input_file = Path(job.input_file.name).name
-    input_extension = Path(input_file).suffix.lower()
-    output_extension = input_extension if input_extension in ['.csv', '.parquet'] else '.csv'
     datakey = Path(job.key_file.name).name if job.key_file else None
 
     config = DeidentificationConfig(
@@ -108,7 +104,6 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
         input_cols=input_cols,
         output_cols=output_cols,
         datakey=datakey,
-        output_extension=output_extension,
     )
 
     return job, config, input_file

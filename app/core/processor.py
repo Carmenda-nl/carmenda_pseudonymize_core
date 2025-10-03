@@ -52,7 +52,7 @@ def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) 
     return df
 
 
-def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_extension: str, output_folder: str) -> pl.DataFrame:
+def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_folder: str) -> pl.DataFrame:
     """Filter out rows with null values in reports column and save them separately."""
     report_col = input_cols['report']
 
@@ -71,7 +71,7 @@ def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_extension: str,
 
             logger.info('Attempting to write dataframe of rows with nulls to file.')
             output_file = create_output_path(output_folder, 'processed_with_nulls')
-            save_data_file(df_with_nulls, output_file, output_extension)
+            save_data_file(df_with_nulls, output_file)
 
         except (OSError, PermissionError, ValueError):
             logger.exception('Problematic rows detected. Continuing with valid rows.')
@@ -103,7 +103,7 @@ def _performance_metrics(start_time: float, df_rowcount: int) -> None:
 
 
 
-def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str, output_extension: str) -> str:
+def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
     """Process and pseudonymize data from input files and return in Json."""
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
@@ -193,7 +193,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    # df = _filter_null_rows(df, input_cols_dict, output_extension, output_folder)
+    # df = _filter_null_rows(df, input_cols_dict, output_folder)
 
     # # Only show example to terminal when NOT running as a frozen executable
     # if not getattr(sys, 'frozen', False):
@@ -204,16 +204,11 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
 
-    # # Extract first 10 rows as JSON for return value
+    # Extract first 10 rows as JSON for return value
     # processed_preview = df.head(10).to_dicts()
 
     # output_file = create_output_path(output_folder, input_file)
-    # save_data_file(df, output_file, output_extension)
-
-    # if output_extension == '.csv':
-    #     logger.info('Selected output extension is .csv\n')
-    # elif output_extension != '.parquet':
-    #     logger.warning('Selected output extension not supported, using parquet.\n')
+    # save_data_file(df, output_file)
 
     # # Log performance and finalize
     # _performance_metrics(start_time, df.height)

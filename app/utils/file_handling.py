@@ -154,19 +154,13 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
     return None
 
 
-def save_data_file(df: pl.DataFrame, file_path: str, output_extension: str = '.csv') -> None:
+def save_data_file(df: pl.DataFrame, file_path: str) -> None:
     """Save DataFrame to file in specified format."""
     output_path = Path(file_path).parent
     output_path.mkdir(parents=True, exist_ok=True)
-    supported_formats = ['.csv', '.parquet']
 
     try:
-        if output_extension == '.csv':
-            df.write_csv(f'{file_path}.csv')
-        elif output_extension == '.parquet':
-            df.write_parquet(f'{file_path}.parquet')
-        else:
-            logger.exception('Unsupported output format: %s. Supported: %s', output_extension, supported_formats)
+        df.write_csv(f'{file_path}.csv')
     except (OSError, PermissionError) as error:
         error_msg = str(error).replace('\n', ' ').replace('\r', ' ')
         logger.exception('Cannot write file "%s": %s', file_path, error_msg)
