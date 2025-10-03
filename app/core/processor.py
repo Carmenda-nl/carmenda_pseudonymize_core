@@ -23,10 +23,10 @@ import time
 import polars as pl
 
 from core.datakey import process_datakey
-from core.deidentify import DeidentifyHandler
+from core.deidentify import DeidentifyHandler, replace_synonyms
 from utils.file_handling import create_output_path, get_environment, load_data_file, save_data_file, save_datakey
 from utils.logger import setup_logging
-from utils.progress_tracker import tracker
+from utils.progress_tracker import tracker, performance_metrics
 
 DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
@@ -88,14 +88,7 @@ def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_folder: str) ->
     return df
 
 
-def _performance_metrics(start_time: float, df_rowcount: int) -> None:
-    """Log performance metrics for the processing operation."""
-    end_time = time.time()
-    total_time = end_time - start_time
-    time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
 
-    logger.info('Time passed with a total of %d rows', df_rowcount)
-    logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
 
@@ -162,7 +155,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     tracker.update('Data transformation')
 
     if has_clientname:
-        df = handler.replace_synonyms(df, datakey, input_cols_dict)
+        df = replace_synonyms(df, datakey, input_cols_dict)
 
     df = handler.deidentify_text(input_cols_dict, df, datakey)
 
@@ -202,20 +195,13 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     # # Update progress - writing output
     # tracker.update('Writing output')
 
-    # # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
+    # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
+
+    performance_metrics(start_time, df.height)
+    tracker.update('Finalizing')
+
+    output_file = create_output_path(output_folder, input_file)
+    save_data_file(df, output_file)
 
     # Extract first 10 rows as JSON for return value
-    # processed_preview = df.head(10).to_dicts()
-
-    # output_file = create_output_path(output_folder, input_file)
-    # save_data_file(df, output_file)
-
-    # # Log performance and finalize
-    # _performance_metrics(start_time, df.height)
-
-    # # Update progress - finalizing
-    # tracker.update('Finalizing')
-
-    # result = {'data': processed_preview}
-    # return json.dumps(result)
-    return
+    return json.dumps({'data': df.head(10).to_dicts()})

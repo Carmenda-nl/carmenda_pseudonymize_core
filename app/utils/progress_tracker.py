@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 
 from utils.logger import setup_logging, setup_progress_logger
 
@@ -166,3 +167,13 @@ class ProgressTracker:
 
 # Singleton instance (only one instance needed)
 tracker = ProgressTracker()
+
+
+def performance_metrics(start_time: float, df_rowcount: int) -> None:
+    """Log performance metrics in time needed for processing."""
+    end_time = time.time()
+    total_time = end_time - start_time
+    time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
+
+    logger.info('Time passed with a total of %d rows', df_rowcount)
+    logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)

@@ -43,16 +43,6 @@ def get_environment() -> tuple[str, str]:
     return input_folder, output_folder
 
 
-def create_output_path(output_folder: str, input_filename: str, suffix: str = '') -> str:
-    """Create output file path based on input filename."""
-    input_path = Path(input_filename)
-    base_name = input_path.stem
-
-    if suffix:
-        base_name = f'{base_name}{suffix}'
-    return str(Path(output_folder) / base_name)
-
-
 def _check_encoding(input_file: str) -> tuple[str, str]:
     """Determine the encoding and line ending of a file."""
     file_path = Path(input_file)
@@ -129,6 +119,8 @@ def _check_file_header(input_file: str) -> tuple[str, str]:
     return best_separator, encoding
 
 
+
+
 def load_data_file(input_file_path: str) -> pl.DataFrame | None:
     """Check data file availability and log relevant information."""
     if Path(input_file_path).is_file():
@@ -154,27 +146,19 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
     return None
 
 
-def save_data_file(df: pl.DataFrame, file_path: str) -> None:
-    """Save DataFrame to file in specified format."""
-    output_path = Path(file_path).parent
-    output_path.mkdir(parents=True, exist_ok=True)
+
+
+
+
+def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
+    """Save processed DataFrame to file in the specified output folder."""
+    filename = Path(filename).stem
+    file_path = Path(output_folder) / filename
 
     try:
         df.write_csv(f'{file_path}.csv')
-    except (OSError, PermissionError) as error:
-        error_msg = str(error).replace('\n', ' ').replace('\r', ' ')
-        logger.exception('Cannot write file "%s": %s', file_path, error_msg)
-
-
-
-
-
-
-
-
-
-
-
+    except OSError:
+        logger.warning('Cannot write %s to "%s".', filename, file_path)
 
 
 def load_datakey(datakey_path: str) -> pl.DataFrame:
@@ -189,7 +173,7 @@ def load_datakey(datakey_path: str) -> pl.DataFrame:
     df = pl.read_csv(datakey_path, separator=';', encoding=file_encoding, eol_char=line_ending)
     df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
 
-    return (df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != ''))
+    return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 
 def save_datakey(datakey: pl.DataFrame, output_folder: str) -> None:
