@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import argparse
 
-from core.data_processor import process_data
+from core.processor import process_data
 from utils.logger import setup_logging
 
 

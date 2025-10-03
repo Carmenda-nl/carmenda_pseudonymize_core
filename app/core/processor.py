@@ -23,15 +23,13 @@ import time
 import polars as pl
 
 from core.datakey import process_datakey
-from core.deidentify_handler import DeidentifyHandler
+from core.deidentify import DeidentifyHandler
 from utils.file_handling import create_output_path, get_environment, load_data_file, save_data_file, save_datakey
 from utils.logger import setup_logging
 from utils.progress_tracker import tracker
 
 DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
-
-handler = DeidentifyHandler()
 
 
 def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
@@ -90,53 +88,6 @@ def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_extension: str,
     return df
 
 
-def _data_transformer(df: pl.DataFrame, input_cols: dict, datakey: DataKey) -> pl.DataFrame:
-    """Process to de-identify text in the report column."""
-    deidentify = handler.deidentify_text(input_cols, datakey)
-
-    # Extract the report column as a list for processing
-    report_col = input_cols['report']
-
-    if report_col not in df.columns:
-        tracker.update('Data transformation', 'Text deidentification skipped (no report column)')
-        result_df = df.with_columns(pl.lit('').alias('processed_report'))
-    else:
-        total_rows = df.height
-        tracker.update('Data transformation', f'Extracting data from {total_rows:,} rows')
-
-        reports = df.select(report_col).to_series().to_list()
-        other_cols = [col for col in df.columns if col != report_col]
-
-        if other_cols:
-            other_data = df.select(other_cols).to_dicts()
-            batch_data = [{**row, report_col: report} for row, report in zip(other_data, reports)]
-        else:
-            batch_data = [{report_col: report} for report in reports]
-
-        tracker.update('Data transformation', f'Processing text in {total_rows:,} rows')
-
-        # Process texts with progress tracking
-        processed_texts = []
-
-        for data_row, row_dict in enumerate(batch_data):
-            processed_text = deidentify(row_dict)
-            processed_texts.append(processed_text)
-
-            # Update progress every 1000 rows
-            if data_row % 1000 == 0 and data_row > 0:
-                step_progress = (data_row / total_rows) * 100
-                tracker.update_with_percentage(
-                    'Data transformation',
-                    f'Processed {data_row:,}/{total_rows:,} rows',
-                    step_progress,
-                )
-
-        tracker.update('Data transformation', 'Creating processed DataFrame')
-        result_df = df.with_columns(pl.Series('processed_report', processed_texts))
-
-    return result_df
-
-
 def _performance_metrics(start_time: float, df_rowcount: int) -> None:
     """Log performance metrics for the processing operation."""
     end_time = time.time()
@@ -147,8 +98,13 @@ def _performance_metrics(start_time: float, df_rowcount: int) -> None:
     logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
 
 
-def process_data(input_fofi: str, input_cols: str, output_cols: str, datakey: str, output_extension: str) -> str:
-    """Process and pseudonymize patient data from input files and return in Json."""
+
+
+
+
+
+def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str, output_extension: str) -> str:
+    """Process and pseudonymize data from input files and return in Json."""
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
     logger.debug('Parsed arguments:\n%s\n', params_str)
@@ -160,7 +116,7 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, datakey: st
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
-    input_file_path = f'{input_folder}/{input_fofi}' if not input_fofi.startswith('/') else input_fofi
+    input_file_path = f'{input_folder}/{input_file}' if not input_file.startswith('/') else input_file
     df = load_data_file(input_file_path)
 
     if df is not None:
@@ -170,9 +126,13 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, datakey: st
         input_cols_dict = dict(item.strip().split('=') for item in input_cols.split(','))
         output_cols_dict = dict(item.strip().split('=') for item in output_cols.split(','))
 
-        # Check if the `patientName` column is available
-        patient_name_col = input_cols_dict.get('patientName')
-        has_patient_name = patient_name_col in df.columns
+        # Check if the `clientname` column is available
+        clientname_col = input_cols_dict.get('clientname')
+        has_clientname = clientname_col in df.columns
+
+        # Check if the `report` column is available
+        report_col = input_cols_dict.get('report')
+        has_report = report_col in df.columns
 
         start_time = time.time()
     else:
@@ -180,77 +140,87 @@ def process_data(input_fofi: str, input_cols: str, output_cols: str, datakey: st
         logger.error(msg)
         return json.dumps({'error': msg})
 
+    if not has_report:
+        msg = f'Report column "{report_col}" not found in input data.'
+        logger.error(msg)
+        return json.dumps({'error': msg})
+
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
-    if has_patient_name:
-        # Strip whitespace from patient names
-        df = df.with_columns(pl.col(patient_name_col).str.strip_chars())
+    if has_clientname:
+        # Strip whitespace from clientnames
+        df = df.with_columns(pl.col(clientname_col).str.strip_chars())
 
         datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
         save_datakey(datakey, output_folder)
+    else:
+        logger.info('Clientname not provided, skipping datakey creation.\n')
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
+    handler = DeidentifyHandler()
     tracker.update('Data transformation')
 
-    df = _data_transformer(df, input_cols_dict, datakey)
+    if has_clientname:
+        df = handler.replace_synonyms(df, datakey, input_cols_dict)
 
-    if has_patient_name:
-        patient_name_col = input_cols_dict['patientName']
+    df = handler.deidentify_text(input_cols_dict, df, datakey)
 
-        # Create a new column `patientID` with datakeys
-        name_to_pseudonym = {entry['Clientnaam']: entry['Code'] for entry in datakey}
-        df = df.with_columns(
-            pl.col(patient_name_col)
-            # Obtain randomized string corresponding to name
-            .replace_strict(name_to_pseudonym, default=None)
-            .alias('patientID'),
-        )
+    # if has_patient_name:
+    #     # Create a new column `patientID` with datakeys
+    #     name_to_pseudonym = {entry['Clientnaam']: entry['Code'] for entry in datakey}
+    #     df = df.with_columns(
+    #         pl.col(patient_name_col)
+    #         # Obtain randomized string corresponding to name
+    #         .replace_strict(name_to_pseudonym, default=None)
+    #         .alias('patientID'),
+    #     )
 
-        # Replace [PATIENT] tags in `processed_report` with datakeys
-        df = df.with_columns(
-            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
-        )
+    #     # Replace [PATIENT] tags in `processed_report` with datakeys
+    #     df = df.with_columns(
+    #         pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
+    #     )
 
-    # Prepare output data
-    df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
+    # # Prepare output data
+    # df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
 
     # Show pseudonymized reports in debug mode and when NOT running as a frozen executable
-    if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
-        handler.debug_deidentify_text()
+    # if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
+    #     handler.debug_deidentify_text()
 
-    # Update progress - filtering nulls
-    tracker.update('Filtering nulls')
+    # # Update progress - filtering nulls
+    # tracker.update('Filtering nulls')
 
-    # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
+    # # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
 
-    df = _filter_null_rows(df, input_cols_dict, output_extension, output_folder)
+    # df = _filter_null_rows(df, input_cols_dict, output_extension, output_folder)
 
-    # Only show example to terminal when NOT running as a frozen executable
-    if not getattr(sys, 'frozen', False):
-        sys.stdout.write(f'\n{df}\n')
+    # # Only show example to terminal when NOT running as a frozen executable
+    # if not getattr(sys, 'frozen', False):
+    #     sys.stdout.write(f'\n{df}\n')
 
-    # Update progress - writing output
-    tracker.update('Writing output')
+    # # Update progress - writing output
+    # tracker.update('Writing output')
 
-    # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
+    # # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
 
-    # Extract first 10 rows as JSON for return value
-    processed_preview = df.head(10).to_dicts()
+    # # Extract first 10 rows as JSON for return value
+    # processed_preview = df.head(10).to_dicts()
 
-    output_file = create_output_path(output_folder, input_fofi)
-    save_data_file(df, output_file, output_extension)
+    # output_file = create_output_path(output_folder, input_file)
+    # save_data_file(df, output_file, output_extension)
 
-    if output_extension == '.csv':
-        logger.info('Selected output extension is .csv\n')
-    elif output_extension != '.parquet':
-        logger.warning('Selected output extension not supported, using parquet.\n')
+    # if output_extension == '.csv':
+    #     logger.info('Selected output extension is .csv\n')
+    # elif output_extension != '.parquet':
+    #     logger.warning('Selected output extension not supported, using parquet.\n')
 
-    # Log performance and finalize
-    _performance_metrics(start_time, df.height)
+    # # Log performance and finalize
+    # _performance_metrics(start_time, df.height)
 
-    # Update progress - finalizing
-    tracker.update('Finalizing')
+    # # Update progress - finalizing
+    # tracker.update('Finalizing')
 
-    result = {'data': processed_preview}
-    return json.dumps(result)
+    # result = {'data': processed_preview}
+    # return json.dumps(result)
+    return

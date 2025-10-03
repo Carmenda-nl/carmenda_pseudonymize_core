@@ -38,7 +38,7 @@ class DeidentificationConfig(NamedTuple):
 def _execute_deidentification(config: DeidentificationConfig, job: DeidentificationJob) -> None:
     """Execute a deidentification job."""
     try:
-        from core.data_processor import process_data  # noqa: PLC0415 (Initialize core only when needed)
+        from core.processor import process_data  # noqa: PLC0415 (Initialize core only when needed)
 
         # Call the core's deidentification process (data processor)
         processed_rows_json = process_data(

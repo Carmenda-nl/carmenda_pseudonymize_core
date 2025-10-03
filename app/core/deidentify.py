@@ -23,18 +23,17 @@ import sys
 import tempfile
 import time
 from datetime import datetime
+from functools import reduce
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
 
 import deduce
+import polars as pl
 from deduce.person import Person
 
 from core.name_detector import DutchNameDetector, NameAnnotation
 from utils.logger import setup_logging
+from utils.progress_tracker import tracker
 from utils.terminal import colorize_tags, log_block
-
-if TYPE_CHECKING:
-    from docdeid.document import Document
 
 DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
@@ -250,107 +249,72 @@ class DeidentifyHandler:
 
         return {attr: load_word_set(file_path) for attr, file_path in lookup_files.items()}
 
-    def _get_datakey_synonyms(self, text: str, datakey: DataKey) -> str:
-        """Replace all (comma-separated) synonyms with their main names in text."""
-        result_text = text
+    def replace_synonyms(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+        """Replace all synonyms in the report text with their main names."""
+        synonym_df = (
+            datakey.with_columns(pl.col('synonyms').str.split(','))
+            .explode('synonyms')
+            .with_columns(pl.col('synonyms').str.strip_chars())
+            .filter(pl.col('synonyms') != '')
+            .select(
+                [
+                    pl.col('clientname'),
+                    pl.col('synonyms').alias('synonyms'),
+                ],
+            )
+        )
 
-        for entry in datakey:
-            client_name = entry.get('Clientnaam')
-            synonym_field = entry.get('Synoniemen')
+        report_col = input_cols['report']
+        synonym_pairs = synonym_df.select(['synonyms', 'clientname']).rows()
 
-            # Split on comma
-            synonyms = [name.strip() for name in synonym_field.split(',') if name.strip()]
+        replaced_synonyms = reduce(
+            lambda expr, pair: expr.str.replace_all(
+                r'\b' + re.escape(pair[0]) + r'\b',
+                pair[1],
+                literal=False,
+            ),
+            synonym_pairs,
+            pl.col(report_col),
+        )
+        return df.with_columns(replaced_synonyms)
 
-            for synonym in synonyms:
-                # `\b` will match the word, but not the surrounding text
-                pattern = r'\b' + re.escape(synonym) + r'\b'
-                result_text = re.sub(pattern, client_name, result_text)
+    def _client_object(self, clientname: str) -> Person:
+        """Create a Person object from clientname string."""
+        name_parts = clientname.split(' ', maxsplit=1)
+        client_initials = ''.join([name[0] for name in name_parts])
 
-        return result_text
+        if len(name_parts) == 1:
+            return Person(first_names=[name_parts[0]])
 
-    def deidentify_text(self, input_cols: dict, datakey: DataKey | None = None) -> Callable[[dict], str]:
-        """De-identify report text with or without patient name column."""
+        return Person(first_names=[name_parts[0]], surname=name_parts[1], initials=client_initials)
 
-        def inner_func(row: dict) -> str:
-            try:
-                report_text = row[input_cols['report']]
+    def _deduce_with_patient(self, report_text: str, clientname: str) -> str:
+        """Apply Deduce detection WITH clientname."""
+        patient = self._client_object(clientname)
+        result = self.deduce_instance.deidentify(report_text, metadata={'patient': patient})
+        return result.deidentified_text
 
-                # Synonyms to main names for consistent detection
-                if datakey:
-                    report_text = self._get_datakey_synonyms(report_text, datakey)
-
-                # Process 1: Apply Deduce detection
-                deduce_result = self._deduce_detector(row, input_cols, report_text)
-
-                # Process 2: Apply extended custom name detection
-                extend_result = self.name_detector.names_case_insensitive(report_text)
-
-                # Process 3: Merge results of process 1 and 2
-                merged_result = self._merge_detections(report_text, deduce_result.deidentified_text, extend_result)
-
-                # Optional process: Collect debug data if needed
-                if logger.level == logging.DEBUG:
-                    self.total_processed += 1
-                    self.processed_reports.append(
-                        {
-                            'report_text': report_text,
-                            'deduce_result': deduce_result.deidentified_text,
-                            'merge_results': merged_result,
-                        },
-                    )
-            except (KeyError, IndexError, AttributeError, ValueError, TypeError):
-                return ''  # No error log as null rows will be collected later
-            else:
-                return merged_result
-
-        return inner_func
-
-    def _deduce_detector(self, row: dict, input_cols: dict, report_text: str) -> Document:
-        """Apply Deduce detection with or without patient context."""
-        if 'patientName' in input_cols:
-            patient = self._patient_object(row[input_cols['patientName']])
-            return self.deduce_instance.deidentify(report_text, metadata={'patient': patient})
-
-        return self.deduce_instance.deidentify(report_text)
-
-    def _patient_object(self, patient_name_str: str) -> Person:
-        """Create a Person object from patient name string."""
-        patient_name = patient_name_str.split(' ', maxsplit=1)
-        patient_initials = ''.join([name[0] for name in patient_name])
-
-        if len(patient_name) == 1:
-            return Person(first_names=[patient_name[0]])
-
-        return Person(first_names=[patient_name[0]], surname=patient_name[1], initials=patient_initials)
+    def _deduce_without_patient(self, report_text: str) -> str:
+        """Apply Deduce detection WITHOUT clientname."""
+        result = self.deduce_instance.deidentify(report_text)
+        return result.deidentified_text
 
     def _merge_detections(self, report_text: str, deduce_result: str, extend_result: list[NameAnnotation]) -> str:
         """Merge Deduce and custom detections."""
         result_text = deduce_result
-
-        # Find positions of `process 1` missed names that `process 2` detector found
         missed_detections = []
 
         for detection in extend_result:
-            # Check if this position was already handled by Deduce
             original_segment = report_text[detection.start : detection.end]
-
-            # If the text in first result still contains the original name
-            # (meaning Deduce didn't detect it), we should replace it
             if original_segment.lower() in result_text.lower():
                 missed_detections.append(detection)
 
-        # Replace missed names with [PERSON-X] tags
         person_counter = self._count_existing_tags(result_text) + 1
 
         for detection in sorted(missed_detections, key=lambda x: x.start):
-            # Find the name in the current result text
             name_to_replace = report_text[detection.start : detection.end]
-
-            # Case-insensitive search and replace
             pattern = re.escape(name_to_replace)
             replacement = f'[PERSOON-{person_counter}]'
-
-            # Replace first occurrence
             new_text = re.sub(pattern, replacement, result_text, count=1, flags=re.IGNORECASE)
 
             if new_text != result_text:
@@ -363,6 +327,181 @@ class DeidentifyHandler:
         """Count existing [PERSON-X] tags in text."""
         pattern = r'\[PERSOON-\d+\]'
         return len(re.findall(pattern, text))
+
+    def _process_report(self, report_text: str, clientname: str | None = None) -> str:
+        """Process a single report - centrale verwerkingsfunctie."""
+        try:
+            if clientname:
+                deduce_result = self._deduce_with_patient(report_text, clientname)
+            else:
+                deduce_result = self._deduce_without_patient(report_text)
+
+            extend_result = self.name_detector.names_case_insensitive(report_text)
+            merged_result = self._merge_detections(report_text, deduce_result, extend_result)
+
+            if logger.level == logging.DEBUG:
+                self.total_processed += 1
+                self.processed_reports.append({
+                    'report_text': report_text,
+                    'deduce_result': deduce_result,
+                    'merge_results': merged_result,
+                })
+
+            return merged_result
+
+        except (KeyError, IndexError, AttributeError, ValueError, TypeError) as e:
+            logger.warning('Failed to process report: %s', e)
+            return ''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def _deduce_with_patient(self, report_text: str, clientname: str) -> str:
+        """Apply Deduce detection WITH clientname."""
+        patient = self._client_object(clientname)
+        result = self.deduce_instance.deidentify(report_text, metadata={'patient': patient})
+        return result.deidentified_text
+
+
+    def _deduce_without_patient(self, report_text: str) -> str:
+        """Apply Deduce detection WITHOUT clientname."""
+        result = self.deduce_instance.deidentify(report_text)
+        return result.deidentified_text
+
+
+
+
+
+
+
+    def _process_report(self, report_text: str, clientname: str | None = None) -> str:
+        """Process a single report."""
+        try:
+            if clientname:
+                deduce_result = self._deduce_with_patient(report_text, clientname)
+            else:
+                deduce_result = self._deduce_without_patient(report_text)
+
+            extend_result = self.name_detector.names_case_insensitive(report_text)
+            merged_result = self._merge_detections(report_text, deduce_result, extend_result)
+
+            if logger.level == logging.DEBUG:
+                self.total_processed += 1
+                self.processed_reports.append({
+                    'report_text': report_text,
+                    'deduce_result': deduce_result,
+                    'merge_results': merged_result,
+                })
+
+            return merged_result
+
+        except (KeyError, IndexError, AttributeError, ValueError, TypeError) as e:
+            logger.warning('Failed to process report: %s', e)
+            return ''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def deidentify_text(self, input_cols: dict, df: pl.DataFrame, datakey: pl.DataFrame) -> pl.DataFrame:
+        """De-identify report text with or without patient name column."""
+        report_col = input_cols['report']
+        has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
+        total_rows = df.height
+
+        logger.info('Processing %d rows with clientname=%s', total_rows, has_clientname)
+        
+        # Initialize progress counter
+        self.processed_count = 0
+        self.total_count = total_rows
+        self.last_update = 0
+
+        if has_clientname:
+            clientname_col = input_cols['clientname']
+
+            processed_reports = df.select([
+                pl.struct([
+                    pl.col(report_col).alias('report'),
+                    pl.col(clientname_col).alias('clientname')
+                ])
+                .map_elements(
+                    lambda row: self._process_report_with_progress(row['report'], row['clientname']),
+                    return_dtype=pl.String
+                )
+                .alias('processed_report')
+            ])
+        else:
+            processed_reports = df.select([
+                pl.col(report_col)
+                .map_elements(
+                    lambda text: self._process_report_with_progress(text, clientname=None),
+                    return_dtype=pl.String
+                )
+                .alias('processed_report')
+            ])
+
+        result = df.with_columns(processed_reports)
+        
+        tracker.update('Data transformation', f'Completed {total_rows:,} rows')
+        
+        # Debug: print all results with full text
+        print('\n--- ALLE PROCESSED REPORTS ---')
+        with pl.Config(
+            set_tbl_rows=-1,  # Show all rows
+            set_fmt_str_lengths=1000,  # Show full string length (up to 1000 chars)
+            set_tbl_width_chars=200,  # Wider table
+        ):
+            print(result.select(['processed_report']))
+        print('-------------------------------\n')
+        
+        return result
+
+    def _process_report_with_progress(self, report_text: str, clientname: str | None = None) -> str:
+        """Process report with progress tracking."""
+        # Update progress counter
+        self.processed_count += 1
+
+        # Update tracker every 100 rows to avoid overhead
+        if self.processed_count - self.last_update >= 100:
+            progress = (self.processed_count / self.total_count) * 100
+            tracker.update_with_percentage(
+                'Data transformation',
+                f'Processed {self.processed_count:,}/{self.total_count:,} rows',
+                progress,
+            )
+            self.last_update = self.processed_count
+
+        return self._process_report(report_text, clientname)
 
     def debug_deidentify_text(self) -> None:
         """Only show de-identification results if logger is in debug mode."""

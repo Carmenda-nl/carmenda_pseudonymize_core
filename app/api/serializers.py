@@ -102,6 +102,7 @@ class JobStatusSerializer(serializers.ModelSerializer):
     """
 
     progress = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
 
     class Meta:
         """Set model and field specifications for the serializer."""
@@ -110,5 +111,18 @@ class JobStatusSerializer(serializers.ModelSerializer):
         fields: ClassVar = ['status', 'progress', 'error_message']
 
     def get_progress(self, _obj: DeidentificationJob) -> int:
-        """Get the current progress value from the global tracker."""
-        return tracker.get_progress()
+        """Get the current progress percentage from the global tracker."""
+        progress_info = tracker.get_progress()
+        return progress_info['percentage']
+    
+    def get_status(self, obj: DeidentificationJob) -> str:
+        """Get the combined status and stage information."""
+        progress_info = tracker.get_progress()
+        stage = progress_info['stage']
+        
+        # If we have detailed stage info, use that
+        if stage:
+            return stage
+        
+        # Otherwise fall back to the model's status
+        return obj.status

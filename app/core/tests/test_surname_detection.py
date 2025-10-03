@@ -12,7 +12,7 @@ For complete results, run with arguments.
 import sys
 from pathlib import Path
 
-from core.deidentify_handler import DeidentifyHandler
+from core.deidentify import DeidentifyHandler
 from utils.logger import setup_test_logging
 from utils.terminal import get_separator_line
 
