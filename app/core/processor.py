@@ -24,7 +24,7 @@ import polars as pl
 
 from core.datakey import process_datakey
 from core.deidentify import DeidentifyHandler, replace_synonyms
-from utils.file_handling import create_output_path, get_environment, load_data_file, save_data_file, save_datakey
+from utils.file_handling import get_environment, load_data_file, save_datafile, save_datakey
 from utils.logger import setup_logging
 from utils.progress_tracker import tracker, performance_metrics
 
@@ -50,48 +50,6 @@ def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) 
         df = df.rename(rename_headers)
 
     return df
-
-
-def _filter_null_rows(df: pl.DataFrame, input_cols: dict, output_folder: str) -> pl.DataFrame:
-    """Filter out rows with null values in reports column and save them separately."""
-    report_col = input_cols['report']
-
-    # Only filter on report column
-    filter_condition = pl.col(report_col).is_null()
-    logger.info('Filtering rows with NULL only in report column: %s', report_col)
-
-    # Collecting rows with problems
-    df_with_nulls = df.filter(filter_condition)
-
-    # If null rows found, collect rows and build file
-    if not df_with_nulls.is_empty():
-        try:
-            logger.warning('Number of rows with problems in report column: %d\n', df_with_nulls.height)
-            logger.debug('%s\n', df_with_nulls)
-
-            logger.info('Attempting to write dataframe of rows with nulls to file.')
-            output_file = create_output_path(output_folder, 'processed_with_nulls')
-            save_data_file(df_with_nulls, output_file)
-
-        except (OSError, PermissionError, ValueError):
-            logger.exception('Problematic rows detected. Continuing with valid rows.')
-
-        # Cleanup the problematic rows and keep the good ones
-        if 'df_with_nulls' in locals():
-            del df_with_nulls
-
-        df = df.filter(~filter_condition)
-        logger.info('Remaining rows after filtering rows with empty values: %d', df.height)
-    else:
-        logger.info('No problematic rows found!')
-
-    return df
-
-
-
-
-
-
 
 
 
@@ -181,27 +139,11 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     # if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
     #     handler.debug_deidentify_text()
 
-    # # Update progress - filtering nulls
-    # tracker.update('Filtering nulls')
-
-    # # ---------------------------- STEP 4: FILTERING NULLS ---------------------------- #
-
-    # df = _filter_null_rows(df, input_cols_dict, output_folder)
-
-    # # Only show example to terminal when NOT running as a frozen executable
-    # if not getattr(sys, 'frozen', False):
-    #     sys.stdout.write(f'\n{df}\n')
-
-    # # Update progress - writing output
-    # tracker.update('Writing output')
-
-    # ----------------------------- STEP 5: WRITE OUTPUT ------------------------------ #
+    # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
     performance_metrics(start_time, df.height)
     tracker.update('Finalizing')
-
-    output_file = create_output_path(output_folder, input_file)
-    save_data_file(df, output_file)
+    save_datafile(df, input_file, output_folder)
 
     # Extract first 10 rows as JSON for return value
     return json.dumps({'data': df.head(10).to_dicts()})
