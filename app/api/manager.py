@@ -28,7 +28,7 @@ logger = setup_logging()
 class DeidentificationConfig(NamedTuple):
     """Configuration for deidentification processing."""
 
-    input_fofi: str
+    input_file: str
     input_cols: dict
     output_cols: dict
     datakey: dict
@@ -42,7 +42,7 @@ def _execute_deidentification(config: DeidentificationConfig, job: Deidentificat
 
         # Call the core's deidentification process (data processor)
         processed_rows_json = process_data(
-            input_fofi=config.input_fofi,
+            input_file=config.input_file,
             input_cols=config.input_cols,
             output_cols=config.output_cols,
             datakey=config.datakey,
@@ -52,7 +52,7 @@ def _execute_deidentification(config: DeidentificationConfig, job: Deidentificat
         _save_processed_preview(job, processed_rows_json)
 
         # Collect output files and update job model
-        files_to_zip, output_filename = _collect_output_files(job, config.input_fofi)
+        files_to_zip, output_filename = _collect_output_files(job, config.input_file)
         _create_and_store_zip(job, files_to_zip, output_filename)
 
         # If no errors, update job to 'completed'
@@ -98,20 +98,20 @@ def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, Deide
     input_cols = job.input_cols
     output_cols = _transform_output_cols(input_cols)
 
-    input_fofi = Path(job.input_file.name).name
-    input_extension = Path(input_fofi).suffix.lower()
+    input_file = Path(job.input_file.name).name
+    input_extension = Path(input_file).suffix.lower()
     output_extension = input_extension if input_extension in ['.csv', '.parquet'] else '.csv'
     datakey = Path(job.key_file.name).name if job.key_file else None
 
     config = DeidentificationConfig(
-        input_fofi=input_fofi,
+        input_file=input_file,
         input_cols=input_cols,
         output_cols=output_cols,
         datakey=datakey,
         output_extension=output_extension,
     )
 
-    return job, config, input_fofi
+    return job, config, input_file
 
 
 def _save_processed_preview(job: DeidentificationJob, processed_rows_json: str | None) -> None:
@@ -122,15 +122,15 @@ def _save_processed_preview(job: DeidentificationJob, processed_rows_json: str |
         job.save()
 
 
-def _collect_output_files(job: DeidentificationJob, input_fofi: str) -> tuple[list[str], str]:
+def _collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
     """Collect paths of all output files and update job model."""
     data_output_dir = Path(settings.MEDIA_ROOT) / 'output'
-    output_path = data_output_dir / input_fofi
+    output_path = data_output_dir / input_file
     key_path = data_output_dir / 'datakey.csv'
     log_path = data_output_dir / 'deidentification.log'
 
     files_to_zip = []
-    output_filename = input_fofi
+    output_filename = input_file
 
     if output_path.exists():
         relative_path = output_path.relative_to(Path(settings.MEDIA_ROOT))

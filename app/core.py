@@ -47,11 +47,11 @@ def parse_cli_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='Pseudonymize Dutch medical report texts using the Deduce algorithm.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        epilog='Example: python main.py --input_fofi data.csv --output_extension .csv',
+        epilog='Example: python main.py --input_file data.csv --output_extension .csv',
     )
 
     parser.add_argument(
-        '--input_fofi',
+        '--input_file',
         nargs='?',
         default='dummy_input.csv',
         help='Name of the input file. Supported formats: .csv',
@@ -98,7 +98,7 @@ def main() -> None:
     setup_logging(args.log_level)
 
     process_data(
-        input_fofi=args.input_fofi,
+        input_file=args.input_file,
         input_cols=args.input_cols,
         output_cols=args.output_cols,
         datakey=args.datakey,
