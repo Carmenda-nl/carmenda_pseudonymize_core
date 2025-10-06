@@ -20,7 +20,7 @@ from typing import NamedTuple
 from django.conf import settings
 
 from api.models import DeidentificationJob
-from utils.logger import setup_logging
+from core.utils.logger import setup_logging
 
 logger = setup_logging()
 
@@ -146,34 +146,6 @@ def _collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[li
     return files_to_zip, output_filename
 
 
-def _create_zip_file(_job_id: str, file_paths: list[str], output_filename: str) -> tuple[Path, str, list[str]]:
-    """Create a zip file containing the output files."""
-    base_name = Path(output_filename).stem
-    zip_filename = f'{base_name}_deidentified.zip'
-
-    # Define zip file path with output file name
-    zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
-
-    included_files = []
-
-    # Create the zip file
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for file_path in file_paths:
-            file_path_obj = Path(file_path)
-            if file_path_obj.exists():
-                basename = file_path_obj.name
-
-                # Add file to zip with the determined name
-                zipf.write(file_path, basename)
-
-                # Add to our list of included files
-                included_files.append(basename)
-            else:
-                logger.warning('File not found for zipping: %s', file_path)
-
-    return zip_path, zip_filename, included_files
-
-
 def _create_and_store_zip(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:
     """Create zip file and store its information in the job model."""
     if not files_to_zip:
@@ -181,7 +153,31 @@ def _create_and_store_zip(job: DeidentificationJob, files_to_zip: list[str], out
         return
 
     try:
-        zip_path, zip_filename, included_files = _create_zip_file(str(job.pk), files_to_zip, output_filename)
+        # Create zip file
+        base_name = Path(output_filename).stem
+        zip_filename = f'{base_name}_deidentified.zip'
+
+        # Define zip file path with output file name
+        zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
+
+        included_files = []
+
+        # Create the zip file
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in files_to_zip:
+                file_path_obj = Path(file_path)
+                if file_path_obj.exists():
+                    basename = file_path_obj.name
+
+                    # Add file to zip with the determined name
+                    zipf.write(file_path, basename)
+
+                    # Add to our list of included files
+                    included_files.append(basename)
+                else:
+                    logger.warning('File not found for zipping: %s', file_path)
+
+        # Store zip information in job model
         relative_zip_path = os.path.relpath(zip_path, settings.MEDIA_ROOT)
 
         job.zip_file.name = relative_zip_path

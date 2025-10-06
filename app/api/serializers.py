@@ -15,7 +15,7 @@ from typing import ClassVar
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
-from utils.progress_tracker import tracker
+from core.utils.progress_tracker import tracker
 
 
 class DeidentificationJobListSerializer(serializers.ModelSerializer):
@@ -140,25 +140,22 @@ class JobStatusSerializer(serializers.ModelSerializer):
         ]
 
     def get_progress(self, obj: DeidentificationJob) -> int:
-        """Get the current progress percentage from the database or tracker."""
-        # Use database value if available, otherwise fall back to tracker
-        if obj.progress_percentage > 0:
-            return obj.progress_percentage
+        """Get the current progress percentage from the tracker."""
+        # During processing, get live updates from tracker
+        if obj.status == 'processing':
+            progress_info = tracker.get_progress()
+            return progress_info['percentage']
 
-        progress_info = tracker.get_progress()
-        return progress_info['percentage']
+        # Return 100 for completed, 0 for others
+        return 100 if obj.status == 'completed' else 0
 
     def get_status(self, obj: DeidentificationJob) -> str:
         """Get the combined status and stage information."""
-        # Use database value if available
-        if obj.current_stage:
-            return obj.current_stage
-
         # During processing, fall back to tracker for live updates
-        if obj.progress_status == 'processing':
+        if obj.status == 'processing':
             progress_info = tracker.get_progress()
             if progress_info['stage']:
                 return progress_info['stage']
 
-        # Otherwise return the progress status
-        return obj.progress_status
+        # Otherwise return the status
+        return obj.status

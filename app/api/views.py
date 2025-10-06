@@ -35,8 +35,8 @@ from api.serializers import (
     JobStatusSerializer,
     ProcessJobSerializer,
 )
-from utils.file_handling import check_file
-from utils.progress_tracker import tracker
+from core.utils.file_handling import check_file
+from core.utils.progress_tracker import tracker
 
 
 class APIRootView(APIView):
@@ -140,7 +140,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        job = serializer.save(progress_status='pending')
+        job = serializer.save(status='pending')
 
         message = 'Job created successfully and is ready to be processed'
         url = f'{request.build_absolute_uri()}{job.job_id}/process/'
@@ -190,7 +190,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Input file is missing'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Reset the status and error message on re-runs
-        job.progress_status = 'processing'
+        job.status = 'processing'
         job.error_message = ''
         job.save()
 
@@ -200,7 +200,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
             return Response({'message': 'Job processing ended successfully'}, status=status.HTTP_200_OK)
         except (OSError, RuntimeError, ValueError) as e:
-            job.progress_status = 'failed'
+            job.status = 'failed'
             job.save()
 
             return Response(
@@ -231,21 +231,21 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                     job.refresh_from_db()
 
                     # Get current progress
-                    if job.progress_status == 'processing':
+                    if job.status == 'processing':
                         # During processing, get live updates from tracker
                         progress_info = tracker.get_progress()
                         current_percentage = progress_info['percentage']
                         current_stage = progress_info['stage']
                     else:
                         # Use database values for completed/failed jobs
-                        current_percentage = job.progress_percentage
-                        current_stage = job.current_stage or job.progress_status
+                        current_percentage = 100 if job.status == 'completed' else 0
+                        current_stage = job.status
 
                     # Only send update if something changed
                     if current_percentage != previous_percentage or current_stage != previous_stage:
                         data = {
                             'job_id': str(job.job_id),
-                            'status': job.progress_status,
+                            'status': job.status,
                             'progress': current_percentage,
                             'stage': current_stage,
                             'error_message': job.error_message,
@@ -255,7 +255,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                         previous_stage = current_stage
 
                     # Stop streaming if job is done
-                    if job.progress_status in ['completed', 'failed']:
+                    if job.status in ['completed', 'failed']:
                         break
 
                     # Wait before next update
@@ -289,13 +289,13 @@ def process_deidentification(job_id: str) -> None:
         _execute_deidentification(config, job)
 
     except (OSError, RuntimeError, ValueError) as e:
-        from utils.logger import setup_logging
+        from core.utils.logger import setup_logging
 
         logger = setup_logging()
         logger.exception('Error starting job %s', job_id)
         try:
             job = DeidentificationJob.objects.get(pk=job_id)
-            job.progress_status = 'failed'
+            job.status = 'failed'
             job.error_message = str(e)
             job.save()
         except (OSError, RuntimeError):
