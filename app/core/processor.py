@@ -3,17 +3,14 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Data processing module for pseudonymizing data.
+"""Data processing pipeline for pseudonymizing data.
 
-This module provides functionality for:
+This pipeline provides functionality for:
     - Loading data from files
-    - Creating datakeys for patient names
-    - Transforming and pseudonymizing patient data
-    - Filtering null values and handling data irregularities
+    - Creating datakeys for clientnames
+    - Transforming and pseudonymizing report data
     - Writing processed data to output files
 """
-
-from __future__ import annotations
 
 import json
 import logging
@@ -23,39 +20,16 @@ import time
 import polars as pl
 
 from core.datakey import process_datakey
-from core.deidentify import DeidentifyHandler, replace_synonyms
+from core.deidentify import DeidentifyHandler
 from utils.file_handling import get_environment, load_data_file, save_datafile, save_datakey
 from utils.logger import setup_logging
-from utils.progress_tracker import tracker, performance_metrics
+from utils.progress_tracker import performance_metrics, tracker
 
-DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()
 
 
-def _prepare_output_data(df: pl.DataFrame, input_cols: dict, output_cols: dict) -> pl.DataFrame:
-    """Prepare data for output by selecting and renaming columns."""
-    select_cols = [col for col in output_cols.values() if col in df.columns]
-    df = df.select(select_cols)
-    logger.info('Output columns: %s\n', df.columns)
-
-    # Rename headers to their original input name
-    rename_headers = {}
-
-    if 'patientID' in df.columns and 'patientName' in output_cols:
-        rename_headers['patientID'] = input_cols['patientName']
-    if 'processed_report' in df.columns and 'report' in input_cols:
-        rename_headers['processed_report'] = input_cols['report']
-
-    if rename_headers:
-        df = df.rename(rename_headers)
-
-    return df
-
-
-
-
 def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
-    """Process and pseudonymize data from input files and return in Json."""
+    """Process and pseudonymize data from input file and return the first 10 rows in Json."""
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
     logger.debug('Parsed arguments:\n%s\n', params_str)
@@ -73,28 +47,25 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     if df is not None:
         tracker.update('Pre-processing')
 
-        # Convert string mappings to dictionaries
-        input_cols_dict = dict(item.strip().split('=') for item in input_cols.split(','))
-        output_cols_dict = dict(item.strip().split('=') for item in output_cols.split(','))
+        input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
+        output_cols_list = [column.strip() for column in output_cols.split(',')]
 
-        # Check if the `clientname` column is available
         clientname_col = input_cols_dict.get('clientname')
         has_clientname = clientname_col in df.columns
 
-        # Check if the `report` column is available
         report_col = input_cols_dict.get('report')
         has_report = report_col in df.columns
 
         start_time = time.time()
     else:
-        msg = f'Input file "{input_file_path}" could not be loaded.'
-        logger.error(msg)
-        return json.dumps({'error': msg})
+        message = f'Input file "{input_file_path}" could not be loaded.'
+        logger.error(message)
+        return json.dumps({'error': message})
 
     if not has_report:
-        msg = f'Report column "{report_col}" not found in input data.'
-        logger.error(msg)
-        return json.dumps({'error': msg})
+        message = f'Report column "{report_col}" not found in input data.'
+        logger.error(message)
+        return json.dumps({'error': message})
 
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
@@ -113,31 +84,29 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     tracker.update('Data transformation')
 
     if has_clientname:
-        df = replace_synonyms(df, datakey, input_cols_dict)
+        df = handler.replace_synonym(df, datakey, input_cols_dict)
+        df = handler.deidentify_text(df, datakey, input_cols_dict)
+        df = handler.add_clientcodes(df, datakey, input_cols_dict)
+    else:
+        df = handler.deidentify_text(df, datakey, input_cols_dict)
 
-    df = handler.deidentify_text(input_cols_dict, df, datakey)
+    # Prepare output data
+    df = df.select(pl.selectors.by_name(*output_cols_list, require_all=False))
 
-    # if has_patient_name:
-    #     # Create a new column `patientID` with datakeys
-    #     name_to_pseudonym = {entry['Clientnaam']: entry['Code'] for entry in datakey}
-    #     df = df.with_columns(
-    #         pl.col(patient_name_col)
-    #         # Obtain randomized string corresponding to name
-    #         .replace_strict(name_to_pseudonym, default=None)
-    #         .alias('patientID'),
-    #     )
+    rename_headers = {}
 
-    #     # Replace [PATIENT] tags in `processed_report` with datakeys
-    #     df = df.with_columns(
-    #         pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('patientID'))),
-    #     )
+    if 'clientcode' in df.columns and 'clientname' in input_cols_dict:
+        rename_headers['clientcode'] = input_cols_dict['clientname']
 
-    # # Prepare output data
-    # df = _prepare_output_data(df, input_cols_dict, output_cols_dict)
+    if 'processed_report' in df.columns and 'report' in input_cols_dict:
+        rename_headers['processed_report'] = input_cols_dict['report']
+
+    if rename_headers:
+        df = df.rename(rename_headers)
 
     # Show pseudonymized reports in debug mode and when NOT running as a frozen executable
-    # if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
-    #     handler.debug_deidentify_text()
+    if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
+        handler.debug_deidentify_text()
 
     # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
@@ -145,5 +114,4 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     tracker.update('Finalizing')
     save_datafile(df, input_file, output_folder)
 
-    # Extract first 10 rows as JSON for return value
     return json.dumps({'data': df.head(10).to_dicts()})

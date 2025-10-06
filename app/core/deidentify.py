@@ -444,6 +444,70 @@ class DeidentifyHandler:
 
 
 
+    def replace_synonym(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+        """Replace all synonyms in the report text with their main names.
+        
+        Args:
+            df: DataFrame with report text
+            datakey: DataFrame with clientname and synonyms mapping
+            input_cols: Input column mapping
+            
+        Returns:
+            DataFrame with synonyms replaced in report text
+        """
+        synonym_df = (
+            datakey.with_columns(pl.col('synonyms').str.split(','))
+            .explode('synonyms')
+            .with_columns(pl.col('synonyms').str.strip_chars())
+            .filter(pl.col('synonyms') != '')
+            .select([pl.col('clientname'), pl.col('synonyms').alias('synonyms')])
+        )
+
+        report_col = input_cols['report']
+        synonym_pairs = synonym_df.select(['synonyms', 'clientname']).rows()
+
+        replaced_synonyms = reduce(
+            lambda expr, pair: expr.str.replace_all(r'\b' + re.escape(pair[0]) + r'\b', pair[1], literal=False),
+            synonym_pairs,
+            pl.col(report_col),
+        )
+
+        return df.with_columns(replaced_synonyms)
+
+    def add_clientcodes(
+        self,
+        df: pl.DataFrame,
+        datakey: pl.DataFrame,
+        input_cols: dict,
+    ) -> pl.DataFrame:
+        """Add patient codes to DataFrame and replace [PATIENT] tags in processed reports.
+
+        Args:
+            df: DataFrame with processed reports
+            datakey: DataFrame with clientname to code mapping
+            input_cols: Input column mapping
+
+        Returns:
+            DataFrame with patient codes added and [PATIENT] tags replaced
+        """
+        clientname_col = input_cols['clientname']
+
+        # Join de datakey om patient codes toe te voegen (volledige Polars, geen Python conversie)
+        df = df.join(
+            datakey.select(['clientname', 'code']),
+            left_on=clientname_col,
+            right_on='clientname',
+            how='left',
+            coalesce=True,
+        ).rename({'code': 'clientcode'}).select('clientcode', pl.all().exclude('clientcode'))
+
+        # Replace [PATIENT] tags in `processed_report` with datakeys
+        return df.with_columns(
+            pl.col('processed_report').str.replace_all(
+                r'\[PATIENT\]',
+                pl.format('[{}]', pl.col('clientcode')),
+            ),
+        )
 
 
 
@@ -460,8 +524,7 @@ class DeidentifyHandler:
 
 
 
-
-    def deidentify_text(self, input_cols: dict, df: pl.DataFrame, datakey: pl.DataFrame) -> pl.DataFrame:
+    def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict) -> pl.DataFrame:
         """De-identify report text with or without patient name column."""
         report_col = input_cols['report']
         has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
@@ -502,14 +565,6 @@ class DeidentifyHandler:
 
         tracker.update('Data transformation', f'Completed {total_rows:,} rows')
 
-        # Debug: print all results with full text
-        with pl.Config(
-            set_tbl_rows=-1,  # Show all rows
-            set_fmt_str_lengths=1000,  # Show full string length (up to 1000 chars)
-            set_tbl_width_chars=200,  # Wider table
-        ):
-            print(result.select(['processed_report']))
-
         return result
 
 
@@ -517,23 +572,4 @@ class DeidentifyHandler:
 
 
 
-def replace_synonyms(df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
-    """Replace all synonyms in the report text with their main names."""
-    synonym_df = (
-        datakey.with_columns(pl.col('synonyms').str.split(','))
-        .explode('synonyms')
-        .with_columns(pl.col('synonyms').str.strip_chars())
-        .filter(pl.col('synonyms') != '')
-        .select([pl.col('clientname'),  pl.col('synonyms').alias('synonyms')])
-    )
 
-    report_col = input_cols['report']
-    synonym_pairs = synonym_df.select(['synonyms', 'clientname']).rows()
-
-    replaced_synonyms = reduce(
-        lambda expr, pair: expr.str.replace_all(r'\b' + re.escape(pair[0]) + r'\b', pair[1], literal=False),
-        synonym_pairs,
-        pl.col(report_col),
-    )
-
-    return df.with_columns(replaced_synonyms)
