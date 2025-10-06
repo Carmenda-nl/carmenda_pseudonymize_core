@@ -191,23 +191,3 @@ def _create_and_store_zip(job: DeidentificationJob, files_to_zip: list[str], out
         }
     except (OSError, zipfile.BadZipFile, RuntimeError):
         logger.exception('Failed to create zip file')
-
-
-def process_deidentification(job_id: str) -> None:
-    """Process the deidentification job synchronously.
-
-    This function executes the deidentification process and waits for completion.
-    """
-    try:
-        job, config, _output_filename = _setup_deidentification_job(job_id)
-        _execute_deidentification(config, job)
-
-    except (OSError, RuntimeError, ValueError) as e:
-        logger.exception('Error starting job %s', job_id)
-        try:
-            job = DeidentificationJob.objects.get(pk=job_id)
-            job.status = 'failed'
-            job.error_message = str(e)
-            job.save()
-        except (OSError, RuntimeError):
-            logger.exception('Failed to update job status')
