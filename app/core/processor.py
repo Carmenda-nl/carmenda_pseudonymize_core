@@ -21,9 +21,10 @@ import polars as pl
 
 from core.datakey import process_datakey
 from core.deidentify import DeidentifyHandler
-from utils.file_handling import get_environment, load_data_file, save_datafile, save_datakey
-from utils.logger import setup_logging
-from utils.progress_tracker import performance_metrics, tracker
+
+from .utils.file_handling import get_environment, load_data_file, save_datafile, save_datakey
+from .utils.logger import setup_logging
+from .utils.progress_tracker import performance_metrics, tracker
 
 logger = setup_logging()
 

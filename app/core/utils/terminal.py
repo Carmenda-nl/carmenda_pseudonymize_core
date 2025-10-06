@@ -11,7 +11,7 @@ import os
 import re
 import textwrap
 
-from utils.logger import setup_clean_logger
+from .logger import setup_clean_logger
 
 
 def get_terminal_width() -> int:

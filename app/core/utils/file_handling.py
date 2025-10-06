@@ -15,7 +15,7 @@ from pathlib import Path
 import chardet
 import polars as pl
 
-from utils.logger import setup_logging
+from .logger import setup_logging
 
 logger = setup_logging()
 

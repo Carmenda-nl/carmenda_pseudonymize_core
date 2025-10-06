@@ -25,7 +25,7 @@ def _get_log_level(arg_log_level: str | None = None) -> int:
 def setup_logging(log_level: str | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
     log_level = _get_log_level(log_level)
-    log_path = Path(__file__).resolve().parent.parent / 'data/output'
+    log_path = Path(__file__).resolve().parent.parent.parent / 'data/output'
 
     try:
         log_path.mkdir(parents=True, exist_ok=True)

@@ -31,9 +31,10 @@ import polars as pl
 from deduce.person import Person
 
 from core.name_detector import DutchNameDetector, NameAnnotation
-from utils.logger import setup_logging
-from utils.progress_tracker import tracker
-from utils.terminal import colorize_tags, log_block
+
+from .utils.logger import setup_logging
+from .utils.progress_tracker import tracker
+from .utils.terminal import colorize_tags, log_block
 
 DataKey = list[dict[str, str]]  # Type alias
 logger = setup_logging()

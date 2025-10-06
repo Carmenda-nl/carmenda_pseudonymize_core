@@ -39,7 +39,7 @@ from __future__ import annotations
 import argparse
 
 from core.processor import process_data
-from utils.logger import setup_logging
+from core.utils.logger import setup_logging
 
 
 def parse_cli_arguments() -> argparse.Namespace:

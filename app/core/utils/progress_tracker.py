@@ -15,7 +15,7 @@ import logging
 import sys
 import time
 
-from utils.logger import setup_logging, setup_progress_logger
+from .logger import setup_logging, setup_progress_logger
 
 logger = setup_logging()
 
