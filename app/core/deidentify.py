@@ -530,7 +530,7 @@ class DeidentifyHandler:
         has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
         total_rows = df.height
 
-        logger.info('Processing %d rows with clientname=%s', total_rows, has_clientname)
+        logger.info('Processing %d rows with clientname=%s\n', total_rows, has_clientname)
 
         # Initialize progress counter
         self.processed_count = 0

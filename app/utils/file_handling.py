@@ -43,94 +43,59 @@ def get_environment() -> tuple[str, str]:
     return input_folder, output_folder
 
 
-def _check_encoding(input_file: str) -> tuple[str, str]:
-    """Determine the encoding and line ending of a file."""
+def _check_file(input_file: str) -> tuple[str, str, str]:
+    """Determine the encoding, line ending and separator."""
     file_path = Path(input_file)
+    filename = file_path.name
 
     with file_path.open('rb') as file:
         # Read the first 10KB to avoid memory issues
-        sample_data = file.read(10240)
-        encoding_result = chardet.detect(sample_data)
-        detected_encoding = encoding_result['encoding'] or 'utf-8'
-
-        # Handle common Windows ANSI detection issues
-        if detected_encoding == 'ascii':
-            # Try to detect if it's actually Windows ANSI (cp1252)
-            try:
-                sample_data.decode('cp1252')
-                detected_encoding = 'cp1252'  # Windows ANSI
-            except UnicodeDecodeError:
-                # Keep as ascii if cp1252 fails
-                pass
+        data_sample = file.read(10240)
+        encoding_result = chardet.detect(data_sample)
+        encoding = encoding_result['encoding'] or 'utf-8'
 
         # Detect line endings - Polars only supports single-byte eol_char
-        if b'\r\n' in sample_data:
-            line_ending = '\n'    # Use \n for Windows (Polars will handle \r\n automatically)
-        elif b'\r' in sample_data:
-            line_ending = '\r'    # Macintosh
-        elif b'\n' in sample_data:
-            line_ending = '\n'    # Unix
+        if b'\r\n' in data_sample:
+            line_ending = '\n'
+        elif b'\r' in data_sample:
+            line_ending = '\r'
+        elif b'\n' in data_sample:
+            line_ending = '\n'
         else:
-            line_ending = '\n'    # Default
+            line_ending = '\n'
 
-        return detected_encoding, line_ending
-
-
-
-
-
-
-
-
-
-def _check_file_header(input_file: str) -> tuple[str, str]:
-    """Determine the encoding and separator from the first header row."""
-    file_path = Path(input_file)
-
-    with file_path.open('rb') as file:
-        # Read the first 10KB to avoid memory issues
-        sample_data = file.read(10240)
-        encoding_result = chardet.detect(sample_data)
-        encoding = encoding_result['encoding'] or 'utf-8'
-        logger.info('Detected file encoding: %s', encoding)
     try:
         with file_path.open(encoding=encoding) as file:
             header = file.readline().strip()
-    except (UnicodeDecodeError, LookupError) as exception:
-        message = f'File cannot be decoded with encoding "{encoding}"'
-        logger.exception(message)
-        raise ValueError(message) from exception
+    except (UnicodeDecodeError, LookupError):
+        logger.warning('File cannot be decoded with encoding "%s"', encoding)
 
     if not header:
-        message = 'File is empty or has no header'
-        logger.exception(message)
-        raise ValueError(message)
+        logger.error('File is empty or has no header.')
 
     candidates = [',', ';', '\t', '|']
-    scores = {separator: header.count(separator) for separator in candidates}
-    best_separator = max(scores, key=scores.get)
+    scores = {sep: header.count(sep) for sep in candidates}
+    separator = max(scores, key=scores.get)
 
     # Ensure we found at least one separator
-    if scores[best_separator] == 0:
-        message = f'No valid separator found. Tried: {candidates}'
-        logger.exception(message)
-        raise ValueError(message)
+    if scores[separator] == 0:
+        logger.error('No valid separator found. Tried: %s', candidates)
 
-    return best_separator, encoding
-
-
+    logger.debug('Checked %s: Encoding=%s, line endings=%r, separator=%r', filename, encoding, line_ending, separator)
+    return encoding, line_ending, separator
 
 
 def load_data_file(input_file_path: str) -> pl.DataFrame | None:
-    """Check data file availability and log relevant information."""
+    """Check data file, log and return as a Polars DataFrame."""
     if Path(input_file_path).is_file():
         input_extension = Path(input_file_path).suffix
         file_size = Path(input_file_path).stat().st_size
         logger.info('%s file of size: %s', input_extension, file_size)
 
+        encoding, line_ending, separator = _check_file(input_file_path)
+
         if input_extension == '.csv':
-            separator, encoding = _check_file_header(input_file_path)
-            df = pl.read_csv(input_file_path, separator=separator, encoding=encoding)
+            df = pl.read_csv(input_file_path, encoding=encoding, eol_char=line_ending, separator=separator)
         else:
             return None
 
@@ -146,10 +111,6 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
     return None
 
 
-
-
-
-
 def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
     """Save processed DataFrame to file in the specified output folder."""
     filename = Path(filename).stem
@@ -163,14 +124,14 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 
 def load_datakey(datakey_path: str) -> pl.DataFrame:
     """Grab valid names from file and return as a Polars DataFrame."""
-    file_encoding, line_ending = _check_encoding(datakey_path)
+    encoding, line_ending, separator = _check_file(datakey_path)
     accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252')
 
-    if file_encoding not in accepted_encodings:
-        logger.warning('Datakey encoding not supported, provided: %s.', file_encoding)
+    if encoding not in accepted_encodings:
+        logger.warning('Datakey encoding not supported, provided: %s.', encoding)
         return None
 
-    df = pl.read_csv(datakey_path, separator=';', encoding=file_encoding, eol_char=line_ending)
+    df = pl.read_csv(datakey_path, encoding=encoding, eol_char=line_ending, separator=separator)
     df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
 
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
