@@ -26,10 +26,10 @@ Script logic:
     - Define functions
     - Load data
     - Apply transformations
-        - Identify unique names based on clientname column and map them to randomized clientIDs.
+        - Identify unique names based on clientname column and map them to randomized clientcodes.
         - Apply algorithm to report text column, making use of clientname to increase likelihood of at least
           de-identifying the main subject.
-        - Replace the generated [PATIENT] tags with the new clientID
+        - Replace the generated [PATIENT] tags with the new clientcode.
     - Collect logging information
     - Write output to disk
 """
@@ -45,9 +45,9 @@ from utils.logger import setup_logging
 def parse_cli_arguments() -> argparse.Namespace:
     """Parse command-line arguments for CLI usage."""
     parser = argparse.ArgumentParser(
-        description='Pseudonymize Dutch medical report texts using the Deduce algorithm.',
+        description='Pseudonymize Dutch medical report texts.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        epilog='Example: python main.py --input_file dummy_input.csv --output_extension .csv --log_level DEBUG',
+        epilog='Example: python core.py --input_file=dummy_input.csv --log_level=DEBUG',
     )
 
     parser.add_argument(
@@ -65,8 +65,8 @@ def parse_cli_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--output_cols',
         nargs='?',
-        default='client_id=client_id, processed_report=processed_report',
-        help='Output column mappings as comma-separated key=value pairs. Maps to: client_id and processed_report.',
+        default='clientcode, processed_report',
+        help='Output column list. clientcode and processed_report are the deidentified columns.',
     )
     parser.add_argument(
         '--datakey',

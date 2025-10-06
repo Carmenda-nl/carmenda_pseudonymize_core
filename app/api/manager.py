@@ -72,15 +72,15 @@ def _transform_output_cols(input_cols: str) -> str:
     """Transform input column mappings to their corresponding output mappings.
 
     Example:
-        transform_output_cols('patientName=name, report=text, other=value')
-        'patientName=patientID, report=processed_report, other=value'
+        transform_output_cols('clientname=name, report=text, other=value')
+        'clientcode=clientcode, report=processed, other=value'
 
     """
     parts = [part.strip() for part in input_cols.split(',')]
 
     for col_name, part in enumerate(parts):
-        if part.startswith('patientName='):
-            parts[col_name] = 'patientName=patientID'
+        if part.startswith('clientname='):
+            parts[col_name] = 'clientname=clientcode'
         elif part.startswith('report='):
             parts[col_name] = 'report=processed_report'
 
