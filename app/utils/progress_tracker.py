@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Progress tracking utilities for multi-stage data processing.
+"""Progress tracking utilities for data processing.
 
 This module provides the ProgressTracker class for managing and reporting
 progress across various processing stages in the core.

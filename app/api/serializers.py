@@ -18,6 +18,26 @@ from api.models import DeidentificationJob
 from utils.progress_tracker import tracker
 
 
+class DeidentificationJobListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing jobs with minimal information."""
+
+    process_url = serializers.SerializerMethodField()
+
+    class Meta:
+        """Set model and field specifications for the serializer."""
+
+        model = DeidentificationJob
+        fields: ClassVar = ['job_id', 'process_url', 'status']
+        read_only_fields: ClassVar = ['job_id', 'status']
+
+    def get_process_url(self, obj: DeidentificationJob) -> str:
+        """Generate the process URL for the job."""
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(f'/api/v1/jobs/{obj.job_id}/process/')
+        return f'/api/v1/jobs/{obj.job_id}/process/'
+
+
 class DeidentificationJobSerializer(serializers.ModelSerializer):
     """Validate job configuration parameters and handle deidentification job data."""
 
@@ -34,8 +54,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             'zip_preview',
             'processed_preview',
             'status',
-            'created_at',
-            'updated_at',
             'error_message',
         ]
 
@@ -108,21 +126,39 @@ class JobStatusSerializer(serializers.ModelSerializer):
         """Set model and field specifications for the serializer."""
 
         model = DeidentificationJob
-        fields: ClassVar = ['status', 'progress', 'error_message']
+        fields: ClassVar = [
+            'status',
+            'progress',
+            'error_message',
+            'input_file',
+            'output_file',
+            'key_file',
+            'log_file',
+            'zip_file',
+            'zip_preview',
+            'processed_preview',
+        ]
 
-    def get_progress(self, _obj: DeidentificationJob) -> int:
-        """Get the current progress percentage from the global tracker."""
+    def get_progress(self, obj: DeidentificationJob) -> int:
+        """Get the current progress percentage from the database or tracker."""
+        # Use database value if available, otherwise fall back to tracker
+        if obj.progress_percentage > 0:
+            return obj.progress_percentage
+
         progress_info = tracker.get_progress()
         return progress_info['percentage']
-    
+
     def get_status(self, obj: DeidentificationJob) -> str:
         """Get the combined status and stage information."""
-        progress_info = tracker.get_progress()
-        stage = progress_info['stage']
-        
-        # If we have detailed stage info, use that
-        if stage:
-            return stage
-        
-        # Otherwise fall back to the model's status
-        return obj.status
+        # Use database value if available
+        if obj.current_stage:
+            return obj.current_stage
+
+        # During processing, fall back to tracker for live updates
+        if obj.progress_status == 'processing':
+            progress_info = tracker.get_progress()
+            if progress_info['stage']:
+                return progress_info['stage']
+
+        # Otherwise return the progress status
+        return obj.progress_status

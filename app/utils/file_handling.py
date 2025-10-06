@@ -43,7 +43,7 @@ def get_environment() -> tuple[str, str]:
     return input_folder, output_folder
 
 
-def _check_file(input_file: str) -> tuple[str, str, str]:
+def check_file(input_file: str) -> tuple[str, str, str]:
     """Determine the encoding, line ending and separator."""
     file_path = Path(input_file)
     filename = file_path.name
@@ -92,7 +92,7 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
         file_size = Path(input_file_path).stat().st_size
         logger.info('%s file of size: %s', input_extension, file_size)
 
-        encoding, line_ending, separator = _check_file(input_file_path)
+        encoding, line_ending, separator = check_file(input_file_path)
 
         if input_extension == '.csv':
             df = pl.read_csv(input_file_path, encoding=encoding, eol_char=line_ending, separator=separator)
@@ -124,7 +124,7 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 
 def load_datakey(datakey_path: str) -> pl.DataFrame:
     """Grab valid names from file and return as a Polars DataFrame."""
-    encoding, line_ending, separator = _check_file(datakey_path)
+    encoding, line_ending, separator = check_file(datakey_path)
     accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252')
 
     if encoding not in accepted_encodings:
