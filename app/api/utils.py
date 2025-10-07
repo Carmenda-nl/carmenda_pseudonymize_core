@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Manager module for processing deidentification jobs.
+"""Utility & helper modules for processing deidentification jobs.
 
 This module handles the background processing of deidentification jobs,
 including file processing, status tracking, and zipping the results.
