@@ -4,9 +4,10 @@ select = ['ALL']
 exclude = ['migrations']
 ignore = [
     'ARG002', # (`request` & `pk` are mandatory for DRF)
+    'D106',   # (Meta classes don't need a docstring)
+    'DTZ005', # (Timezones are managed by django)
     'SLF001', # (MEIPASS use for PyInstaller)
     'S301',   # (pickle file loading)
-    'DTZ005', # (Timezones are managed by django)
 ]
 
 [tool.ruff.format]

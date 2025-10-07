@@ -5,8 +5,6 @@
 
 """API models for keeping track of the deidentification process."""
 
-from pathlib import Path
-
 from django.db import models
 
 
@@ -23,7 +21,7 @@ class DeidentificationJob(models.Model):
     job_id = models.CharField(max_length=250, primary_key=True, editable=False)
     input_cols = models.CharField(null=False, blank=False)
     input_file = models.FileField(upload_to='input')
-    key_file = models.FileField(upload_to='input', null=True, blank=True)
+    datakey = models.FileField(upload_to='input', null=True, blank=True)
     output_file = models.FileField(upload_to='output', null=True, blank=True)
     log_file = models.FileField(upload_to='output', null=True, blank=True)
     zip_file = models.FileField(upload_to='output', null=True, blank=True)
@@ -35,21 +33,3 @@ class DeidentificationJob(models.Model):
     def __str__(self) -> str:
         """Return a string representation of the deidentification job."""
         return f'Job {self.job_id} - {self.status}'
-
-    def save(self, *args: object, **kwargs: object) -> None:
-        """Override save to automatically set job_id from input filename."""
-        if not self.job_id and self.input_file:
-            filename = Path(self.input_file.name).stem
-            base_id = filename.replace(' ', '_')
-            job_id = base_id
-
-            # Check if name already exists, if so, append a counter
-            counter = 1
-
-            while DeidentificationJob.objects.filter(job_id=job_id).exists():
-                job_id = f'{base_id}_{counter}'
-                counter += 1
-
-            self.job_id = job_id
-
-        super().save(*args, **kwargs)
