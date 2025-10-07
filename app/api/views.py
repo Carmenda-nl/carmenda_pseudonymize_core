@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -33,9 +32,12 @@ from api.serializers import (
     DeidentificationJobListSerializer,
     DeidentificationJobSerializer,
     JobStatusSerializer,
-    ProcessJobSerializer,
 )
-from core.utils.file_handling import check_file
+from api.utils import (
+    _execute_deidentification,
+    _setup_deidentification_job,
+)
+from core.utils.logger import setup_logging
 from core.utils.progress_tracker import tracker
 
 
@@ -88,58 +90,6 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        input_file = serializer.validated_data.get('input_file')
-        input_cols = serializer.validated_data.get('input_cols')
-
-        if input_file:
-            try:
-                # Handle both InMemoryUploadedFile and TemporaryUploadedFile
-                if hasattr(input_file, 'temporary_file_path'):
-                    # File is stored on disk
-                    file_path = input_file.temporary_file_path()
-                    temp_file_created = False
-                else:
-                    # File is in memory, save temporarily
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_file:
-                        for chunk in input_file.chunks():
-                            temp_file.write(chunk)
-                        file_path = temp_file.name
-                    temp_file_created = True
-
-                # Check file encoding, line endings, and separator
-                encoding, _line_ending, separator = check_file(file_path)
-
-                # Parse input columns to validate they exist in the file
-                input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
-
-                # Read header line to check column existence
-                with Path(file_path).open(encoding=encoding) as f:
-                    header = f.readline().strip()
-                    columns = [col.strip() for col in header.split(separator)]
-
-                # Clean up temporary file if we created one
-                if temp_file_created:
-                    Path(file_path).unlink()
-
-                # Validate that specified columns exist in the file
-                for col_value in input_cols_dict.values():
-                    if col_value not in columns:
-                        available_cols = ', '.join(columns)
-                        error_msg = (
-                            f'Column "{col_value}" specified in input_cols not found in file. '
-                            f'Available columns: {available_cols}'
-                        )
-                        return Response(
-                            {'error': error_msg},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-            except (OSError, UnicodeDecodeError, ValueError) as e:
-                return Response(
-                    {'error': f'Invalid file format: {e!s}'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
         job = serializer.save(status='pending')
 
         message = 'Job created successfully and is ready to be processed'
@@ -155,15 +105,6 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 
-    @extend_schema(
-        methods=['post'],
-        request=ProcessJobSerializer,
-        responses={
-            200: OpenApiResponse(description='Job processing ended successfully'),
-            400: OpenApiResponse(description='Job cannot be processed or input file is missing'),
-            500: OpenApiResponse(description='Failed to start job processing'),
-        },
-    )
     @extend_schema(
         methods=['get'],
         responses={
@@ -196,12 +137,20 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         try:
             # Start the anonymizing process
-            process_deidentification(job.job_id)
+            job_obj, config, _output_filename = _setup_deidentification_job(job.job_id)
+            _execute_deidentification(config, job_obj)
 
             return Response({'message': 'Job processing ended successfully'}, status=status.HTTP_200_OK)
         except (OSError, RuntimeError, ValueError) as e:
-            job.status = 'failed'
-            job.save()
+            logger = setup_logging()
+            logger.exception('Error starting job %s', job.job_id)
+            try:
+                job_obj = DeidentificationJob.objects.get(pk=job.job_id)
+                job_obj.status = 'failed'
+                job_obj.error_message = str(e)
+                job_obj.save()
+            except (OSError, RuntimeError):
+                logger.exception('Failed to update job status')
 
             return Response(
                 {'error': 'Failed to start job processing', 'details': str(e)},
@@ -272,32 +221,4 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         return response
-
-
-def process_deidentification(job_id: str) -> None:
-    """Process the deidentification job synchronously.
-
-    This function executes the deidentification process and waits for completion.
-    """
-    from api.manager import (
-        _execute_deidentification,
-        _setup_deidentification_job,
-    )
-
-    try:
-        job, config, _output_filename = _setup_deidentification_job(job_id)
-        _execute_deidentification(config, job)
-
-    except (OSError, RuntimeError, ValueError) as e:
-        from core.utils.logger import setup_logging
-
-        logger = setup_logging()
-        logger.exception('Error starting job %s', job_id)
-        try:
-            job = DeidentificationJob.objects.get(pk=job_id)
-            job.status = 'failed'
-            job.error_message = str(e)
-            job.save()
-        except (OSError, RuntimeError):
-            logger.exception('Failed to update job status')
 
