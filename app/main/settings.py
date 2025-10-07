@@ -122,10 +122,11 @@ if DEBUG:
     SPECTACULAR_SETTINGS = {
         'TITLE': 'Deidentification API',
         'DESCRIPTION': 'API for file-based deidentification',
-        'VERSION': '1.0.1',
+        'VERSION': '1.2.0',
         'SERVE_INCLUDE_SCHEMA': False,
         'TAGS': [
-            {'name': 'Jobs', 'description': 'general job management endpoints'},
+            {'name': 'API', 'description': 'base endpoints and documentation'},
+            {'name': 'Jobs', 'description': 'general deidentification job management endpoints'},
             {'name': 'Processing', 'description': 'endpoints related to job deidentification processing'},
         ],
     }
