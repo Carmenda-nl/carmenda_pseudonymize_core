@@ -28,6 +28,7 @@ from api.serializers import DeidentificationJobListSerializer, DeidentificationJ
 from api.utils import collect_output_files, create_zipfile, match_output_cols
 from core.processor import process_data
 from core.utils.logger import setup_logging
+from core.utils.progress_tracker import tracker
 
 logger = setup_logging()
 
@@ -114,26 +115,59 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     @extend_schema(
         methods=['post'],
         responses={
-            200: OpenApiResponse(description='Job processing started successfully'),
+            200: inline_serializer(
+                name='JobProcessingResponse',
+                fields={'message': serializers.CharField(default='Job processing finished successfully')},
+            ),
             400: OpenApiResponse(description='Input file is missing'),
-            500: OpenApiResponse(description='Failed to start job processing'),
+            500: inline_serializer(
+                name='JobProcessingErrorResponse',
+                fields={
+                    'error': serializers.CharField(default='Job processing failed'),
+                    'details': serializers.CharField(),
+                },
+            ),
         },
     )
-    @extend_schema(methods=['get'], exclude=True)
+    @extend_schema(
+        methods=['get'],
+        responses={
+            200: inline_serializer(
+                name='JobStatusResponse',
+                fields={
+                    'job_id': serializers.CharField(),
+                    'endpoint': serializers.CharField(),
+                    'current_status': serializers.CharField(),
+                    'progress': serializers.IntegerField(),
+                    'stage': serializers.CharField(),
+                    'error_message': serializers.CharField(),
+                },
+            ),
+        },
+    )
     @action(detail=True, methods=['get', 'post'])
     def process(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Start the deidentification process for a job."""
         job = self.get_object()
 
-        # GET shows information about how to use this endpoint
+        # Get current progress from tracker if processing
         if request.method == 'GET':
+            if job.status == 'processing':
+                progress = tracker.get_progress()
+                current_progress = progress['percentage']
+                current_stage = progress['stage']
+            else:
+                current_progress = 100 if job.status == 'completed' else 0
+                current_stage = job.status
+
             return Response(
                 {
-                    'message': 'Use POST to start processing this job',
                     'job_id': str(job.job_id),
-                    'current_status': job.status,
-                    'method': 'POST',
                     'endpoint': request.build_absolute_uri(),
+                    'current_status': job.status,
+                    'progress': current_progress,
+                    'stage': current_stage,
+                    'error_message': job.error_message,
                 },
                 status=status.HTTP_200_OK,
             )
