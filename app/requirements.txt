@@ -9,6 +9,7 @@ drf-spectacular==0.28.0
 
 # large-scale data processing
 polars[pandas]==1.33.1
+rich==14.1.0
 chardet==5.2.0
 
 # deduce packages

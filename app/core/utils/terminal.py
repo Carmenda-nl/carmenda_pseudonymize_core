@@ -3,95 +3,124 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Terminal utility functions."""
+"""Terminal utility functions using Rich library."""
 
 from __future__ import annotations
 
-import os
 import re
-import textwrap
 
-from .logger import setup_clean_logger
-
-
-def get_terminal_width() -> int:
-    """Get current terminal width (defaults to 80)."""
-    try:
-        return os.get_terminal_size().columns
-    except OSError:
-        return 80
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 
-def get_separator_line(char: str = '-', padding: int = 0) -> str:
-    """Get a separator line that fits the terminal width."""
-    width = get_terminal_width() - padding
-    return char * width
+# Global console instance
+console = Console()
 
 
-def colorize_tags(text: str) -> str:
-    """Apply different colors to different types of tags in text."""
-    colors = {
-        'red': '\033[31m',
-        'yellow': '\033[33m',
-        'green': '\033[32m',
-        'blue': '\033[34m',
-        'magenta': '\033[35m',
-        'reset': '\033[0m',
-    }
+def get_separator_line(char: str = '-', padding: int = 0) -> None:  # noqa: ARG001
+    """Print a separator line using Rich Rule.
 
-    text = re.sub(r'\[PATIENT\]', f'{colors["red"]}[PATIENT]{colors["reset"]}', text)
-    text = re.sub(r'\[PERSOON-(\d+)\]', f'{colors["yellow"]}[PERSOON-\\1]{colors["reset"]}', text)
-    text = re.sub(r'\[(DATUM|DATE)-(\d+)\]', f'{colors["green"]}[\\1-\\2]{colors["reset"]}', text)
-    text = re.sub(r'\[(LOCATIE|LOCATION|PLAATS)-(\d+)\]', f'{colors["blue"]}[\\1-\\2]{colors["reset"]}', text)
-
-    return re.sub(r'\[(TELEFOON|PHONE|EMAIL|BSN)-(\d+)\]', f'{colors["magenta"]}[\\1-\\2]{colors["reset"]}', text)
+    Note: This now prints directly instead of returning a string.
+    For backwards compatibility, use console.rule() instead.
+    """
+    console.rule(style='dim')
 
 
-def log_block(title: str, content: str | dict) -> None:
-    """Log content in a nice formatted block for improved log readability."""
-    logger = setup_clean_logger()
-    width = get_terminal_width()
+def colorize_tags(text: str) -> Text:
+    """Apply Rich styling to different types of tags in text.
 
-    if not hasattr(log_block, 'counter'):
-        log_block.counter = 0
-    log_block.counter += 1
+    Returns a Rich Text object with colored tags.
+    """
+    # Create Rich Text object
+    rich_text = Text()
 
-    # Unicode box drawing characters
-    top_line = '┌' + '─' * (width - 2) + '┐'
-    bottom_line = '└' + '─' * (width - 2) + '┘'
-    separator_line = '├' + '─' * (width - 2) + '┤'
+    # Pattern to match all tags
+    tag_pattern = (
+        r'\[(PATIENT|PERSOON-\d+|(?:DATUM|DATE)-\d+|'
+        r'(?:LOCATIE|LOCATION|PLAATS)-\d+|(?:TELEFOON|PHONE|EMAIL|BSN)-\d+)\]'
+    )
 
-    header_title = f'{title.upper()} {log_block.counter}'
-    title_padding = (width - len(header_title) - 2) // 2  # Align title to center
-    header = f'│{" " * title_padding}{header_title}{" " * (width - len(header_title) - title_padding - 2)}│'
+    last_end = 0
+    for match in re.finditer(tag_pattern, text):
+        # Add text before the tag
+        rich_text.append(text[last_end:match.start()])
 
-    # Log the header box to terminal
-    logger.info(top_line)
-    logger.info(header)
-    logger.info(separator_line)
+        tag = match.group(0)
+        tag_type = match.group(1)
 
-    # Log the content into box to terminal
-    section_count = len(content)
+        # Determine color based on tag type
+        if 'PATIENT' in tag_type:
+            color = 'red'
+        elif 'PERSOON' in tag_type:
+            color = 'yellow'
+        elif any(x in tag_type for x in ['DATUM', 'DATE']):
+            color = 'green'
+        elif any(x in tag_type for x in ['LOCATIE', 'LOCATION', 'PLAATS']):
+            color = 'blue'
+        else:  # TELEFOON, PHONE, EMAIL, BSN
+            color = 'magenta'
 
-    for item, (section_name, text) in enumerate(content.items()):
-        section_header = f'│  {section_name}:'
-        section_header += ' ' * (width - len(section_header) - 1) + '│'
-        logger.info(section_header)
+        # Add colored tag
+        rich_text.append(tag, style=color)
+        last_end = match.end()
 
-        # Wrap and indent text
-        wrapped_lines = textwrap.wrap(str(text), width=width - 8)
-        for line_text in wrapped_lines:
-            visible_length = len(re.sub(r'\033\[[0-9;]*m', '', line_text))
-            content_line = f'│     {line_text}'
-            visible_content_length = 6 + visible_length
-            padding_needed = width - visible_content_length - 1
-            content_line += ' ' * padding_needed + '│'
-            logger.info(content_line)
+    # Add remaining text
+    rich_text.append(text[last_end:])
 
-        if item < section_count - 1:
-            empty_line = '│' + ' ' * (width - 2) + '│'
-            logger.info(empty_line)
+    return rich_text
 
-    # Log the footer box to terminal
-    logger.info(bottom_line)
-    logger.info('')
+
+# Counter for log blocks
+_log_block_counter = 0
+
+
+def log_block(title: str, content: dict) -> None:
+    """Log content in a nice formatted Rich Panel for improved readability.
+
+    Args:
+        title: Title of the panel
+        content: Dictionary with section names as keys and content as values
+
+    """
+    global _log_block_counter  # noqa: PLW0603
+    _log_block_counter += 1
+
+    # Build panel content
+    panel_content = Text()
+
+    for i, (section_name, text) in enumerate(content.items()):
+        # Add section header
+        panel_content.append(f'{section_name}:\n', style='bold cyan')
+
+        # Add section content (handle both Text and str)
+        if isinstance(text, Text):
+            panel_content.append(text)
+        else:
+            panel_content.append(str(text))
+
+        # Add spacing between sections (except for last one)
+        if i < len(content) - 1:
+            panel_content.append('\n\n')
+
+    # Create and print panel
+    panel = Panel(
+        panel_content,
+        title=f'[bold]{title} {_log_block_counter}[/bold]',
+        border_style='white',
+        padding=(1, 2),
+    )
+
+    # Check if there's an active progress tracker to avoid console conflicts
+    from .progress_tracker import tracker
+
+    if tracker.rich_progress is not None:
+        # Print newline first, then use progress.console.print() to avoid interfering with progress bar
+        tracker.rich_progress.console.print()  # Empty line before panel
+        tracker.rich_progress.console.print(panel)
+        tracker.rich_progress.console.print()  # Empty line after panel
+    else:
+        # No active progress, use regular console
+        console.print()  # Empty line before panel
+        console.print(panel)
+        console.print()  # Empty line after panel

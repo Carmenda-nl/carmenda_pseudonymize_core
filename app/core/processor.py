@@ -37,9 +37,6 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     input_folder, output_folder = get_environment()
 
-    # Start progress tracking
-    tracker.update('Loading data')
-
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = f'{input_folder}/{input_file}' if not input_file.startswith('/') else input_file
@@ -82,7 +79,6 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
     handler = DeidentifyHandler()
-    tracker.update('Data transformation')
 
     if has_clientname:
         df = handler.replace_synonym(df, datakey, input_cols_dict)
@@ -111,8 +107,8 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
+    tracker.finalize_progress()
     performance_metrics(start_time, df.height)
-    tracker.update('Finalizing')
     save_datafile(df, input_file, output_folder)
 
     return json.dumps({'data': df.head(10).to_dicts()})

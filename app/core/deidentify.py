@@ -360,9 +360,9 @@ class DeidentifyHandler:
 
     def debug_deidentify_text(self) -> None:
         """Only show de-identification results if logger is in debug mode."""
-        logger.debug('Results for %d processed report rules:\n', self.total_processed)
+        max_reports = 10
 
-        for rule in self.processed_reports:
+        for rule in self.processed_reports[:max_reports]:
             title = 'De-identification Report'
             sections = {
                 'ORIGINAL': colorize_tags(rule['report_text']),
@@ -531,7 +531,8 @@ class DeidentifyHandler:
         has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
         total_rows = df.height
 
-        logger.info('Processing %d rows with clientname=%s\n', total_rows, has_clientname)
+        clientname_message = 'with clientname' if has_clientname else ''
+        logger.info('Processing %d rows %s', total_rows, clientname_message)
 
         # Initialize progress counter
         self.processed_count = 0
