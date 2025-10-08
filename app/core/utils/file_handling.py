@@ -148,6 +148,6 @@ def save_datakey(datakey: pl.DataFrame, output_folder: str) -> None:
 
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=';')
-        logger.debug('Saving new datakey: %s\n%s\n', filename, datakey)
+        logger.debug('Saving datakey: %s\n%s\n', filename, datakey)
     except OSError:
         logger.warning('Cannot write datakey to "%s".', file_path)

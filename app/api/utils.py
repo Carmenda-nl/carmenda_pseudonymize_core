@@ -30,8 +30,12 @@ def match_output_cols(input_cols: str) -> str:
     for col in colums:
         if col.startswith('clientname='):
             output_cols.append('clientcode')
-        if col.startswith('report='):
+        elif col.startswith('report='):
             output_cols.append('processed_report')
+        elif '=' in col:
+            # Keep other columns unchanged (extract the column name after '=')
+            column_name = col.split('=', 1)[1].strip()
+            output_cols.append(column_name)
 
     return ', '.join(output_cols)
 
