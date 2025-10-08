@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
-    from django.http import HttpRequest
     from rest_framework.request import Request
 
 from django.conf import settings
+from django.http import HttpRequest, HttpResponse
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
@@ -25,6 +25,11 @@ from rest_framework.views import APIView
 from api.models import DeidentificationJob
 from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
 from core.utils.logger import setup_logging
+
+
+def favicon_view(_request: HttpRequest) -> HttpResponse:
+    """Disabe favicon requests by returning an empty response."""
+    return HttpResponse(status=204)
 
 
 class ApiTags:
@@ -160,3 +165,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 {'error': 'Failed to start job processing', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+def favicon_view(_request: HttpRequest) -> HttpResponse:
+    """Return empty response for favicon requests."""
+    return HttpResponse(status=204)
