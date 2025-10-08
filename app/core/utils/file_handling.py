@@ -103,8 +103,6 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
         schema_str = 'root\n' + '\n'.join([f' |-- {name}: {dtype}' for name, dtype in df.schema.items()])
         logger.debug('%s \n', schema_str)
 
-        df_rowcount = df.height
-        logger.info('Row count: %s rows\n', df_rowcount)
         return df
 
     # File does not exist
