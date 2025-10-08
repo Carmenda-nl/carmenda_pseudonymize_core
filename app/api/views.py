@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
@@ -24,7 +25,10 @@ from rest_framework.views import APIView
 
 from api.models import DeidentificationJob
 from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
+from api.utils import collect_output_files, create_zipfile, match_output_cols
 from core.utils.logger import setup_logging
+
+logger = setup_logging()
 
 
 def favicon_view(_request: HttpRequest) -> HttpResponse:
@@ -59,6 +63,15 @@ class APIRootView(APIView):
             data['v1/schema'] = reverse('schema', request=request, format=fmt)
 
         return Response(data)
+
+
+class DeidentificationConfig(NamedTuple):
+    """Configuration for deidentification processing."""
+
+    input_file: str
+    input_cols: dict
+    output_cols: dict
+    datakey: dict
 
 
 @extend_schema(tags=[ApiTags.JOBS])
@@ -119,53 +132,89 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     def process(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Start the deidentification process for a job."""
         job = self.get_object()
+        print('job:', job.job_id)
+        return Response({'message': 'Job processing ended successfully'}, status=status.HTTP_200_OK)
 
-        # GET shows information about how to use this endpoint
-        if request.method == 'GET':
-            return Response({
-                'message': 'Use POST to start processing this job',
-                'job_id': str(job.job_id),
-                'current_status': job.status,
-                'method': 'POST',
-                'endpoint': request.build_absolute_uri(),
-            }, status=status.HTTP_200_OK)
+        # # GET shows information about how to use this endpoint
+        # if request.method == 'GET':
+        #     return Response({
+        #         'message': 'Use POST to start processing this job',
+        #         'job_id': str(job.job_id),
+        #         'current_status': job.status,
+        #         'method': 'POST',
+        #         'endpoint': request.build_absolute_uri(),
+        #     }, status=status.HTTP_200_OK)
 
-        if not job.input_file or not Path(job.input_file.path).exists():
-            return Response({'error': 'Input file is missing'}, status=status.HTTP_400_BAD_REQUEST)
+        # if not job.input_file or not Path(job.input_file.path).exists():
+        #     return Response({'error': 'Input file is missing'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Reset the status and error message on re-runs
-        job.status = 'processing'
-        job.error_message = ''
-        job.save()
-
-
-
-
+        # # Reset the status and error message on re-runs
+        # job.status = 'processing'
+        # job.error_message = ''
+        # job.save()
 
 
 
-        try:
-            # Start the anonymizing process
-            job_obj, config, _output_filename = _setup_deidentification_job(job.job_id)
-            _execute_deidentification(config, job_obj)
 
-            return Response({'message': 'Job processing ended successfully'}, status=status.HTTP_200_OK)
-        except (OSError, RuntimeError, ValueError) as e:
-            logger = setup_logging()
-            logger.exception('Error starting job %s', job.job_id)
-            try:
-                job_obj = DeidentificationJob.objects.get(pk=job.job_id)
-                job_obj.status = 'failed'
-                job_obj.error_message = str(e)
-                job_obj.save()
-            except (OSError, RuntimeError):
-                logger.exception('Failed to update job status')
 
-            return Response(
-                {'error': 'Failed to start job processing', 'details': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        # try:
+        #     # Start the anonymizing process
+        #     job = DeidentificationJob.objects.get(pk=job.job_id)
+        #     job.status = 'processing'
+        #     job.save()
 
-def favicon_view(_request: HttpRequest) -> HttpResponse:
-    """Return empty response for favicon requests."""
-    return HttpResponse(status=204)
+        #     input_cols = job.input_cols
+        #     output_cols = match_output_cols(input_cols)
+
+        #     input_file = Path(job.input_file.name).name
+        #     datakey = Path(job.key_file.name).name if job.key_file else None
+
+        #     config = DeidentificationConfig(
+        #         input_file=input_file,
+        #         input_cols=input_cols,
+        #         output_cols=output_cols,
+        #         datakey=datakey,
+        #     )
+
+        #     # Execute a deidentification job
+        #     from core.processor import process_data  # noqa: PLC0415 (Initialize core only when needed)
+
+        #     # Call the core's deidentification process (data processor)
+        #     processed_rows_json = process_data(
+        #         input_file=config.input_file,
+        #         input_cols=config.input_cols,
+        #         output_cols=config.output_cols,
+        #         datakey=config.datakey,
+        #     )
+
+        #     if processed_rows_json:
+        #         processed_data = json.loads(processed_rows_json)
+        #         job.processed_preview = processed_data
+        #         job.save()
+
+
+
+        #     # Collect output files and update job model
+        #     files_to_zip, output_filename = collect_output_files(job, config.input_file)
+        #     create_zipfile(job, files_to_zip, output_filename)
+
+        #     # If no errors, update job to 'completed'
+        #     job.status = 'completed'
+        #     job.save()
+
+        #     return Response({'message': 'Job processing ended successfully'}, status=status.HTTP_200_OK)
+
+        # except (OSError, RuntimeError, ValueError) as e:
+        #     # Update job status
+        #     logger.exception('Error processing job %s', job.pk)
+        #     try:
+        #         job.status = 'failed'
+        #         job.error_message = f'Job error: {e!s}'
+        #         job.save()
+        #     except (OSError, RuntimeError):
+        #         logger.exception('Failed to update job status for job %s', job.id)
+
+        #     return Response(
+        #         {'error': 'Failed to start job processing', 'details': str(e)},
+        #         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        #     )

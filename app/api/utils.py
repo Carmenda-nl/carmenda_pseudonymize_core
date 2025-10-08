@@ -3,125 +3,43 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Utility & helper modules for processing deidentification jobs.
-
-This module handles the background processing of deidentification jobs,
-including file processing, status tracking, and zipping the results.
-"""
+"""Utility & helper modules for processing deidentification jobs API."""
 
 from __future__ import annotations
 
-import json
 import os
 import zipfile
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from api.models import DeidentificationJob
 
 from django.conf import settings
 
-from api.models import DeidentificationJob
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
 
 
-class DeidentificationConfig(NamedTuple):
-    """Configuration for deidentification processing."""
+def match_output_cols(input_cols: str) -> str:
+    """Transform input column mappings to their corresponding output mappings."""
+    cols = [col.strip() for col in input_cols.split(',')]
 
-    input_file: str
-    input_cols: dict
-    output_cols: dict
-    datakey: dict
+    for col_name, col in enumerate(cols):
+        if col.startswith('clientname='):
+            cols[col_name] = 'clientname=clientcode'
+        elif col.startswith('report='):
+            cols[col_name] = 'report=processed_report'
 
-
-def _execute_deidentification(config: DeidentificationConfig, job: DeidentificationJob) -> None:
-    """Execute a deidentification job."""
-    try:
-        from core.processor import process_data  # noqa: PLC0415 (Initialize core only when needed)
-
-        # Call the core's deidentification process (data processor)
-        processed_rows_json = process_data(
-            input_file=config.input_file,
-            input_cols=config.input_cols,
-            output_cols=config.output_cols,
-            datakey=config.datakey,
-        )
-
-        _save_processed_preview(job, processed_rows_json)
-
-        # Collect output files and update job model
-        files_to_zip, output_filename = _collect_output_files(job, config.input_file)
-        _create_and_store_zip(job, files_to_zip, output_filename)
-
-        # If no errors, update job to 'completed'
-        job.status = 'completed'
-        job.save()
-
-    except (OSError, RuntimeError, ValueError) as e:
-        # Update job status
-        logger.exception('Error processing job %s', job.pk)
-        try:
-            job.status = 'failed'
-            job.error_message = f'Job error: {e!s}'
-            job.save()
-        except (OSError, RuntimeError):
-            logger.exception('Failed to update job status for job %s', job.id)
+    return ', '.join(cols)
 
 
-def _transform_output_cols(input_cols: str) -> str:
-    """Transform input column mappings to their corresponding output mappings.
-
-    Example:
-        transform_output_cols('clientname=name, report=text, other=value')
-        'clientcode=clientcode, report=processed, other=value'
-
-    """
-    parts = [part.strip() for part in input_cols.split(',')]
-
-    for col_name, part in enumerate(parts):
-        if part.startswith('clientname='):
-            parts[col_name] = 'clientname=clientcode'
-        elif part.startswith('report='):
-            parts[col_name] = 'report=processed_report'
-
-    return ', '.join(parts)
-
-
-def _setup_deidentification_job(job_id: str) -> tuple[DeidentificationJob, DeidentificationConfig, str]:
-    """Set up the job and create configuration for deidentification."""
-    job = DeidentificationJob.objects.get(pk=job_id)
-    job.status = 'processing'
-    job.save()
-
-    input_cols = job.input_cols
-    output_cols = _transform_output_cols(input_cols)
-
-    input_file = Path(job.input_file.name).name
-    datakey = Path(job.key_file.name).name if job.key_file else None
-
-    config = DeidentificationConfig(
-        input_file=input_file,
-        input_cols=input_cols,
-        output_cols=output_cols,
-        datakey=datakey,
-    )
-
-    return job, config, input_file
-
-
-def _save_processed_preview(job: DeidentificationJob, processed_rows_json: str | None) -> None:
-    """Save the processed data preview to the job model."""
-    if processed_rows_json:
-        processed_data = json.loads(processed_rows_json)
-        job.processed_preview = processed_data
-        job.save()
-
-
-def _collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
-    """Collect paths of all output files and update job model."""
+def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
+    """Collect paths of all `the output files that need to be zipped."""
     data_output_dir = Path(settings.MEDIA_ROOT) / 'output'
     output_path = data_output_dir / input_file
-    key_path = data_output_dir / 'datakey.csv'
+    datakey_path = data_output_dir / 'datakey.csv'
     log_path = data_output_dir / 'deidentification.log'
 
     files_to_zip = []
@@ -133,10 +51,10 @@ def _collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[li
         files_to_zip.append(str(output_path))
         output_filename = output_path.name
 
-    if key_path.exists():
-        relative_path = key_path.relative_to(Path(settings.MEDIA_ROOT))
+    if datakey_path.exists():
+        relative_path = datakey_path.relative_to(Path(settings.MEDIA_ROOT))
         job.key_file.name = str(relative_path)
-        files_to_zip.append(str(key_path))
+        files_to_zip.append(str(datakey_path))
 
     if log_path.exists():
         relative_path = log_path.relative_to(Path(settings.MEDIA_ROOT))
@@ -146,44 +64,42 @@ def _collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[li
     return files_to_zip, output_filename
 
 
-def _create_and_store_zip(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:
-    """Create zip file and store its information in the job model."""
+def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:
+    """Create a zip file and store its information in the job model."""
     if not files_to_zip:
-        logger.warning('No output files found to zip for job %s', job.pk)
-        return
+        error_message = f'No output files found to zip for job {job.pk}'
+        logger.error(error_message)
+        raise RuntimeError(error_message)
+
+    base_name = Path(output_filename).stem
+    zip_filename = f'{base_name}_deidentified.zip'
+    zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
+
+    included_files = []
 
     try:
-        # Create zip file
-        base_name = Path(output_filename).stem
-        zip_filename = f'{base_name}_deidentified.zip'
-
-        # Define zip file path with output file name
-        zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
-
-        included_files = []
-
         # Create the zip file
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for file_path in files_to_zip:
                 file_path_obj = Path(file_path)
-                if file_path_obj.exists():
-                    basename = file_path_obj.name
 
-                    # Add file to zip with the determined name
-                    zipf.write(file_path, basename)
+                if not file_path_obj.exists():
+                    error_message = f'File not found for zipping: {file_path}'
+                    logger.error(error_message)
+                    raise RuntimeError(error_message)
 
-                    # Add to our list of included files
-                    included_files.append(basename)
-                else:
-                    logger.warning('File not found for zipping: %s', file_path)
+                basename = file_path_obj.name
+                zipf.write(file_path, basename)
+                included_files.append(basename)
 
         # Store zip information in job model
-        relative_zip_path = os.path.relpath(zip_path, settings.MEDIA_ROOT)
-
-        job.zip_file.name = relative_zip_path
+        job.zip_file.name = os.path.relpath(zip_path, settings.MEDIA_ROOT)
         job.zip_preview = {
             'zip_file': zip_filename,
             'files': included_files,
         }
-    except (OSError, zipfile.BadZipFile, RuntimeError):
-        logger.exception('Failed to create zip file')
+
+    except OSError as error:
+        error_message = f'Failed to create zip file: {error}'
+        logger.exception(error_message)
+        raise
