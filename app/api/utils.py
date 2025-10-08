@@ -23,16 +23,17 @@ logger = setup_logging()
 
 
 def match_output_cols(input_cols: str) -> str:
-    """Transform input column mappings to their corresponding output mappings."""
-    cols = [col.strip() for col in input_cols.split(',')]
+    """Transform the to be deidentified input columns to the corresponding output mappings."""
+    colums = [col.strip() for col in input_cols.split(',')]
+    output_cols = []
 
-    for col_name, col in enumerate(cols):
+    for col in colums:
         if col.startswith('clientname='):
-            cols[col_name] = 'clientname=clientcode'
-        elif col.startswith('report='):
-            cols[col_name] = 'report=processed_report'
+            output_cols.append('clientcode')
+        if col.startswith('report='):
+            output_cols.append('processed_report')
 
-    return ', '.join(cols)
+    return ', '.join(output_cols)
 
 
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
@@ -53,7 +54,7 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
 
     if datakey_path.exists():
         relative_path = datakey_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.key_file.name = str(relative_path)
+        job.datakey.name = str(relative_path)
         files_to_zip.append(str(datakey_path))
 
     if log_path.exists():
