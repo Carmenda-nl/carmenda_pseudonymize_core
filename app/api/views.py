@@ -212,10 +212,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
             return Response({'message': 'Job processing finished successfully'}, status=status.HTTP_200_OK)
 
-        except (OSError, RuntimeError, ValueError) as error:
+        except Exception as error:
             job.error_message = f'Job error: {error}'
             job.status = 'failed'
             job.save()
+
+            logger.exception('Job %s failed during processing', job.job_id)
 
             return Response(
                 {'error': 'Job processing failed', 'details': str(error)},
