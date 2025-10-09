@@ -532,7 +532,7 @@ class DeidentifyHandler:
         total_rows = df.height
 
         clientname_message = 'with clientname' if has_clientname else ''
-        logger.info('Processing %d rows %s', total_rows, clientname_message)
+        logger.info('Processing %d rows %s\n', total_rows, clientname_message)
 
         # Initialize progress counter
         self.processed_count = 0
@@ -566,6 +566,7 @@ class DeidentifyHandler:
         result = df.with_columns(processed_reports)
 
         tracker.update('Data transformation', f'Completed {total_rows:,} rows')
+        tracker.finalize_progress()
 
         return result
 

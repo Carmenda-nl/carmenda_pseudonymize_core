@@ -23,10 +23,9 @@ from core.datakey import process_datakey
 from core.deidentify import DeidentifyHandler
 from core.utils.file_handling import get_environment, load_data_file, save_datafile, save_datakey
 from core.utils.logger import setup_logging
-from core.utils.progress_tracker import ProgressTracker, performance_metrics
+from core.utils.progress_tracker import performance_metrics
 
 logger = setup_logging()
-tracker = ProgressTracker()
 
 
 def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
@@ -104,7 +103,6 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
-    tracker.finalize_progress()
     performance_metrics(start_time, df.height)
     save_datafile(df, input_file, output_folder)
 
