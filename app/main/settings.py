@@ -32,6 +32,7 @@ CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=['http://127.0.0
 
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
+    'channels',
     'api',
     'main',
 ]
@@ -60,10 +62,12 @@ if getattr(sys, 'frozen', False):
     MIDDLEWARE.append('main.middleware.ServeMediaFilesMiddleware')
 
 
-# CORS settings for app communication
+# CORS settings for app communication (HTTP + WebSocket origins)
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://127.0.0.1:3000',
     'http://localhost:8000',
+    'http://127.0.0.1:8000',
 ]
 
 CORS_ALLOW_METHODS = (
@@ -93,6 +97,11 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'main.wsgi.application'
+ASGI_APPLICATION = 'main.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'},
+}
 
 
 # Database
