@@ -46,10 +46,9 @@ class ProgressTracker:
         self.total_rows = 0
 
         # Progress stages configuration
+        # Only 'Data transformation' is actually used in the codebase
         self.progress_stages = [
-            'Pre-processing',
             'Data transformation',
-            'Finalizing',
         ]
         self.total_stages = len(self.progress_stages)
         self.current_stage_index = 0
@@ -162,7 +161,7 @@ class ProgressTracker:
                     self.rich_progress.update(
                         self.task_id,
                         completed=self.rows_processed,
-                        description=f'{stage_name}',
+                        description=f'{stage_name} ({progress_percentage}%)',
                     )
 
     def update_with_percentage(self, stage_name: str, step_name: str, step_progress: float) -> int:
@@ -232,7 +231,7 @@ class ProgressTracker:
                     self.rich_progress.update(
                         self.task_id,
                         completed=self.rows_processed,
-                        description=f'{stage_name}',
+                        description=f'{stage_name} ({progress_percentage}%)',
                     )
 
         return progress_percentage
