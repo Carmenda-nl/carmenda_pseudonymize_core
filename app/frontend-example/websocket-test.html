@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Django Channels WebSocket Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #1f2937;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #4b5563;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background-color: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .status-dot.connected {
+            background-color: #10b981;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background-color: #ef4444;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .progress-bar-wrapper {
+            background-color: #e5e7eb;
+            border-radius: 9999px;
+            height: 40px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-bar {
+            height: 100%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            color: white;
+            font-weight: 700;
+        }
+
+        .info-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-row strong {
+            min-width: 100px;
+            color: #6b7280;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .error-message {
+            background-color: #fef2f2;
+            border: 2px solid #fecaca;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            color: #991b1b;
+        }
+
+        .success-message {
+            background-color: #f0fdf4;
+            border: 2px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            color: #166534;
+            font-weight: 600;
+        }
+
+        #logs {
+            background-color: #1f2937;
+            color: #10b981;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+        }
+
+        .log-time {
+            color: #6b7280;
+        }
+
+        code {
+            background-color: #f3f4f6;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            color: #be185d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Django Channels WebSocket Test</h1>
+        <p class="subtitle">Real-time job progress monitoring via WebSockets</p>
+
+        <!-- Job Control -->
+        <div class="card">
+            <h2>📋 Job Control</h2>
+            <div class="input-group">
+                <label for="jobId">Job ID:</label>
+                <input type="text" id="jobId" value="bigfile" placeholder="Enter job ID">
+            </div>
+            <div class="button-group">
+                <button class="btn-primary" onclick="startJob()">▶️ Start Job & Monitor</button>
+                <button class="btn-secondary" onclick="stopMonitoring()">⏹️ Stop Monitoring</button>
+            </div>
+        </div>
+
+        <!-- WebSocket Status -->
+        <div class="card">
+            <h2>🔌 WebSocket Connection</h2>
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Disconnected</span>
+            </div>
+            <div class="info-row">
+                <strong>Job ID:</strong>
+                <span id="currentJobId">-</span>
+            </div>
+            <div class="info-row">
+                <strong>WebSocket URL:</strong>
+                <span id="wsUrl">-</span>
+            </div>
+            <button class="btn-secondary" onclick="reconnect()" style="margin-top: 1rem;">🔄 Reconnect</button>
+        </div>
+
+        <!-- Progress -->
+        <div class="card">
+            <h2>📊 Job Progress</h2>
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar" id="progressBar" style="width: 0%; background-color: #6b7280;">
+                    <span id="progressText">0%</span>
+                </div>
+            </div>
+            <div class="info-row">
+                <strong>Status:</strong>
+                <span class="badge" id="statusBadge" style="background-color: #6b7280;">PENDING</span>
+            </div>
+            <div class="info-row">
+                <strong>Stage:</strong>
+                <span id="stageText">-</span>
+            </div>
+            <div id="resultMessage"></div>
+        </div>
+
+        <!-- Logs -->
+        <div class="card">
+            <h2>📝 WebSocket Logs</h2>
+            <div id="logs"></div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="card">
+            <h2>📖 How to Use</h2>
+            <ol style="margin-left: 1.5rem; line-height: 1.8;">
+                <li>Make sure Django server is running: <code>python manage.py runserver</code></li>
+                <li>Enter a job ID (must exist in database)</li>
+                <li>Click "Start Job & Monitor"</li>
+                <li>Watch real-time progress updates!</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let currentJobId = null;
+
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            const entry = `<div class="log-entry"><span class="log-time">[${time}]</span> ${message}</div>`;
+            logs.innerHTML = entry + logs.innerHTML;
+        }
+
+        function updateUI(data) {
+            const { percentage, stage, status } = data;
+
+            // Progress bar
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            progressBar.style.width = `${percentage}%`;
+            progressText.textContent = `${percentage}%`;
+
+            // Status badge and color
+            const statusBadge = document.getElementById('statusBadge');
+            const statusColors = {
+                processing: '#3b82f6',
+                completed: '#10b981',
+                failed: '#ef4444',
+                pending: '#6b7280'
+            };
+            
+            statusBadge.textContent = status.toUpperCase();
+            statusBadge.style.backgroundColor = statusColors[status] || '#6b7280';
+            progressBar.style.backgroundColor = statusColors[status] || '#6b7280';
+
+            // Stage text
+            document.getElementById('stageText').textContent = stage;
+
+            // Result message
+            const resultMessage = document.getElementById('resultMessage');
+            if (status === 'completed') {
+                resultMessage.innerHTML = '<div class="success-message">✅ Job completed successfully!</div>';
+            } else if (status === 'failed') {
+                resultMessage.innerHTML = '<div class="error-message">❌ Job failed. Check the logs.</div>';
+            } else {
+                resultMessage.innerHTML = '';
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (connected) {
+                dot.className = 'status-dot connected';
+                text.textContent = 'Connected';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function connect(jobId) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('⚠️ Already connected');
+                return;
+            }
+
+            currentJobId = jobId;
+            const wsUrl = `ws://localhost:8000/ws/jobs/${jobId}/progress/`;
+            
+            document.getElementById('currentJobId').textContent = jobId;
+            document.getElementById('wsUrl').textContent = wsUrl;
+
+            log(`🔌 Connecting to ${wsUrl}...`);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                log('✅ WebSocket connected');
+                updateConnectionStatus(true);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                log(`📩 Message: ${JSON.stringify(data)}`);
+
+                if (data.type === 'progress_update') {
+                    updateUI(data);
+                } else if (data.type === 'error') {
+                    log(`❌ Error: ${data.message}`);
+                    alert(`Error: ${data.message}`);
+                }
+            };
+
+            ws.onerror = (error) => {
+                log(`❌ WebSocket error: ${error}`);
+                updateConnectionStatus(false);
+            };
+
+            ws.onclose = (event) => {
+                log(`🔌 WebSocket closed (code: ${event.code})`);
+                updateConnectionStatus(false);
+            };
+        }
+
+        async function startJob() {
+            const jobId = document.getElementById('jobId').value.trim();
+            
+            if (!jobId) {
+                alert('Please enter a job ID');
+                return;
+            }
+
+            log(`🚀 Starting job: ${jobId}`);
+
+            try {
+                // Start the job
+                const response = await fetch(`http://localhost:8000/api/v1/jobs/${jobId}/process/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                const data = await response.json();
+                log(`📡 API Response: ${JSON.stringify(data)}`);
+
+                if (response.ok) {
+                    // Connect WebSocket
+                    connect(jobId);
+                } else {
+                    alert(`Failed to start job: ${data.error || 'Unknown error'}`);
+                    log(`❌ Failed: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`Connection error: ${error.message}`);
+                log(`❌ Connection error: ${error.message}`);
+            }
+        }
+
+        function stopMonitoring() {
+            if (ws) {
+                log('⏹️ Stopping monitoring...');
+                ws.close();
+                ws = null;
+            }
+            currentJobId = null;
+            updateConnectionStatus(false);
+        }
+
+        function reconnect() {
+            const jobId = document.getElementById('jobId').value.trim() || currentJobId;
+            
+            if (!jobId) {
+                alert('No job ID to reconnect to');
+                return;
+            }
+
+            stopMonitoring();
+            setTimeout(() => connect(jobId), 500);
+        }
+
+        // Initial log
+        log('💡 Ready to test WebSocket connection');
+    </script>
+</body>
+</html>

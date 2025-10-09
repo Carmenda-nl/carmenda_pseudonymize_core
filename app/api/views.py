@@ -235,12 +235,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                             current_percentage = progress_info['percentage']
                             current_stage = progress_info['stage'] or 'Processing'
                             
-                            # Send update if progress changed significantly
-                            if abs(current_percentage - last_percentage) >= 5 or current_percentage == 100:
+                            # Send update if progress changed (1% threshold for more frequent updates)
+                            if abs(current_percentage - last_percentage) >= 1 or current_percentage == 100:
                                 update_job_progress(current_percentage, current_stage)
                                 last_percentage = current_percentage
                             
-                            stop_monitoring.wait(0.5)  # Check every 500ms
+                            stop_monitoring.wait(0.2)  # Check every 200ms for more responsive updates
 
                     # Start progress monitoring in separate thread
                     monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
