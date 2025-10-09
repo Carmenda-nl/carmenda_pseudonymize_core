@@ -21,12 +21,12 @@ import polars as pl
 
 from core.datakey import process_datakey
 from core.deidentify import DeidentifyHandler
-
-from .utils.file_handling import get_environment, load_data_file, save_datafile, save_datakey
-from .utils.logger import setup_logging
-from .utils.progress_tracker import performance_metrics, tracker
+from core.utils.file_handling import get_environment, load_data_file, save_datafile, save_datakey
+from core.utils.logger import setup_logging
+from core.utils.progress_tracker import ProgressTracker, performance_metrics
 
 logger = setup_logging()
+tracker = ProgressTracker()
 
 
 def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
@@ -43,14 +43,11 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     df = load_data_file(input_file_path)
 
     if df is not None:
-        tracker.update('Pre-processing')
-
         input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
         output_cols_list = [column.strip() for column in output_cols.split(',')]
 
         clientname_col = input_cols_dict.get('clientname')
         has_clientname = clientname_col in df.columns
-
         report_col = input_cols_dict.get('report')
         has_report = report_col in df.columns
 
