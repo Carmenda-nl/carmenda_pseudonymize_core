@@ -6,15 +6,12 @@
 """Progress tracking utilities for data processing.
 
 This module provides the ProgressTracker for managing and reporting
-progress for the data transformation stage using Rich library.
+progress during data transformation using Rich library.
 """
 
 from __future__ import annotations
 
-import logging
-import sys
 import time
-from threading import Lock
 
 from rich.progress import (
     BarColumn,
@@ -33,39 +30,22 @@ logger = setup_logging()
 
 
 class ProgressTracker:
-    """Track progress across multiple stages of data processing using Rich."""
+    """Track progress for data transformation using Rich."""
 
     def __init__(self) -> None:
-        """Initialize the ProgressTracker with default values."""
-        self._lock = Lock()
-        self.progress_stages = ['Data transformation']
-        self.total_stages = len(self.progress_stages)
-        self._initialize_state()
+        """Initialize the ProgressTracker."""
+        self._default_state()
 
-    def _initialize_state(self) -> None:
-        """Initialize all state variables to default values."""
-        self.progress = 0
+    def _default_state(self) -> None:
+        """Set all state variables to default values."""
         self.current_stage = None
         self.current_step = None
         self.start_time = None
-        self.rows_processed = 0
         self.total_rows = 0
-        self.current_stage_index = 0
-        self.last_stage_name = None
-        self.rich_progress = None
+        self.rows_processed = 0
+        self.progress = 0
         self.task_id = None
-        self._progress_started = False
-
-    def reset(self) -> None:
-        """Reset the tracker for a new processing run."""
-        with self._lock:
-            if self.rich_progress is not None:
-                self.rich_progress.stop()
-            self._initialize_state()
-
-
-
-
+        self.rich_progress = self._progress_bar()
 
     def _progress_bar(self) -> Progress:
         """Create a Rich progress bar with spinner."""
@@ -79,90 +59,56 @@ class ProgressTracker:
 
         return Progress(spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining)
 
+    def _parse_row_progress(self, step_name: str) -> None:
+        """Parse row progress from step_name format: 'Processed X/Y rows'."""
+        if not step_name or '/' not in step_name:
+            return
 
-
-
-
-
-
-
-    def update(self, stage_name: str, step_name: str, step_progress: float) -> int:
-        """Update step progress within current stage without going backwards."""
-        # Extract row count from step_name if available (format: "Processed X/Y rows")
-        if step_name and '/' in step_name:
-            try:
-                parts = step_name.split()
-                if len(parts) >= 2 and '/' in parts[1]:
-                    current_rows_str = parts[1].split('/')[0].replace(',', '')
-                    total_rows_str = parts[1].split('/')[1].replace(',', '')
-                    new_rows = int(current_rows_str)
-                    new_total = int(total_rows_str)
-
-                    # Update row tracking
-                    if new_total > 0:
-                        self.total_rows = new_total
-                        self.rows_processed = new_rows
-            except (ValueError, IndexError):
-                pass
-
-        # Calculate percentage
-        current_percentage = self.progress
         try:
-            stage_index = self.progress_stages.index(stage_name)
-        except ValueError:
-            stage_index = self.current_stage_index
+            parts = step_name.split()
+            min_parts_required = 2
 
-        stage_width = 100 / self.total_stages
-        base_percentage = int((stage_index / self.total_stages) * 100)
-        within_stage_progress = (step_progress / 100) * stage_width
-        calculated_percentage = base_percentage + int(within_stage_progress)
+            if len(parts) < min_parts_required:
+                return
 
-        progress_percentage = max(current_percentage, calculated_percentage)
-        progress_percentage = min(progress_percentage, 100)
+            # Find the part containing the fraction (X/Y)
+            fraction_part = next((part for part in parts if '/' in part), None)
+            if not fraction_part:
+                return
+
+            current_str, total_str = fraction_part.split('/', 1)
+            current_rows = int(current_str.replace(',', ''))
+            total_rows = int(total_str.replace(',', ''))
+
+            self.total_rows = total_rows
+            self.rows_processed = current_rows
+
+        except (ValueError, IndexError) as error:
+            logger.debug("Failed to parse row progress from '%s': %s", step_name, error)
+
+    def update_progress(self, stage_name: str, step_name: str, step_progress: int) -> int:
+        """Update step and row progress to rich progress bar."""
+        self._parse_row_progress(step_name)
+
+        # Calculate percentage (use step_progress as overall progress)
+        progress_percentage = max(self.progress, min(int(step_progress), 100))
 
         self.progress = progress_percentage
         self.current_stage = stage_name
         self.current_step = step_name
 
-        # Only show Rich progress in DEBUG mode
-        if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
-            with self._lock:  # Thread-safe access
-                # Create progress bar if it doesn't exist
-                if self.rich_progress is None:
-                    logger.debug('UPDATE_PCT: Creating new Progress instance')
-                    self.rich_progress = self._progress_bar()
-                
-                # Start progress bar only ONCE
-                if not self._progress_started:
-                    logger.debug('UPDATE_PCT: Starting Progress for the FIRST time')
-                    self._progress_started = True  # Set flag BEFORE starting to avoid race condition
-                    self.rich_progress.start()
-                    self.start_time = time.time()
+        self.rich_progress.start()
+        self.start_time = time.time()
 
-                # Only create task when we have row tracking data
-                if self.total_rows > 0 and self.task_id is None:
-                    logger.debug('UPDATE_PCT: Creating new task (total_rows=%d)', self.total_rows)
-                    self.task_id = self.rich_progress.add_task(
-                        f'{stage_name}',
-                        total=self.total_rows,
-                        completed=0,  # Always start at 0
-                    )
+        if self.task_id is None:
+            self.task_id = self.rich_progress.add_task(f'{stage_name}', total=self.total_rows, completed=0)
 
-                # Update task only if it exists (row tracking active)
-                if self.task_id is not None:
-                    self.rich_progress.update(
-                        self.task_id,
-                        completed=self.rows_processed,
-                        description=f'{stage_name} ({progress_percentage}%)',
-                    )
-
+        self.rich_progress.update(
+            self.task_id,
+            completed=self.rows_processed,
+            description=f'{stage_name} ({progress_percentage}%)',
+        )
         return progress_percentage
-
-
-
-
-
-
 
     def get_progress(self) -> dict[str, int | str | None]:
         """Retrieve the current progress and stage information."""
@@ -173,33 +119,24 @@ class ProgressTracker:
         elif self.current_stage:
             combined_stage = self.current_stage
 
-        return {
-            'percentage': self.progress,
-            'stage': combined_stage,
-            'step': self.current_step,
-        }
+        return {'percentage': self.progress, 'stage': combined_stage, 'step': self.current_step}
 
     def finalize_progress(self) -> None:
         """Finalize progress and stop the Rich progress bar."""
+        if self.task_id is not None:
+            final_value = self.total_rows if self.total_rows > 0 else 100
+            self.rich_progress.update(self.task_id, completed=final_value)
+
+        # Reset the tracker for a new future processing run.
+        self.rich_progress.stop()
+        self.rich_progress = None
+        self.task_id = None
+
+    def reset(self) -> None:
+        """Reset the tracker for a new processing run."""
         if self.rich_progress is not None:
-            if self.task_id is not None:
-                final_value = self.total_rows if self.total_rows > 0 else 100
-                self.rich_progress.update(self.task_id, completed=final_value)
             self.rich_progress.stop()
-            # Print newline to separate progress bar from next output
-            self.rich_progress = None
-            self.task_id = None
-
-
-
-
-
-
-
-
-
-
-
+        self._default_state()
 
 
 # Singleton instance (only one instance needed)
@@ -211,5 +148,14 @@ def performance_metrics(start_time: float, df_rowcount: int) -> None:
     end_time = time.time()
     total_time = end_time - start_time
     time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
+    minute = 60
 
-    logger.info('Total time: %.2f seconds (%.6f seconds per row)', total_time, time_per_row)
+    if total_time >= minute:
+        minutes = int(total_time // minute)
+        seconds = total_time % minute
+        time_str = f'{minutes} minutes and {seconds:.2f} seconds'
+    else:
+        time_str = f'{total_time:.2f} seconds'
+
+    logger.info('Time passed with a total of %d rows', df_rowcount)
+    logger.info('Total time: %s (%.6f seconds per row)', time_str, time_per_row)

@@ -141,11 +141,11 @@ class DeidentifyHandler:
             self.processed_count += 1
 
             if self.processed_count - self.last_update >= max_percentage:
-                progress = (self.processed_count / self.total_count) * 100
-                tracker.update(
+                step_progress = (self.processed_count / self.total_count) * 100
+                tracker.update_progress(
                     'Pseudonymize',
                     f'Processed {self.processed_count}/{self.total_count} rows',
-                    progress,
+                    step_progress,
                 )
                 self.last_update = self.processed_count
 
