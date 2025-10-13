@@ -191,6 +191,18 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         job.error_message = ''
         job.save()
 
+        # Send initial progress update to show progressbar immediately
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'job_progress_{job.job_id}',
+            {
+                'type': 'job_progress',
+                'percentage': 0,
+                'stage': 'Starting processing...',
+                'status': 'processing',
+            },
+        )
+
         try:
             # Capture job_id instead of job instance to avoid closure issues
             job_id = job.job_id

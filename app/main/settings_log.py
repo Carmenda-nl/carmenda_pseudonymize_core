@@ -84,5 +84,10 @@ LOGGING = {
             'level': LOG_LEVEL,
             'propagate': False,
         },
+        'asyncio': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
     },
 }
