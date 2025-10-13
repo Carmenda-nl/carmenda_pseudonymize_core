@@ -99,7 +99,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # Show pseudonymized reports in debug mode and when NOT running as a frozen executable
     if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):
-        handler.debug_deidentify_text()
+        handler.deidentify_text_debug()
 
     # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
