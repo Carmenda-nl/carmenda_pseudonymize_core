@@ -11,6 +11,7 @@ progress during data transformation using Rich library.
 
 from __future__ import annotations
 
+import sys
 import time
 
 from rich.progress import (
@@ -129,6 +130,7 @@ class ProgressTracker:
 
         # Reset the tracker for a new future processing run.
         self.rich_progress.stop()
+        sys.stdout.write('\n')  # <-- whitespace under progressbar
         self.rich_progress = None
         self.task_id = None
 

@@ -33,13 +33,6 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
-            'level': LOG_LEVEL,
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': logs_dir / 'backend-api.log',
-            'formatter': 'verbose',
-            'encoding': 'utf-8',
-        },
         'console': {
             'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
@@ -52,17 +45,17 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'django.request': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'ERROR',
             'propagate': False,
         },
         'django.db.backends': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
@@ -97,6 +90,11 @@ LOGGING = {
             'propagate': False,
         },
         'daphne.http_protocol': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.channels.server': {
             'handlers': ['console'],
             'level': 'WARNING',
             'propagate': False,
