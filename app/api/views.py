@@ -20,14 +20,15 @@ if TYPE_CHECKING:
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
-from rest_framework import serializers, status, viewsets
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
 from api.models import DeidentificationJob
+from api.schemas import CREATE_JOB_SCHEMA, PROCESS_JOB_GET_SCHEMA, PROCESS_JOB_POST_SCHEMA
 from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
 from api.utils import collect_output_files, create_zipfile, match_output_cols
 from core.processor import process_data
@@ -71,6 +72,101 @@ class APIRootView(APIView):
         return Response(data)
 
 
+def run_processing(
+    job_id: str, input_file: str, input_cols: dict, output_cols: dict, datakey: str | None = None,
+) -> None:
+    """Run processing in background thread."""
+    try:
+        current_job = DeidentificationJob.objects.get(pk=job_id)
+        channel_layer = get_channel_layer()
+
+        def update_job_progress(percentage: int, stage: str) -> None:
+            """Send progress updates via WebSocket."""
+            async_to_sync(channel_layer.group_send)(
+                f'job_progress_{job_id}',
+                {
+                    'type': 'job_progress',
+                    'percentage': percentage,
+                    'stage': stage,
+                    'status': 'processing',
+                },
+            )
+
+        tracker.reset()
+
+        # Set up a callback to monitor progress from tracker
+        stop_monitoring = threading.Event()
+        completion_percentage = 100
+
+        def monitor_progress() -> None:
+            """Monitor tracker progress and send updates via WebSocket."""
+            last_percentage = -1
+
+            while not stop_monitoring.is_set():
+                progress_info = tracker.get_progress()
+                current_percentage = progress_info['percentage']
+                current_stage = progress_info['stage'] or 'Processing'
+
+                if abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage:
+                    update_job_progress(current_percentage, current_stage)
+                    last_percentage = current_percentage
+
+                stop_monitoring.wait(0.1)
+
+        # Start progress monitoring in separate thread
+        monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
+        monitor_thread.start()
+
+        processor_pipeline = process_data(
+            input_file=input_file,
+            input_cols=input_cols,
+            output_cols=output_cols,
+            datakey=datakey,
+        )
+
+        stop_monitoring.set()
+        monitor_thread.join(timeout=1.0)
+
+        if processor_pipeline:
+            processed_data = json.loads(processor_pipeline)
+            current_job.processed_preview = processed_data
+            current_job.save()
+
+        files_to_zip, output_filename = collect_output_files(current_job, input_file)
+        create_zipfile(current_job, files_to_zip, output_filename)
+
+        current_job.status = 'completed'
+        current_job.save()
+
+        async_to_sync(channel_layer.group_send)(
+            f'job_progress_{job_id}',
+            {
+                'type': 'job_progress',
+                'percentage': 100,
+                'stage': 'Completed',
+                'status': 'completed',
+            },
+        )
+
+    except Exception as error:
+        logger.exception('[JOB %s] Processing failed', job_id)
+        error_job = DeidentificationJob.objects.get(pk=job_id)
+        error_job.error_message = f'Job error: {error}'
+        error_job.status = 'failed'
+        error_job.save()
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'job_progress_{job_id}',
+            {
+                'type': 'job_progress',
+                'percentage': 0,
+                'stage': f'Error: {error}',
+                'status': 'failed',
+            },
+        )
+
+
 @extend_schema(tags=[ApiTags.JOBS])
 @extend_schema_view(process=extend_schema(tags=[ApiTags.PROCESSING]))
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
@@ -87,18 +183,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         return DeidentificationJobSerializer
 
-    @extend_schema(
-        responses={
-            201: inline_serializer(
-                name='JobCreatedResponse',
-                fields={
-                    'message': serializers.CharField(default='Job created successfully and is ready to be processed'),
-                    'job_id': serializers.CharField(),
-                    'process_url': serializers.CharField(),
-                },
-            ),
-        },
-    )
+    @CREATE_JOB_SCHEMA
     def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> Response:
         """Prepare a new job with an uploaded file and column mapping configuration."""
         serializer = self.get_serializer(data=request.data)
@@ -116,46 +201,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         }
         return Response(response_data, status=status.HTTP_201_CREATED)
 
-    @extend_schema(
-        methods=['post'],
-        responses={
-            200: inline_serializer(
-                name='JobProcessingResponse',
-                fields={'message': serializers.CharField(default='Job processing finished successfully')},
-            ),
-            400: OpenApiResponse(description='Input file is missing'),
-            500: inline_serializer(
-                name='JobProcessingErrorResponse',
-                fields={
-                    'error': serializers.CharField(default='Job processing failed'),
-                    'details': serializers.CharField(),
-                },
-            ),
-        },
-    )
-    @extend_schema(
-        methods=['get'],
-        responses={
-            200: inline_serializer(
-                name='JobStatusResponse',
-                fields={
-                    'job_id': serializers.CharField(),
-                    'endpoint': serializers.CharField(),
-                    'current_status': serializers.CharField(),
-                    'progress': serializers.IntegerField(),
-                    'stage': serializers.CharField(),
-                    'error_message': serializers.CharField(),
-                },
-            ),
-        },
-    )
-
-
-
-
-
-
-
+    @PROCESS_JOB_POST_SCHEMA
+    @PROCESS_JOB_GET_SCHEMA
     @action(detail=True, methods=['get', 'post'])
     def process(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Start the deidentification process for a job."""
@@ -182,148 +229,33 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_200_OK,
             )
-
-        if not job.input_file or not Path(job.input_file.path).exists():
-            return Response({'error': 'Input file is missing'}, status=status.HTTP_400_BAD_REQUEST)
-
         # Reset the status and error message on re-runs
         job.status = 'processing'
         job.error_message = ''
         job.save()
 
-        # Send initial progress update to show progressbar immediately
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'job_progress_{job.job_id}',
-            {
-                'type': 'job_progress',
-                'percentage': 0,
-                'stage': 'Starting processing...',
-                'status': 'processing',
-            },
-        )
-
         try:
-            # Capture job_id instead of job instance to avoid closure issues
-            job_id = job.job_id
-            
             input_cols = job.input_cols
             output_cols = match_output_cols(input_cols)
             input_file = Path(job.input_file.name).name
             datakey = Path(job.datakey.name).name if job.datakey else None
 
-            def run_processing() -> None:
-                """Run processing in background thread."""
-                try:
-                    # Refresh job from DB in this thread
-                    current_job = DeidentificationJob.objects.get(pk=job_id)
-                    channel_layer = get_channel_layer()
-
-                    def update_job_progress(percentage: int, stage: str) -> None:
-                        """Send progress updates via WebSocket."""
-                        # Push update to WebSocket clients via Channel Layer
-                        async_to_sync(channel_layer.group_send)(
-                            f'job_progress_{job_id}',
-                            {
-                                'type': 'job_progress',
-                                'percentage': percentage,
-                                'stage': stage,
-                                'status': 'processing',
-                            },
-                        )
-
-                    # Reset tracker for this job
-                    tracker.reset()
-
-                    # Set up a callback to monitor progress from tracker
-                    import threading
-                    stop_monitoring = threading.Event()
-
-                    def monitor_progress():
-                        """Monitor tracker progress and send updates via WebSocket."""
-                        last_percentage = -1
-                        while not stop_monitoring.is_set():
-                            progress_info = tracker.get_progress()
-                            current_percentage = progress_info['percentage']
-                            current_stage = progress_info['stage'] or 'Processing'
-                            
-                            # Send update if progress changed (1% threshold for more frequent updates)
-                            if abs(current_percentage - last_percentage) >= 1 or current_percentage == 100:
-                                update_job_progress(current_percentage, current_stage)
-                                last_percentage = current_percentage
-                            
-                            stop_monitoring.wait(0.2)  # Check every 200ms for more responsive updates
-
-                    # Start progress monitoring in separate thread
-                    monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
-                    monitor_thread.start()
-
-                    # Process data (uses global tracker for progress updates)
-                    processor_pipeline = process_data(
-                        input_file=input_file,
-                        input_cols=input_cols,
-                        output_cols=output_cols,
-                        datakey=datakey,
-                    )
-
-                    # Stop progress monitoring
-                    stop_monitoring.set()
-                    monitor_thread.join(timeout=1.0)
-
-                    if processor_pipeline:
-                        processed_data = json.loads(processor_pipeline)
-                        current_job.processed_preview = processed_data
-                        current_job.save()
-
-                    files_to_zip, output_filename = collect_output_files(current_job, input_file)
-                    create_zipfile(current_job, files_to_zip, output_filename)
-
-                    current_job.status = 'completed'
-                    current_job.save()
-
-                    # Send final completion update via WebSocket
-                    async_to_sync(channel_layer.group_send)(
-                        f'job_progress_{job_id}',
-                        {
-                            'type': 'job_progress',
-                            'percentage': 100,
-                            'stage': 'Completed',
-                            'status': 'completed',
-                        },
-                    )
-
-                except Exception as error:
-                    logger.exception('[JOB %s] Processing failed', job_id)
-                    error_job = DeidentificationJob.objects.get(pk=job_id)
-                    error_job.error_message = f'Job error: {error}'
-                    error_job.status = 'failed'
-                    error_job.save()
-
-                    # Send error update via WebSocket
-                    async_to_sync(channel_layer.group_send)(
-                        f'job_progress_{job_id}',
-                        {
-                            'type': 'job_progress',
-                            'percentage': 0,
-                            'stage': f'Error: {error}',
-                            'status': 'failed',
-                        },
-                    )
-
             # Start processing in background thread
-            processing_thread = threading.Thread(target=run_processing, daemon=True)
+            processing_thread = threading.Thread(
+                target=run_processing,
+                args=(str(job.job_id), input_file, input_cols, output_cols, datakey),
+                daemon=True,
+            )
             processing_thread.start()
 
-            # Return immediately while processing runs in background
             return Response(
                 {
                     'message': 'Job processing started in background',
-                    'job_id': str(job_id),
+                    'job_id': str(job.job_id),
                     'status': 'processing',
                 },
                 status=status.HTTP_202_ACCEPTED,
             )
-
         except Exception as error:
             job.error_message = f'Job error: {error}'
             job.status = 'failed'

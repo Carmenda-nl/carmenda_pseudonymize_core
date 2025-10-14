@@ -119,7 +119,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             message = 'Input columns must be a string'
             raise serializers.ValidationError(message)
 
-        # Split by comma and remove whitespace
         fields = [field.strip() for field in value.split(',')]
 
         pattern = re.compile(r'^([^=]+)=(.+)$')
@@ -136,7 +135,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             val = match.group(2)
             field_dict[key] = val
 
-        # Check that report field is present
         if 'report' not in field_dict:
             message = "The 'report' key must be present (report=value)"
             raise serializers.ValidationError(message)
@@ -199,5 +197,4 @@ class JobStatusSerializer(serializers.ModelSerializer):
             progress_info = tracker.get_progress()
             return progress_info['percentage']
 
-        # Return 100 for completed, 0 for others
         return 100 if obj.status == 'completed' else 0
