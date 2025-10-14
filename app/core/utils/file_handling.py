@@ -81,7 +81,7 @@ def check_file(input_file: str) -> tuple[str, str, str]:
     if scores[separator] == 0:
         logger.error('No valid separator found. Tried: %s', candidates)
 
-    logger.debug('Checked %s: Encoding=%s, line endings=%r, separator=%r', filename, encoding, line_ending, separator)
+    logger.info('Checked %s: Encoding=%s, line endings=%r, separator=%r', filename, encoding, line_ending, separator)
     return encoding, line_ending, separator
 
 
@@ -146,6 +146,6 @@ def save_datakey(datakey: pl.DataFrame, output_folder: str) -> None:
 
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=';')
-        logger.debug('Saving datakey: %s\n%s\n', filename, datakey)
+        logger.info('Saving datakey: %s\n%s\n', filename, datakey)
     except OSError:
         logger.warning('Cannot write datakey to "%s".', file_path)

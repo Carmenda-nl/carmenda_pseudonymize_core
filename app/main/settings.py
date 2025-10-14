@@ -184,5 +184,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Load additional log settings
 LOG_LEVEL = env('LOG_LEVEL')
 
-if LOG_LEVEL == 'DEBUG':
+# Import logging settings if settings_log.py is available
+settings_log_path = Path(__file__).parent / 'settings_log.py'
+if settings_log_path.exists():
     from .settings_log import LOGGING  # noqa: F401

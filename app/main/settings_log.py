@@ -7,7 +7,9 @@
 
 from pathlib import Path
 
-LOG_LEVEL = 'DEBUG'
+from django.conf import settings
+
+LOG_LEVEL = getattr(settings, 'LOG_LEVEL', 'INFO')
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -85,6 +87,16 @@ LOGGING = {
             'propagate': False,
         },
         'asyncio': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'daphne.http_protocol': {
             'handlers': ['console'],
             'level': 'WARNING',
             'propagate': False,
