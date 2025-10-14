@@ -57,7 +57,7 @@ docker build -f deployment/Dockerfile -t privacy-backend:latest .
 Use the following command to run the privacy tool with mounted volumes:
 
 ```bash
-docker run --rm -p 8000:8000 -e DEBUG=False privacy-backend:latest
+docker run -it --rm -p 8000:8000 -e DEBUG=True privacy-backend:latest
 ```
 
 The API will be available at `http://localhost:8000/`
