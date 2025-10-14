@@ -177,6 +177,7 @@ class DeidentifyHandler:
         ])
 
         result = df.with_columns(processed_reports)
+        tracker.update_progress('Pseudonymize', f'Processed {self.total_count}/{self.total_count} rows', 100)
         tracker.finalize_progress()
 
         return result
