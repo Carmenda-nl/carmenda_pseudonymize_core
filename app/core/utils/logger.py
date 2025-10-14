@@ -25,7 +25,7 @@ def _get_log_level(arg_log_level: str | None = None) -> int:
 def setup_logging(log_level: str | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
     log_level = _get_log_level(log_level)
-    log_path = Path(__file__).resolve().parent.parent / 'data/output'
+    log_path = Path(__file__).resolve().parent.parent.parent / 'data/output'
 
     try:
         log_path.mkdir(parents=True, exist_ok=True)
@@ -49,6 +49,7 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
     # Log to file (INFO level only)
     log_file_path = log_path / 'deidentification.log'
     try:
+        log_file_path.open('w', encoding='utf-8').close()  # <-- reset log file
         file_handler = logging.FileHandler(str(log_file_path), encoding='utf-8')
         file_handler.setFormatter(file_formatter)
         file_handler.setLevel(logging.INFO)

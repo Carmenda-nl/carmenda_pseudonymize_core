@@ -7,7 +7,9 @@
 
 from pathlib import Path
 
-LOG_LEVEL = 'DEBUG'
+from django.conf import settings
+
+LOG_LEVEL = getattr(settings, 'LOG_LEVEL', 'INFO')
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -21,7 +23,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
         'console': {
@@ -31,13 +33,6 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
-            'level': LOG_LEVEL,
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': logs_dir / 'backend-api.log',
-            'formatter': 'verbose',
-            'encoding': 'utf-8',
-        },
         'console': {
             'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
@@ -50,17 +45,17 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'django.request': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'ERROR',
             'propagate': False,
         },
         'django.db.backends': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
@@ -82,6 +77,26 @@ LOGGING = {
         'utils': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'asyncio': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'daphne.http_protocol': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.channels.server': {
+            'handlers': ['console'],
+            'level': 'WARNING',
             'propagate': False,
         },
     },

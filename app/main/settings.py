@@ -32,6 +32,7 @@ CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=['http://127.0.0
 
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
+    'channels',
     'api',
     'main',
 ]
@@ -60,10 +62,12 @@ if getattr(sys, 'frozen', False):
     MIDDLEWARE.append('main.middleware.ServeMediaFilesMiddleware')
 
 
-# CORS settings for app communication
+# CORS settings for app communication (HTTP + WebSocket origins)
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://127.0.0.1:3000',
     'http://localhost:8000',
+    'http://127.0.0.1:8000',
 ]
 
 CORS_ALLOW_METHODS = (
@@ -93,6 +97,11 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'main.wsgi.application'
+ASGI_APPLICATION = 'main.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'},
+}
 
 
 # Database
@@ -122,12 +131,12 @@ if DEBUG:
     SPECTACULAR_SETTINGS = {
         'TITLE': 'Deidentification API',
         'DESCRIPTION': 'API for file-based deidentification',
-        'VERSION': '1.0.0',
+        'VERSION': '1.2.0',
         'SERVE_INCLUDE_SCHEMA': False,
         'TAGS': [
-            {'name': 'Jobs', 'description': 'general job management endpoints'},
+            {'name': 'API', 'description': 'base endpoints and documentation'},
+            {'name': 'Jobs', 'description': 'general deidentification job management endpoints'},
             {'name': 'Processing', 'description': 'endpoints related to job deidentification processing'},
-            {'name': 'Cleanup', 'description': 'removes all the created jobs and leftover files'},
         ],
     }
 else:
@@ -149,7 +158,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Amsterdam'
 USE_I18N = True
 USE_TZ = True
 
@@ -175,5 +184,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Load additional log settings
 LOG_LEVEL = env('LOG_LEVEL')
 
-if LOG_LEVEL == 'DEBUG':
+# Import logging settings if settings_log.py is available
+settings_log_path = Path(__file__).parent / 'settings_log.py'
+if settings_log_path.exists():
     from .settings_log import LOGGING  # noqa: F401

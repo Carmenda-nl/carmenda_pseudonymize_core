@@ -10,7 +10,7 @@ Authors: Django Heimgartner, Joep Tummers, Pim van Oirschot
 Description:
     Deidentifies Dutch report texts (unstructured data) using Deduce
     (Menger et al. 2018, DOI: https://doi.org/10.1016/j.tele.2017.08.002., also on GitHub).
-    The column/field in source data marked as patient names is used to generate unique codes for each value.
+    The column/field in source data marked as clientnames is used to generate unique codes for each value.
     This makes it possible to use the same code across entries.
 
 Disclaimer:
@@ -26,10 +26,10 @@ Script logic:
     - Define functions
     - Load data
     - Apply transformations
-        - Identify unique names based on patientName column and map them to randomized patientIDs.
-        - Apply algorithm to report text column, making use of patientName to increase likelihood of at least
+        - Identify unique names based on clientname column and map them to randomized clientcodes.
+        - Apply algorithm to report text column, making use of clientname to increase likelihood of at least
           de-identifying the main subject.
-        - Replace the generated [PATIENT] tags with the new patientID
+        - Replace the generated [PATIENT] tags with the new clientcode.
     - Collect logging information
     - Write output to disk
 """
@@ -38,48 +38,41 @@ from __future__ import annotations
 
 import argparse
 
-from core.data_processor import process_data
-from utils.logger import setup_logging
+from core.processor import process_data
+from core.utils.logger import setup_logging
 
 
 def parse_cli_arguments() -> argparse.Namespace:
     """Parse command-line arguments for CLI usage."""
     parser = argparse.ArgumentParser(
-        description='Pseudonymize Dutch medical report texts using the Deduce algorithm.',
+        description='Pseudonymize Dutch medical report texts.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        epilog='Example: python main.py --input_fofi data.csv --output_extension .parquet',
+        epilog='Example: python core.py --input_file=dummy_input.csv --log_level=DEBUG',
     )
 
     parser.add_argument(
-        '--input_fofi',
+        '--input_file',
         nargs='?',
         default='dummy_input.csv',
-        help='Name of the input file. Supported formats: .csv and .parquet',
+        help='Name of the input file. Supported format: .csv',
     )
     parser.add_argument(
         '--input_cols',
         nargs='?',
-        default='patientName=Clientnaam, report=rapport',
-        help='Input column mappings as comma-separated key=value pairs. Required keys: patientName and report.',
+        default='clientname=clientnaam, report=rapport',
+        help='Input column mappings as comma-separated key=value pairs. Required keys: clientname and report.',
     )
     parser.add_argument(
         '--output_cols',
         nargs='?',
-        default='patientID=patientID, processed_report=processed_report',
-        help='Output column mappings as comma-separated key=value pairs. Maps to: patientID and processed_report.',
+        default='clientcode, processed_report',
+        help='Output column list. clientcode and processed_report are the deidentified columns.',
     )
     parser.add_argument(
-        '--data_key',
+        '--datakey',
         nargs='?',
         default=None,
-        help='Path to existing data key. If not provided, a new key is created.',
-    )
-    parser.add_argument(
-        '--output_extension',
-        nargs='?',
-        default='.csv',
-        choices=['.csv', '.parquet'],
-        help='Output file format. Parquet recommended for large datasets.',
+        help='Path to existing datakey. If not provided, a new key is created.',
     )
     parser.add_argument(
         '--log_level',
@@ -99,11 +92,10 @@ def main() -> None:
     setup_logging(args.log_level)
 
     process_data(
-        input_fofi=args.input_fofi,
+        input_file=args.input_file,
         input_cols=args.input_cols,
         output_cols=args.output_cols,
-        data_key=args.data_key,
-        output_extension=args.output_extension,
+        datakey=args.datakey,
     )
 
 

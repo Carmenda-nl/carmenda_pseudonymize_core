@@ -12,9 +12,9 @@ For complete results, run with arguments.
 import sys
 from pathlib import Path
 
-from core.deidentify_handler import DeidentifyHandler
-from utils.logger import setup_test_logging
-from utils.terminal import get_separator_line
+from core.deidentify import DeidentifyHandler
+from core.utils.logger import setup_test_logging
+from core.utils.terminal import get_separator_line
 
 # Add the source directory to the Python path
 source_dir = Path(__file__).resolve().parent.parent
