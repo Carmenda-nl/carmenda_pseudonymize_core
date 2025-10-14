@@ -5,8 +5,24 @@
 
 """OpenAPI schema definitions for the API views."""
 
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
+
+
+class APIRootResponseSerializer(serializers.Serializer):
+    """Response serializer for API root view."""
+
+    v1_jobs = serializers.URLField(source='v1/jobs', help_text='URL to the jobs list endpoint')
+    v1_docs = serializers.URLField(
+        source='v1/docs',
+        required=False,
+        help_text='URL to the API documentation (only available in debug mode)',
+    )
+    v1_schema = serializers.URLField(
+        source='v1/schema',
+        required=False,
+        help_text='URL to the API schema (only available in debug mode)',
+    )
 
 
 class JobCreatedResponseSerializer(serializers.Serializer):
@@ -42,6 +58,12 @@ class JobStatusResponseSerializer(serializers.Serializer):
 
 
 # Schema definitions for endpoints
+API_ROOT_SCHEMA = extend_schema(
+    responses={
+        200: APIRootResponseSerializer,
+    },
+)
+
 CREATE_JOB_SCHEMA = extend_schema(
     responses={
         201: JobCreatedResponseSerializer,
@@ -52,7 +74,6 @@ PROCESS_JOB_POST_SCHEMA = extend_schema(
     methods=['post'],
     responses={
         200: JobProcessingResponseSerializer,
-        400: OpenApiResponse(description='Input file is missing'),
         500: JobProcessingErrorResponseSerializer,
     },
 )

@@ -28,7 +28,7 @@ from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
 from api.models import DeidentificationJob
-from api.schemas import CREATE_JOB_SCHEMA, PROCESS_JOB_GET_SCHEMA, PROCESS_JOB_POST_SCHEMA
+from api.schemas import API_ROOT_SCHEMA, CREATE_JOB_SCHEMA, PROCESS_JOB_GET_SCHEMA, PROCESS_JOB_POST_SCHEMA
 from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
 from api.utils import collect_output_files, create_zipfile, match_output_cols
 from core.processor import process_data
@@ -57,6 +57,7 @@ class ApiTags:
 
 
 @extend_schema(tags=[ApiTags.API])
+@API_ROOT_SCHEMA
 class APIRootView(APIView):
     """Custom API root view that includes documentation links."""
 
