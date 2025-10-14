@@ -123,7 +123,7 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 def load_datakey(datakey_path: str) -> pl.DataFrame:
     """Grab valid names from file and return as a Polars DataFrame."""
     encoding, line_ending, separator = check_file(datakey_path)
-    accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252')
+    accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')
 
     if encoding not in accepted_encodings:
         logger.warning('Datakey encoding not supported, provided: %s.', encoding)
