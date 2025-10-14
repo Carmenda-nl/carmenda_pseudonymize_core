@@ -115,7 +115,7 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
     file_path = Path(output_folder) / filename
 
     try:
-        df.write_csv(f'{file_path}.csv')
+        df.write_csv(f'{file_path}_deidentified.csv')
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, file_path)
 

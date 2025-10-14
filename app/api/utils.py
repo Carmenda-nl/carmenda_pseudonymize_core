@@ -43,12 +43,14 @@ def match_output_cols(input_cols: str) -> str:
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
     """Collect paths of all `the output files that need to be zipped."""
     data_output_dir = Path(settings.MEDIA_ROOT) / 'output'
-    output_path = data_output_dir / input_file
+    base_name = Path(input_file).stem
+
+    output_filename = f'{base_name}_deidentified.csv'
+    output_path = data_output_dir / output_filename
     datakey_path = data_output_dir / 'datakey.csv'
     log_path = data_output_dir / 'deidentification.log'
 
     files_to_zip = []
-    output_filename = input_file
 
     if output_path.exists():
         relative_path = output_path.relative_to(Path(settings.MEDIA_ROOT))
@@ -77,7 +79,7 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
         raise RuntimeError(error_message)
 
     base_name = Path(output_filename).stem
-    zip_filename = f'{base_name}_deidentified.zip'
+    zip_filename = f'{base_name}.zip'
     zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
 
     included_files = []
