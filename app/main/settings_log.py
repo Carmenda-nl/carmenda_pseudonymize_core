@@ -8,8 +8,17 @@
 from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
-LOG_LEVEL = getattr(settings, 'LOG_LEVEL', 'INFO')
+
+def get_log_level() -> str:
+    """Get the LOG_LEVEL from Django settings."""
+    try:
+        return getattr(settings, 'LOG_LEVEL', 'INFO')
+    except ImproperlyConfigured:
+        return 'INFO'
+
+LOG_LEVEL = get_log_level()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
