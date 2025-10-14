@@ -49,6 +49,7 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
     # Log to file (INFO level only)
     log_file_path = log_path / 'deidentification.log'
     try:
+        log_file_path.open('w', encoding='utf-8').close()  # <-- reset log file
         file_handler = logging.FileHandler(str(log_file_path), encoding='utf-8')
         file_handler.setFormatter(file_formatter)
         file_handler.setLevel(logging.INFO)
