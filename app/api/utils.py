@@ -50,7 +50,7 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
     datakey_path = data_output_dir / 'datakey.csv'
     log_path = data_output_dir / 'deidentification.log'
 
-    files_to_zip = []
+    files_to_zip: list[str] = []
 
     if output_path.exists():
         relative_path = output_path.relative_to(Path(settings.MEDIA_ROOT))
@@ -82,7 +82,7 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
     zip_filename = f'{base_name}.zip'
     zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
 
-    included_files = []
+    included_files: list[str] = []
 
     try:
         # Create the zip file
@@ -110,3 +110,32 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
         error_message = f'Failed to create zip file: {error}'
         logger.exception(error_message)
         raise
+
+
+def get_metadata(represent: dict, instance: DeidentificationJob, fields: list[str]) -> dict:
+    """Populate files with url, filesize and last_modified date."""
+    for field in fields:
+        file_url = represent.get(field)
+        file_field = getattr(instance, field, None)
+        relative_path = getattr(file_field, 'name', None) if file_field is not None else None
+
+        if relative_path:
+            file_path = Path(settings.MEDIA_ROOT) / relative_path
+            if file_path.exists():
+                file = file_path.stat()
+                file_size = int(file.st_size)
+                file_creation = int(file.st_birthtime)
+
+                if file_size >= 1 << 30:
+                    filesize = f'{file_size / (1 << 30):.2f} Gb'
+                elif file_size >= 1 << 20:
+                    filesize = f'{file_size / (1 << 20):.2f} Mb'
+                else:
+                    filesize = f'{file_size / 1024:.2f} Kb'
+
+                represent[field] = {
+                    'url': file_url,
+                    'filesize': filesize,
+                    'build_date': file_creation,
+                }
+    return represent

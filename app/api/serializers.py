@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
+from api.utils import get_metadata
 from core.utils.file_handling import check_file
 from core.utils.progress_tracker import tracker
 
@@ -169,6 +170,13 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
         validated_data['job_id'] = job_id
         return DeidentificationJob.objects.create(**validated_data)
+
+    def to_representation(self, instance: DeidentificationJob) -> dict:
+        """Return the job including file metadata."""
+        representation = super().to_representation(instance)
+        fields = ['input_file', 'output_file', 'datakey', 'log_file', 'zip_file']
+
+        return get_metadata(representation, instance, fields)
 
 
 class JobStatusSerializer(serializers.ModelSerializer):
