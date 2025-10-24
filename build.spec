@@ -26,11 +26,19 @@ datas += copy_metadata('djangorestframework')
 datas += copy_metadata('drf-spectacular')
 datas += copy_metadata('polars')
 
+# Ensure daphne/autobahn (and their native extensions) are collected by PyInstaller
+datas += copy_metadata('daphne')
+datas += copy_metadata('autobahn')
+datas += copy_metadata('twisted')
+
 datas += collect_data_files('deduce') 
 datas += collect_data_files('djangorestframework') 
 datas += collect_data_files('rest_framework') 
 datas += collect_data_files('drf_spectacular')
 datas += collect_data_files('polars')
+datas += collect_data_files('daphne')
+datas += collect_data_files('autobahn')
+datas += collect_data_files('twisted')
 
 # Add the app directory and its contents
 datas.append((app_path, 'app'))
@@ -59,6 +67,9 @@ binaries = []
 hiddenimports = [] 
 hiddenimports += collect_submodules('deduce')
 hiddenimports += collect_submodules('polars')
+hiddenimports += collect_submodules('daphne')
+hiddenimports += collect_submodules('autobahn')
+hiddenimports += collect_submodules('twisted')
 
 tmp_ret = collect_all('deduce') 
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
@@ -69,6 +80,12 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('drf_spectacular') 
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('polars') 
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('daphne')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('autobahn')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('twisted')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 a = Analysis(
