@@ -3,7 +3,10 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Django logging configuration."""
+"""Django logging configuration.
+
+ASGI had logger overrules (too much noise in production)
+"""
 
 from pathlib import Path
 
@@ -86,26 +89,6 @@ LOGGING = {
         'utils': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
-            'propagate': False,
-        },
-        'asyncio': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'daphne': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'daphne.http_protocol': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'django.channels.server': {
-            'handlers': ['console'],
-            'level': 'WARNING',
             'propagate': False,
         },
     },
