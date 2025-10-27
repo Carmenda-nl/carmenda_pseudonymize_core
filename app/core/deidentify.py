@@ -100,6 +100,9 @@ class DeidentifyHandler:
 
     def _process_report(self, report_text: str, clientname: str | None = None) -> str:
         """Process a single report (row) with or without clientname."""
+        if report_text is None or not isinstance(report_text, str):
+            return ''  # <-- Return empty text if not a valid string.
+
         deduce_result = self._deduce_detection(report_text, clientname)
         extend_result = self.name_detection.names_case_insensitive(report_text)
         merged_result = self._merge_detections(report_text, deduce_result, extend_result)
@@ -134,8 +137,9 @@ class DeidentifyHandler:
         results = []
 
         for row in batch.to_list():
-            clientname = row.get('clientname')
-            results.append(self._process_report(row['report'], clientname))
+            report_text = row.get('report')
+            clientname = row.get('clientname') or None
+            results.append(self._process_report(report_text, clientname))
 
             max_percentage = 100
             self.processed_count += 1
