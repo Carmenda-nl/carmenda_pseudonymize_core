@@ -153,24 +153,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             return _validate_file(value)
         return value
 
-    def create(self, validated_data: dict) -> DeidentificationJob:
-        """Create a new job in the database with filename as id."""
-        validated_data.pop('job_id', None)
-        input_file = validated_data.get('input_file')
-
-        filename = Path(input_file.name).stem
-        base_id = filename.replace(' ', '_')
-        job_id = base_id
-
-        # Check if name already exists, if so, append a counter
-        counter = 1
-        while DeidentificationJob.objects.filter(job_id=job_id).exists():
-            job_id = f'{base_id}_{counter}'
-            counter += 1
-
-        validated_data['job_id'] = job_id
-        return DeidentificationJob.objects.create(**validated_data)
-
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the job including file metadata."""
         representation = super().to_representation(instance)

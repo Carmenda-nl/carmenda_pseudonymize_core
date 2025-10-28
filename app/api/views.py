@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -30,7 +31,7 @@ from rest_framework.views import APIView
 from api.models import DeidentificationJob
 from api.schemas import API_ROOT_SCHEMA, CREATE_JOB_SCHEMA, PROCESS_JOB_GET_SCHEMA, PROCESS_JOB_POST_SCHEMA
 from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
-from api.utils import collect_output_files, create_zipfile, match_output_cols
+from api.utils import collect_output_files, create_zipfile, match_output_cols, setup_job_logging
 from core.processor import process_data
 from core.utils.logger import setup_logging
 from core.utils.progress_tracker import tracker
@@ -73,12 +74,12 @@ class APIRootView(APIView):
         return Response(data)
 
 
-def run_processing(
-    job_id: str, input_file: str, input_cols: dict, output_cols: dict, datakey: str | None = None,
-) -> None:
+def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: dict, datakey: str | None) -> None:
     """Run processing in background thread."""
     try:
         current_job = DeidentificationJob.objects.get(pk=job_id)
+        job_handler = setup_job_logging(job_id)
+
         channel_layer = get_channel_layer()
 
         def update_job_progress(percentage: int, stage: str) -> None:
@@ -166,6 +167,10 @@ def run_processing(
                 'status': 'failed',
             },
         )
+    finally:
+        deidentify_logger = logging.getLogger('deidentify')
+        deidentify_logger.removeHandler(job_handler)
+        job_handler.close()
 
 
 @extend_schema(tags=[ApiTags.JOBS])
@@ -238,8 +243,13 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         try:
             input_cols = job.input_cols
             output_cols = match_output_cols(input_cols)
-            input_file = Path(job.input_file.name).name
-            datakey = Path(job.datakey.name).name if job.datakey else None
+            filename = Path(job.input_file.name).name
+            input_file = f'{job.job_id}/{filename}'
+
+            datakey = None
+            if job.datakey:
+                datakey_name = Path(job.datakey.name).name
+                datakey = f'{job.job_id}/{datakey_name}'
 
             # Start processing in background thread
             processing_thread = threading.Thread(

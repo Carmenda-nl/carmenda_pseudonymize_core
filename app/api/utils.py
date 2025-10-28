@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import zipfile
 from pathlib import Path
@@ -40,15 +41,31 @@ def match_output_cols(input_cols: str) -> str:
     return ', '.join(output_cols)
 
 
+def setup_job_logging(job_id: str) -> logging.FileHandler:
+    """Create a per-job FileHandler to the 'deidentify' logger."""
+    deidentify_logger = logging.getLogger('deidentify')
+    job_log_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job_id)
+    job_log_dir.mkdir(parents=True, exist_ok=True)
+    job_log_path = job_log_dir / 'deidentification.log'
+
+    # Open in write mode to overwrite existing file for this job.
+    job_handler = logging.FileHandler(str(job_log_path), mode='w', encoding='utf-8')
+    job_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    job_handler.setLevel(deidentify_logger.level)
+    deidentify_logger.addHandler(job_handler)
+
+    return job_handler
+
+
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
     """Collect paths of all `the output files that need to be zipped."""
-    data_output_dir = Path(settings.MEDIA_ROOT) / 'output'
+    job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
     base_name = Path(input_file).stem
 
     output_filename = f'{base_name}_deidentified.csv'
-    output_path = data_output_dir / output_filename
-    datakey_path = data_output_dir / 'datakey.csv'
-    log_path = data_output_dir / 'deidentification.log'
+    output_path = job_output_dir / output_filename
+    datakey_path = job_output_dir / 'datakey.csv'
+    log_path = job_output_dir / 'deidentification.log'
 
     files_to_zip: list[str] = []
 
@@ -80,7 +97,7 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
 
     base_name = Path(output_filename).stem
     zip_filename = f'{base_name}.zip'
-    zip_path = Path(settings.MEDIA_ROOT) / 'output' / zip_filename
+    zip_path = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id) / zip_filename
 
     included_files: list[str] = []
 

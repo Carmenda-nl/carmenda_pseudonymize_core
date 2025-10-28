@@ -111,13 +111,19 @@ def load_data_file(input_file_path: str) -> pl.DataFrame | None:
 
 def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
     """Save processed DataFrame to file in the specified output folder."""
-    filename = Path(filename).stem
-    file_path = Path(output_folder) / filename
+    filepath = Path(filename)
+    stem = filepath.stem
+    parent = filepath.parent
+
+    # If filename included a parent (like job_id), write into that subfolder under output.
+    target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
 
     try:
-        df.write_csv(f'{file_path}_deidentified.csv')
+        target_dir.mkdir(parents=True, exist_ok=True)
+        file_path = target_dir / f'{stem}_deidentified.csv'
+        df.write_csv(str(file_path))
     except OSError:
-        logger.warning('Cannot write %s to "%s".', filename, file_path)
+        logger.warning('Cannot write %s to "%s".', filename, target_dir)
 
 
 def load_datakey(datakey_path: str) -> pl.DataFrame:

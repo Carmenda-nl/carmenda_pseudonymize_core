@@ -46,16 +46,18 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
             handler.close()
         logger.handlers.clear()
 
-    # Log to file (INFO level only)
-    log_file_path = log_path / 'deidentification.log'
-    try:
-        log_file_path.open('w', encoding='utf-8').close()  # <-- reset log file
-        file_handler = logging.FileHandler(str(log_file_path), encoding='utf-8')
-        file_handler.setFormatter(file_formatter)
-        file_handler.setLevel(logging.INFO)
-        logger.addHandler(file_handler)
-    except (OSError, PermissionError) as error:
-        warnings.warn(f'Cannot create log file "{log_file_path}": {error}', stacklevel=2)
+    per_job_only = os.environ.get('PER_JOB_LOG_ONLY', 'false').lower() == 'true'
+
+    if not per_job_only:
+        log_file_path = log_path / 'deidentification.log'
+        try:
+            log_file_path.open('w', encoding='utf-8').close()  # <-- reset log file
+            file_handler = logging.FileHandler(str(log_file_path), encoding='utf-8')
+            file_handler.setFormatter(file_formatter)
+            file_handler.setLevel(logging.INFO)
+            logger.addHandler(file_handler)
+        except (OSError, PermissionError) as error:
+            warnings.warn(f'Cannot create log file "{log_file_path}": {error}', stacklevel=2)
 
     # debug file handler if log level is DEBUG
     if log_level == logging.DEBUG:
