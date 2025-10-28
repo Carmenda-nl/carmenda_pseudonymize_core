@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -188,6 +189,29 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             return DeidentificationJobListSerializer
 
         return DeidentificationJobSerializer
+
+    def perform_destroy(self, instance: DeidentificationJob) -> None:
+        """Delete associated files from storage and remove job directory."""
+        files = ['input_file', 'datakey', 'output_file', 'log_file', 'zip_file']
+
+        for file in files:
+            file_field = getattr(instance, file, None)
+
+            if file_field and getattr(file_field, 'name', None):
+                file_field.delete(save=False)
+
+        media_root = settings.MEDIA_ROOT
+
+        dirs = [
+            Path(media_root) / 'input' / str(instance.job_id),
+            Path(media_root) / 'output' / str(instance.job_id),
+        ]
+
+        for job_dir in dirs:
+            if job_dir.exists() and job_dir.is_dir():
+                shutil.rmtree(job_dir)
+
+        super().perform_destroy(instance)
 
     @CREATE_JOB_SCHEMA
     def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> Response:
