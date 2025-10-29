@@ -72,7 +72,7 @@ def test_name_detection_pipeline() -> None:
         logger.info("  Output:  '%s'\n", row['processed_report'])
 
         # Show what the detector alone would find for comparison
-        custom_annotations = handler.name_detector.names_case_insensitive(row['report'])
+        custom_annotations = handler.name_detection.names_case_insensitive(row['report'])
         if custom_annotations:
             logger.info('  Detector found:')
             for ann in custom_annotations:

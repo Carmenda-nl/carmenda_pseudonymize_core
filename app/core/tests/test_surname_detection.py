@@ -40,7 +40,7 @@ def test_surname_detection() -> None:
 
     results = []
     for name in test_names:
-        is_surname = handler.name_detector._surname(name)
+        is_surname = handler.name_detection._surname(name)
         result_text = '✓ SURNAME' if is_surname else '✗ NOT SURNAME'
         logger.info('%s → %s', f'{name:<15}', result_text)
         results.append(is_surname)

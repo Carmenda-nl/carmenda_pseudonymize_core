@@ -40,7 +40,7 @@ def test_case_insensitive() -> None:
         logger.info("\nTesting: '%s'", sentence)
 
         # Test custom case-insensitive detector
-        custom_annotations = handler.name_detector.names_case_insensitive(sentence)
+        custom_annotations = handler.name_detection.names_case_insensitive(sentence)
 
         if custom_annotations:
             for ann in custom_annotations:
