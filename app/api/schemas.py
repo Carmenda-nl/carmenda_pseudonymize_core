@@ -36,7 +36,9 @@ class JobCreatedResponseSerializer(serializers.Serializer):
 class JobProcessingResponseSerializer(serializers.Serializer):
     """Response serializer for successful job processing."""
 
-    message = serializers.CharField(default='Job processing finished successfully')
+    message = serializers.CharField(default='Job processing started in background')
+    job_id = serializers.CharField()
+    status = serializers.CharField(default='processing')
 
 
 class JobProcessingErrorResponseSerializer(serializers.Serializer):
@@ -57,6 +59,35 @@ class JobStatusResponseSerializer(serializers.Serializer):
     error_message = serializers.CharField()
 
 
+class JobCancellationResponseSerializer(serializers.Serializer):
+    """Response serializer for job cancellation request."""
+
+    message = serializers.CharField(default='Cancellation requested')
+
+
+class JobCancellationStatusSerializer(serializers.Serializer):
+    """Response serializer for job cancellation status (GET)."""
+
+    job_id = serializers.CharField()
+    status = serializers.CharField()
+    progress = serializers.IntegerField()
+    stage = serializers.CharField()
+    error_message = serializers.CharField()
+
+
+class JobNotRunningResponseSerializer(serializers.Serializer):
+    """Response serializer when trying to cancel a job that's not running."""
+
+    message = serializers.CharField(default='Job not running')
+    status = serializers.CharField()
+
+
+class JobCancellationErrorSerializer(serializers.Serializer):
+    """Response serializer for job cancellation errors."""
+
+    error = serializers.CharField()
+
+
 # Schema definitions for endpoints
 API_ROOT_SCHEMA = extend_schema(
     responses={
@@ -73,7 +104,7 @@ CREATE_JOB_SCHEMA = extend_schema(
 PROCESS_JOB_POST_SCHEMA = extend_schema(
     methods=['post'],
     responses={
-        200: JobProcessingResponseSerializer,
+        202: JobProcessingResponseSerializer,
         500: JobProcessingErrorResponseSerializer,
     },
 )
@@ -82,5 +113,21 @@ PROCESS_JOB_GET_SCHEMA = extend_schema(
     methods=['get'],
     responses={
         200: JobStatusResponseSerializer,
+    },
+)
+
+CANCEL_JOB_POST_SCHEMA = extend_schema(
+    methods=['post'],
+    responses={
+        200: JobNotRunningResponseSerializer,
+        202: JobCancellationResponseSerializer,
+        500: JobCancellationErrorSerializer,
+    },
+)
+
+CANCEL_JOB_GET_SCHEMA = extend_schema(
+    methods=['get'],
+    responses={
+        200: JobCancellationStatusSerializer,
     },
 )

@@ -16,10 +16,6 @@ from typing import TYPE_CHECKING, ClassVar
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-
-if TYPE_CHECKING:
-    from rest_framework.request import Request
-
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -30,12 +26,23 @@ from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
 from api.models import DeidentificationJob
-from api.schemas import API_ROOT_SCHEMA, CREATE_JOB_SCHEMA, PROCESS_JOB_GET_SCHEMA, PROCESS_JOB_POST_SCHEMA
+from api.schemas import (
+    API_ROOT_SCHEMA,
+    CANCEL_JOB_GET_SCHEMA,
+    CANCEL_JOB_POST_SCHEMA,
+    CREATE_JOB_SCHEMA,
+    PROCESS_JOB_GET_SCHEMA,
+    PROCESS_JOB_POST_SCHEMA,
+)
 from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
 from api.utils import collect_output_files, create_zipfile, match_output_cols, setup_job_logging
 from core.processor import process_data
 from core.utils.logger import setup_logging
+from core.utils.progress_control import JobCancelledError, job_control
 from core.utils.progress_tracker import tracker
+
+if TYPE_CHECKING:
+    from rest_framework.request import Request
 
 logger = setup_logging()
 
@@ -75,103 +82,133 @@ class APIRootView(APIView):
         return Response(data)
 
 
-def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: dict, datakey: str | None) -> None:
-    """Run processing in background thread."""
-    try:
-        current_job = DeidentificationJob.objects.get(pk=job_id)
-        job_handler = setup_job_logging(job_id)
+def _send_job_progress(job_id: str, percentage: int, stage: str, job_status: str = 'processing') -> None:
+    """Send job progress update via WebSocket."""
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'job_progress_{job_id}',
+        {
+            'type': 'job_progress',
+            'percentage': percentage,
+            'stage': stage,
+            'status': job_status,
+        },
+    )
 
-        channel_layer = get_channel_layer()
 
-        def update_job_progress(percentage: int, stage: str) -> None:
-            """Send progress updates via WebSocket."""
-            async_to_sync(channel_layer.group_send)(
-                f'job_progress_{job_id}',
-                {
-                    'type': 'job_progress',
-                    'percentage': percentage,
-                    'stage': stage,
-                    'status': 'processing',
-                },
-            )
-
-        tracker.reset()
-
-        # Set up a callback to monitor progress from tracker
-        stop_monitoring = threading.Event()
-        completion_percentage = 100
-
-        def monitor_progress() -> None:
-            """Monitor tracker progress and send updates via WebSocket."""
-            last_percentage = -1
-
-            while not stop_monitoring.is_set():
-                progress_info = tracker.get_progress()
-                current_percentage = progress_info['percentage']
-                current_stage = progress_info['stage'] or 'Processing'
-
-                if abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage:
-                    update_job_progress(current_percentage, current_stage)
-                    last_percentage = current_percentage
-
-                stop_monitoring.wait(0.1)
-
-        # Start progress monitoring in separate thread
-        monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
-        monitor_thread.start()
-
-        processor_pipeline = process_data(
-            input_file=input_file,
-            input_cols=input_cols,
-            output_cols=output_cols,
-            datakey=datakey,
-        )
-
-        stop_monitoring.set()
-        monitor_thread.join(timeout=1.0)
-
-        if processor_pipeline:
-            processed_data = json.loads(processor_pipeline)
-            current_job.processed_preview = processed_data
-            current_job.save()
-
-        files_to_zip, output_filename = collect_output_files(current_job, input_file)
-        create_zipfile(current_job, files_to_zip, output_filename)
-
-        current_job.status = 'completed'
+def _handle_job_completion(
+    job_id: str,
+    current_job: DeidentificationJob,
+    processor_pipeline: str | None,
+    input_file: str,
+) -> None:
+    """Handle job completion: save preview, create zip, and send completion update."""
+    if processor_pipeline:
+        processed_data = json.loads(processor_pipeline)
+        current_job.processed_preview = processed_data
         current_job.save()
 
-        async_to_sync(channel_layer.group_send)(
-            f'job_progress_{job_id}',
-            {
-                'type': 'job_progress',
-                'percentage': 100,
-                'stage': 'Completed',
-                'status': 'completed',
-            },
-        )
+    files_to_zip, output_filename = collect_output_files(current_job, input_file)
+    create_zipfile(current_job, files_to_zip, output_filename)
 
-    except Exception as error:
-        logger.exception('[JOB %s] Processing failed', job_id)
-        error_job = DeidentificationJob.objects.get(pk=job_id)
-        error_job.error_message = f'Job error: {error}'
-        error_job.status = 'failed'
-        error_job.save()
+    current_job.status = 'completed'
+    current_job.save()
 
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'job_progress_{job_id}',
-            {
-                'type': 'job_progress',
-                'percentage': 0,
-                'stage': f'Error: {error}',
-                'status': 'failed',
-            },
-        )
+    _send_job_progress(job_id, 100, 'Completed', 'completed')
+
+
+def _handle_job_cancellation(job_id: str) -> None:
+    """Handle job cancellation: update database and send cancellation update."""
+    logger.info('[JOB %s] Cancelled by user', job_id)
+    cancelled_job = DeidentificationJob.objects.get(pk=job_id)
+    cancelled_job.error_message = 'Job cancelled by user'
+    cancelled_job.status = 'cancelled'
+    cancelled_job.save()
+
+    progress_percentage = tracker.get_progress().get('percentage', 0)
+    _send_job_progress(job_id, progress_percentage, 'Cancelled', 'cancelled')
+
+
+def _handle_job_error(job_id: str, error: Exception) -> None:
+    """Handle job processing error: update database and send error update."""
+    logger.exception('[JOB %s] Processing failed', job_id)
+    error_job = DeidentificationJob.objects.get(pk=job_id)
+    error_job.error_message = f'Job error: {error}'
+    error_job.status = 'failed'
+    error_job.save()
+
+    _send_job_progress(job_id, 0, f'Error: {error}', 'failed')
+
+
+def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: dict, datakey: str | None) -> None:
+    """Run processing in background thread."""
+    current_job = DeidentificationJob.objects.get(pk=job_id)
+    job_handler = setup_job_logging(job_id)
+
+    try:
+        with job_control.run_job(job_id):
+            tracker.reset()
+
+            # Set up progress monitoring
+            stop_monitoring = threading.Event()
+            completion_percentage = 100
+
+            def monitor_progress() -> None:
+                """Monitor tracker progress and send updates via WebSocket."""
+                last_percentage = -1
+                while not stop_monitoring.is_set():
+                    progress_info = tracker.get_progress()
+                    current_percentage = progress_info['percentage']
+                    current_stage = progress_info['stage'] or 'Processing'
+
+                    if abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage:
+                        _send_job_progress(job_id, current_percentage, current_stage)
+                        last_percentage = current_percentage
+
+                    stop_monitoring.wait(0.1)
+
+            # Start progress monitoring in separate thread
+            monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
+            monitor_thread.start()
+
+            processor_pipeline = process_data(
+                input_file=input_file,
+                input_cols=input_cols,
+                output_cols=output_cols,
+                datakey=datakey,
+            )
+
+            stop_monitoring.set()
+            monitor_thread.join(timeout=1.0)
+
+            _handle_job_completion(job_id, current_job, processor_pipeline, input_file)
+
+    except JobCancelledError:
+        _handle_job_cancellation(job_id)
+
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        _handle_job_error(job_id, error)
     finally:
         deidentify_logger = logging.getLogger('deidentify')
         deidentify_logger.removeHandler(job_handler)
         job_handler.close()
+
+        # Stop and join the monitor thread if it exists
+        try:
+            if 'stop_monitoring' in locals():
+                stop_monitoring.set()
+            if 'monitor_thread' in locals():
+                monitor_thread.join(timeout=1.0)
+        except (AttributeError, RuntimeError) as e:
+            logger.debug('Failed to stop monitor thread for %s: %s', job_id, e)
+
+        # Ensure the progress bar is finalized to avoid leftover UI/console output
+        try:
+            # Do not force-complete the progress when cleaning up after an
+            # unexpected cancellation — that would make the UI jump to 100%.
+            tracker.finalize_progress(complete='no')
+        except (AttributeError, RuntimeError) as e:
+            logger.debug('Failed to finalize progress for %s: %s', job_id, e)
 
 
 @extend_schema(tags=[ApiTags.JOBS])
@@ -291,7 +328,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_202_ACCEPTED,
             )
-        except Exception as error:
+        except (OSError, ValueError, KeyError) as error:
             job.error_message = f'Job error: {error}'
             job.status = 'failed'
             job.save()
@@ -302,3 +339,57 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 {'error': 'Job processing failed', 'details': str(error)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @extend_schema(tags=[ApiTags.CLEANUP])
+    @CANCEL_JOB_POST_SCHEMA
+    @CANCEL_JOB_GET_SCHEMA
+    @action(detail=True, methods=['get', 'post'])
+    def cancel(self, request: HttpRequest, pk: str | None = None) -> Response:
+        """GET: return current job status and last progress percentage.
+
+        POST: request cancellation of a running job (existing behaviour).
+        """
+        job = self.get_object()
+
+        # Handle GET: return status and last seen progress
+        if request.method == 'GET':
+            progress_info = tracker.get_progress()
+            current_progress = progress_info.get('percentage', 0)
+            current_stage = progress_info.get('stage') or job.status
+
+            return Response(
+                {
+                    'job_id': str(job.job_id),
+                    'status': job.status,
+                    'progress': current_progress,
+                    'stage': current_stage,
+                    'error_message': job.error_message,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # POST: request cancellation
+        if job.status != 'processing':
+            return Response({'message': 'Job not running', 'status': job.status}, status=status.HTTP_200_OK)
+
+        try:
+            job_control.cancel(str(job.job_id))
+            job.status = 'cancelled'
+            job.error_message = 'Cancellation requested'
+            job.save()
+
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'job_progress_{job.job_id}',
+                {
+                    'type': 'job_progress',
+                    'percentage': tracker.get_progress().get('percentage', 0),
+                    'stage': 'Cancelling',
+                    'status': 'cancelling',
+                },
+            )
+
+            return Response({'message': 'Cancellation requested'}, status=status.HTTP_202_ACCEPTED)
+        except Exception as error:
+            logger.exception('Failed to request cancellation for job %s', job.job_id)
+            return Response({'error': str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
