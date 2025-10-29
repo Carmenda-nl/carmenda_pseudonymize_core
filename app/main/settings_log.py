@@ -5,7 +5,7 @@
 
 """Django logging configuration.
 
-ASGI had logger overrules (too much noise in production)
+ASGI has logger overrules (too much noise in production)
 """
 
 from pathlib import Path
@@ -20,6 +20,7 @@ def get_log_level() -> str:
         return getattr(settings, 'LOG_LEVEL', 'INFO')
     except ImproperlyConfigured:
         return 'INFO'
+
 
 LOG_LEVEL = get_log_level()
 BASE_DIR = Path(__file__).resolve().parent.parent

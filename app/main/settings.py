@@ -5,7 +5,6 @@
 
 """Settings for the Django project."""
 
-import sys
 from pathlib import Path
 
 import environ
@@ -17,7 +16,7 @@ env = environ.FileAwareEnv(
     LOG_LEVEL=(str, 'INFO'),
 )
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Build paths inside the project like this: BASE_DIR / 'subdir'
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Take environment variables from .env file
@@ -56,10 +55,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-if getattr(sys, 'frozen', False):
-    # Add additional middleware for pyinstaller envs (fixes: MEDIA_URL in prod)
-    MIDDLEWARE.append('main.middleware.ServeMediaFilesMiddleware')
 
 
 # CORS settings for app communication (HTTP + WebSocket origins)

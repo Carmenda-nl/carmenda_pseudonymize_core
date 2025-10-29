@@ -12,7 +12,7 @@ from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
 
-# Make asyncio and related loggers less noisy.
+# Make asyncio and related loggers less noisy
 logging.getLogger('asyncio').setLevel(logging.WARNING)
 logging.getLogger('autobahn').setLevel(logging.WARNING)
 logging.getLogger('daphne').setLevel(logging.WARNING)
