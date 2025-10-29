@@ -39,6 +39,7 @@ class DeidentificationJob(models.Model):
         ('pending', 'Pending'),
         ('processing', 'Processing'),
         ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
         ('failed', 'Failed'),
     )
 
