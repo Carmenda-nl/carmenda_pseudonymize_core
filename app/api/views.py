@@ -48,11 +48,6 @@ if TYPE_CHECKING:
 logger = setup_logging()
 
 
-def favicon_view(_request: HttpRequest) -> HttpResponse:
-    """Disabe favicon requests by returning an empty response."""
-    return HttpResponse(status=204)
-
-
 class ApiTags:
     """API tag constants for Swagger/OpenAPI documentation grouping.
 
