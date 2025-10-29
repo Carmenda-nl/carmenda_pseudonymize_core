@@ -93,9 +93,16 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'pytest', 'unittest', 'test', 'tests', 
+        'hypothesis',
+        'IPython', 'jupyter', 'notebook',
+        'tkinter', 'Tkinter',
+        'pdb', 'pydoc',
+        'matplotlib', 'pylab',
+    ],
     noarchive=False,
-    optimize=0,
+    optimize=1,
 )
 
 pyz = PYZ(a.pure)
@@ -103,13 +110,11 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
     name='backend',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
