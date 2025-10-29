@@ -41,11 +41,13 @@ def _add_clientcodes(df: pl.DataFrame) -> pl.DataFrame:
     code_chars = string.ascii_uppercase + string.digits
     random_pool = pl.Series([''.join(secrets.choice(code_chars) for code in range(14)) for code in range(pool_size)])
 
-    # Filter out existing codes and take unique ones.
+    # Filter out existing codes and take unique ones
     available_codes = (
-        pl.DataFrame({'temp_code': random_pool}).unique()
+        pl.DataFrame({'temp_code': random_pool})
+        .unique()
         .filter(~pl.col('temp_code').is_in(existing_codes.implode()))
-        .head(missing_codes).with_row_index('temp_index')
+        .head(missing_codes)
+        .with_row_index('temp_index')
     )
 
     empty_rows = df.filter(pl.col('code') == '')
@@ -69,7 +71,7 @@ def _check_existing_key(datakey_df: pl.DataFrame, missing_names_df: pl.Series | 
         missing_df = _create_new_entry(missing_names_df)
         datakey_df = pl.concat([datakey_df, missing_df])
 
-    # Merge duplicate client names and combine their synonyms.
+    # Merge duplicate client names and combine their synonyms
     return (
         datakey_df.group_by('clientname')
         .agg(

@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Handler module for text de-identification medical."""
+"""Handler module for de-identification of medical text."""
 
 from __future__ import annotations
 
