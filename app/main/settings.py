@@ -5,6 +5,7 @@
 
 """Settings for the Django project."""
 
+import sys
 from pathlib import Path
 
 import environ
@@ -55,6 +56,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if getattr(sys, 'frozen', False):
+    # Add additional middleware for pyinstaller envs (fixes: MEDIA_URL in prod)
+    MIDDLEWARE.append('main.middleware.ServeMediaFilesMiddleware')
 
 
 # CORS settings for app communication (HTTP + WebSocket origins)
