@@ -68,7 +68,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
         df = df.with_columns(pl.col(clientname_col).str.strip_chars())
 
         datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
-        save_datakey(datakey, output_folder)
+        save_datakey(datakey, input_file, output_folder)
     else:
         logger.info('Clientname not provided, skipping datakey creation.\n')
 

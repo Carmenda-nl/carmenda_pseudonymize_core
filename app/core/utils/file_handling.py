@@ -141,15 +141,18 @@ def load_datakey(datakey_path: str) -> pl.DataFrame:
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 
-def save_datakey(datakey: pl.DataFrame, output_folder: str) -> None:
+def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str) -> None:
     """Save the processed datakey to a CSV file for future use."""
+    filepath = Path(filename)
+    parent = filepath.parent
     filename = 'datakey.csv'
-    file_path = Path(output_folder) / filename
+
+    # If filename included a parent (like job_id), write into that subfolder under output.
+    target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
+    file_path = target_dir / filename
 
     try:
-        output_path = Path(output_folder)
-        output_path.mkdir(parents=True, exist_ok=True)
-
+        target_dir.mkdir(parents=True, exist_ok=True)
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=';')
         logger.debug('Saving datakey: %s\n%s\n', filename, datakey)
