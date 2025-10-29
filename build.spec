@@ -22,7 +22,6 @@ app_path = 'app'
 
 datas = [] 
 datas += copy_metadata('deduce') 
-datas += copy_metadata('djangorestframework') 
 datas += copy_metadata('drf-spectacular')
 datas += copy_metadata('polars')
 
@@ -32,7 +31,6 @@ datas += copy_metadata('autobahn')
 datas += copy_metadata('twisted')
 
 datas += collect_data_files('deduce') 
-datas += collect_data_files('djangorestframework') 
 datas += collect_data_files('rest_framework') 
 datas += collect_data_files('drf_spectacular')
 datas += collect_data_files('polars')
@@ -72,8 +70,6 @@ hiddenimports += collect_submodules('autobahn')
 hiddenimports += collect_submodules('twisted')
 
 tmp_ret = collect_all('deduce') 
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
-tmp_ret = collect_all('djangorestframework') 
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
 tmp_ret = collect_all('rest_framework') 
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
