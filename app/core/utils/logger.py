@@ -46,9 +46,9 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
             handler.close()
         logger.handlers.clear()
 
-    per_job_only = os.environ.get('PER_JOB_LOG_ONLY', 'false').lower() == 'true'
+    job_only = os.environ.get('JOB_LOG_ONLY', 'false').lower() == 'true'
 
-    if not per_job_only:
+    if not job_only:
         log_file_path = log_path / 'deidentification.log'
         try:
             log_file_path.open('w', encoding='utf-8').close()  # <-- reset log file
