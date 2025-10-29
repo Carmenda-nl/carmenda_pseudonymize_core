@@ -16,8 +16,8 @@ from deduce.person import Person
 
 from core.deduce import DeduceInstanceManager
 from core.name_detector import DutchNameDetector, NameAnnotation
-from core.utils.job_control import JobCancelled, get_thread_job, is_cancelled
 from core.utils.logger import setup_logging
+from core.utils.progress_control import job_control
 from core.utils.progress_tracker import tracker
 from core.utils.terminal import colorize_tags, log_block
 
@@ -62,12 +62,17 @@ class DeidentifyHandler:
         """Add patient codes to DataFrame and replace [PATIENT] tags in processed reports."""
         clientname_col = input_cols['clientname']
 
-        df = df.join(datakey.select(['clientname', 'code']),
-            left_on=clientname_col,
-            right_on='clientname',
-            how='left',
-            coalesce=True,
-        ).rename({'code': 'clientcode'}).select('clientcode', pl.all().exclude('clientcode'))
+        df = (
+            df.join(
+                datakey.select(['clientname', 'code']),
+                left_on=clientname_col,
+                right_on='clientname',
+                how='left',
+                coalesce=True,
+            )
+            .rename({'code': 'clientcode'})
+            .select('clientcode', pl.all().exclude('clientcode'))
+        )
 
         # Replace [PATIENT] tags in `processed_report` with datakeys
         return df.with_columns(
@@ -110,7 +115,7 @@ class DeidentifyHandler:
 
         if logger.level == logging.DEBUG:
             self.total_processed += 1
-            self.processed_reports.append({'report': report_text, 'deduce': deduce_result,'merged': merged_result})
+            self.processed_reports.append({'report': report_text, 'deduce': deduce_result, 'merged': merged_result})
 
         return merged_result
 
@@ -138,11 +143,8 @@ class DeidentifyHandler:
         results = []
 
         for row in batch.to_list():
-            # check for cancellation requested via API.
-            job_id = get_thread_job()
-            if job_id and is_cancelled(job_id):
-                message = 'Job cancelled by user'
-                raise JobCancelled(message)
+            # Check for cancellation requested via API
+            job_control.check_cancellation()
 
             report_text = row.get('report')
             clientname = row.get('clientname') or None
@@ -181,11 +183,13 @@ class DeidentifyHandler:
             clientname_col = input_cols.get('clientname')
             struct_cols.append(pl.col(clientname_col).alias('clientname'))
 
-        processed_reports = df.select([
-            pl.struct(struct_cols)
-            .map_batches(lambda batch: self._deidentify_batch(batch), return_dtype=pl.String)
-            .alias('processed_report'),
-        ])
+        processed_reports = df.select(
+            [
+                pl.struct(struct_cols)
+                .map_batches(lambda batch: self._deidentify_batch(batch), return_dtype=pl.String)
+                .alias('processed_report'),
+            ],
+        )
 
         result = df.with_columns(processed_reports)
         tracker.update_progress('Pseudonymize', f'Processed {self.total_count}/{self.total_count} rows', 100)
