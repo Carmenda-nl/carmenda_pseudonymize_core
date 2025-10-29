@@ -115,7 +115,7 @@ def _handle_job_completion(
 
 def _handle_job_cancellation(job_id: str) -> None:
     """Handle job cancellation: update database and send cancellation update."""
-    logger.info('[JOB %s] Cancelled by user', job_id)
+    logger.info('Job "%s" Cancelled by user', job_id)
     cancelled_job = DeidentificationJob.objects.get(pk=job_id)
     cancelled_job.error_message = 'Job cancelled by user'
     cancelled_job.status = 'cancelled'
@@ -127,7 +127,7 @@ def _handle_job_cancellation(job_id: str) -> None:
 
 def _handle_job_error(job_id: str, error: Exception) -> None:
     """Handle job processing error: update database and send error update."""
-    logger.exception('[JOB %s] Processing failed', job_id)
+    logger.exception('Job "%s" Processing failed', job_id)
     error_job = DeidentificationJob.objects.get(pk=job_id)
     error_job.error_message = f'Job error: {error}'
     error_job.status = 'failed'
@@ -195,16 +195,14 @@ def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: 
                 stop_monitoring.set()
             if 'monitor_thread' in locals():
                 monitor_thread.join(timeout=1.0)
-        except (AttributeError, RuntimeError) as e:
-            logger.debug('Failed to stop monitor thread for %s: %s', job_id, e)
+        except (AttributeError, RuntimeError) as error:
+            logger.debug('Failed to stop monitor thread for %s: %s', job_id, error)
 
-        # Ensure the progress bar is finalized to avoid leftover UI/console output
         try:
-            # Do not force-complete the progress when cleaning up after an
-            # unexpected cancellation — that would make the UI jump to 100%.
+            # Ensure the progress bar is finalized to avoid leftover UI/console output
             tracker.finalize_progress(complete='no')
-        except (AttributeError, RuntimeError) as e:
-            logger.debug('Failed to finalize progress for %s: %s', job_id, e)
+        except (AttributeError, RuntimeError) as error:
+            logger.debug('Failed to finalize progress for %s: %s', job_id, error)
 
 
 @extend_schema(tags=[ApiTags.JOBS])
@@ -224,13 +222,10 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         return DeidentificationJobSerializer
 
     def perform_destroy(self, instance: DeidentificationJob) -> None:
-        """Delete associated files from storage and remove job directory.
-
-        If the job is currently processing, cancel it first before deleting files.
-        """
-        # Cancel the job if it's currently processing
+        """Delete associated files from storage and remove job directory."""
         if instance.status == 'processing':
-            logger.info('[JOB %s] Cancelling running job before deletion', instance.job_id)
+            # Cancel the job if it's currently processing
+            logger.info('Job "%s" Cancelling running job before deletion', instance.job_id)
             try:
                 job_control.cancel(str(instance.job_id))
 
@@ -374,13 +369,10 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     @CANCEL_JOB_GET_SCHEMA
     @action(detail=True, methods=['get', 'post'])
     def cancel(self, request: HttpRequest, pk: str | None = None) -> Response:
-        """GET: return current job status and last progress percentage.
-
-        POST: request cancellation of a running job (existing behaviour).
-        """
+        """Request cancellation of a running job."""
         job = self.get_object()
 
-        # Handle GET: return status and last seen progress
+        # GET: return status and last seen progress
         if request.method == 'GET':
             progress_info = tracker.get_progress()
             current_progress = progress_info.get('percentage', 0)
