@@ -132,6 +132,7 @@ if DEBUG:
             {'name': 'API', 'description': 'base endpoints and documentation'},
             {'name': 'Jobs', 'description': 'general deidentification job management endpoints'},
             {'name': 'Processing', 'description': 'endpoints related to job deidentification processing'},
+            {'name': 'Cancel', 'description': 'endpoints related to job cancellation'},
         ],
     }
 else:

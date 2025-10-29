@@ -63,6 +63,7 @@ class JobCancellationResponseSerializer(serializers.Serializer):
     """Response serializer for job cancellation request."""
 
     message = serializers.CharField(default='Cancellation requested')
+    job_id = serializers.CharField()
 
 
 class JobCancellationStatusSerializer(serializers.Serializer):

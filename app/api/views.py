@@ -63,7 +63,7 @@ class ApiTags:
     API = 'API'
     JOBS = 'Jobs'
     PROCESSING = 'Processing'
-    CLEANUP = 'Cleanup'
+    CANCEL = 'Cancel'
 
 
 @extend_schema(tags=[ApiTags.API])
@@ -374,7 +374,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @extend_schema(tags=[ApiTags.CLEANUP])
+    @extend_schema(tags=[ApiTags.CANCEL])
     @CANCEL_JOB_POST_SCHEMA
     @CANCEL_JOB_GET_SCHEMA
     @action(detail=True, methods=['get', 'post'])
@@ -423,7 +423,10 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 },
             )
 
-            return Response({'message': 'Cancellation requested'}, status=status.HTTP_202_ACCEPTED)
+            return Response(
+                {'message': 'Cancellation requested', 'job_id': str(job.job_id)},
+                status=status.HTTP_202_ACCEPTED,
+            )
         except Exception as error:
             logger.exception('Failed to request cancellation for job %s', job.job_id)
             return Response({'error': str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
