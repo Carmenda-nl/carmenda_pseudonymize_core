@@ -16,6 +16,7 @@ from deduce.person import Person
 
 from core.deduce import DeduceInstanceManager
 from core.name_detector import DutchNameDetector, NameAnnotation
+from core.utils.job_control import JobCancelled, get_thread_job, is_cancelled
 from core.utils.logger import setup_logging
 from core.utils.progress_tracker import tracker
 from core.utils.terminal import colorize_tags, log_block
@@ -137,6 +138,12 @@ class DeidentifyHandler:
         results = []
 
         for row in batch.to_list():
+            # check for cancellation requested via API.
+            job_id = get_thread_job()
+            if job_id and is_cancelled(job_id):
+                message = 'Job cancelled by user'
+                raise JobCancelled(message)
+
             report_text = row.get('report')
             clientname = row.get('clientname') or None
             results.append(self._process_report(report_text, clientname))
