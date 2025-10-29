@@ -11,6 +11,7 @@ import json
 import logging
 import shutil
 import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
@@ -228,7 +229,40 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         return DeidentificationJobSerializer
 
     def perform_destroy(self, instance: DeidentificationJob) -> None:
-        """Delete associated files from storage and remove job directory."""
+        """Delete associated files from storage and remove job directory.
+
+        If the job is currently processing, cancel it first before deleting files.
+        """
+        # Cancel the job if it's currently processing
+        if instance.status == 'processing':
+            logger.info('[JOB %s] Cancelling running job before deletion', instance.job_id)
+            try:
+                job_control.cancel(str(instance.job_id))
+
+                # Update job status
+                instance.status = 'cancelled'
+                instance.error_message = 'Job cancelled before deletion'
+                instance.save()
+
+                # Send WebSocket notification
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    f'job_progress_{instance.job_id}',
+                    {
+                        'type': 'job_progress',
+                        'percentage': tracker.get_progress().get('percentage', 0),
+                        'stage': 'Cancelled (deletion)',
+                        'status': 'cancelled',
+                    },
+                )
+
+                # Give the process a moment to handle cancellation
+                time.sleep(0.5)
+
+            except (RuntimeError, OSError) as error:
+                logger.warning('[JOB %s] Failed to cancel job before deletion: %s', instance.job_id, error)
+
+        # Delete associated files
         files = ['input_file', 'datakey', 'output_file', 'log_file', 'zip_file']
 
         for file in files:
