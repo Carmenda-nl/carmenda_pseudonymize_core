@@ -122,15 +122,19 @@ class ProgressTracker:
 
         return {'percentage': self.progress, 'stage': combined_stage, 'step': self.current_step}
 
-    def finalize_progress(self) -> None:
+    def finalize_progress(self, complete: str = 'yes') -> None:
         """Finalize progress and stop the Rich progress bar."""
-        if self.task_id is not None:
+        complete_flag = complete.strip().lower() in ('yes', 'true', '1')
+
+        if complete_flag and self.task_id is not None:
             final_value = self.total_rows if self.total_rows > 0 else 100
             self.rich_progress.update(self.task_id, completed=final_value)
+            self.progress = 100
 
-        # Reset the tracker for a new future processing run.
-        self.rich_progress.stop()
-        sys.stdout.write('\n')  # <-- whitespace under progressbar
+        if self.rich_progress is not None:
+            self.rich_progress.stop()
+            sys.stdout.write('\n')  # <-- whitespace under progressbar
+
         self.rich_progress = None
         self.task_id = None
 
