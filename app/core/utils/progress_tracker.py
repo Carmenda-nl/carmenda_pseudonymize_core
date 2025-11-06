@@ -108,17 +108,18 @@ class ProgressTracker:
         self.current_stage = stage_name
         self.current_step = step_name
 
-        self.rich_progress.start()
-        self.start_time = time.time()
+        if self.rich_progress is not None:
+            self.rich_progress.start()
+            self.start_time = time.time()
 
-        if self.task_id is None:
-            self.task_id = self.rich_progress.add_task(f'{stage_name}', total=self.total_rows, completed=0)
+            if self.task_id is None:
+                self.task_id = self.rich_progress.add_task(f'{stage_name}', total=self.total_rows, completed=0)
 
-        self.rich_progress.update(
-            self.task_id,
-            completed=self.rows_processed,
-            description=f'{stage_name} ({progress_percentage}%)',
-        )
+            self.rich_progress.update(
+                self.task_id,
+                completed=self.rows_processed,
+                description=f'{stage_name} ({progress_percentage}%)',
+            )
         return progress_percentage
 
     def get_progress(self) -> dict[str, int | str | None]:
@@ -136,7 +137,7 @@ class ProgressTracker:
         """Finalize progress and stop the Rich progress bar."""
         complete_flag = complete.strip().lower() in ('yes', 'true', '1')
 
-        if complete_flag and self.task_id is not None:
+        if complete_flag and self.task_id is not None and self.rich_progress is not None:
             final_value = self.total_rows if self.total_rows > 0 else 100
             self.rich_progress.update(self.task_id, completed=final_value)
             self.progress = 100
