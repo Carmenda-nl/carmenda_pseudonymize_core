@@ -41,6 +41,16 @@ datas += collect_data_files('twisted')
 # Add the app directory and its contents
 datas.append((app_path, 'app'))
 
+# Filter out files and folders not needed for production
+datas = [(source, dest) for source, dest in datas if not (
+    isinstance(source, str) and (
+        source.endswith('requirements-dev.txt') or 
+        source.endswith('requirements.txt') or
+        '.vscode' in source or
+        '__pycache__' in source
+    )
+)]
+
 # Bundle the lookup tables in the application
 lookup_tables_path = os.path.join(app_path, 'core', 'lookup_tables')
 if os.path.exists(lookup_tables_path):
