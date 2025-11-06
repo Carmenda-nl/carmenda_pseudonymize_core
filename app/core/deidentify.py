@@ -186,7 +186,7 @@ class DeidentifyHandler:
         processed_reports = df.select(
             [
                 pl.struct(struct_cols)
-                .map_batches(lambda batch: self._deidentify_batch(batch), return_dtype=pl.String)
+                .map_batches(lambda batch: self._deidentify_batch(batch))
                 .alias('processed_report'),
             ],
         )
