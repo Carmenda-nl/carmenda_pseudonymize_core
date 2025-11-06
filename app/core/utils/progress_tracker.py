@@ -11,9 +11,11 @@ progress during data transformation using Rich library.
 
 from __future__ import annotations
 
+import io
 import sys
 import time
 
+from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -58,6 +60,14 @@ class ProgressTracker:
         time_elapsed = TimeElapsedColumn()
         time_remaining = TimeRemainingColumn()
 
+        # Disable console output when running as PyInstaller executable (prevents Unicode errors)
+        if getattr(sys, 'frozen', False):
+            disable_console = Console(file=io.StringIO(), force_terminal=False)
+
+            return Progress(
+                spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining,
+                console=disable_console, disable=False,
+            )
         return Progress(spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining)
 
     def _parse_row_progress(self, step_name: str) -> None:
