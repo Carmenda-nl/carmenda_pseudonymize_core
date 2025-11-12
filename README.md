@@ -6,7 +6,8 @@
 [![API](https://img.shields.io/badge/api-REST-orange)](https://www.django-rest-framework.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
-**Carmenda Privacytool** is a REST API solution designed to pseudonymize textual data for care organizations.  
+**Carmenda Privacytool** is a REST API solution designed to pseudonymize textual data for care organizations.
+
 This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** algorithm **[1]**
 to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
 Built with **Polars** for enhanced performance, it provides a scalable API for handling large datasets efficiently.
