@@ -1,4 +1,4 @@
-# Carmenda Privacy Tool - Backend API
+# Carmenda Privacytool - Backend API
 
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/downloads/release/python-3136/)
@@ -6,28 +6,36 @@
 [![API](https://img.shields.io/badge/api-REST-orange)](https://www.django-rest-framework.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
-**Carmenda privacy tool** is a REST API solution designed to pseudonymize textual data for care organizations.  
-This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** tool **[1]**
-algorithm to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
-Built with **Polars** for enhanced performance, it provides a scalable API for handling large datasets.
+**Carmenda Privacytool** is a REST API solution designed to pseudonymize textual data for care organizations.  
+This backend leverages the **[Deduce](https://github.com/vmenger/deduce)** algorithm **[1]**
+to effectively mask sensitive information, ensuring compliance with data privacy regulations.  
+Built with **Polars** for enhanced performance, it provides a scalable API for handling large datasets efficiently.
 
-**[1]** *Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic
-de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853*
+**[1]** _Menger, V.J., Scheepers, F., van Wijk, L.M., Spruit, M. (2017). DEDUCE: A pattern matching method for automatic
+de-identification of Dutch medical text, Telematics and Informatics, 2017, ISSN 0736-5853_
 
 ## Features
 
 - **REST API for Pseudonymization**: HTTP endpoints for text de-identification using the Deduce algorithm
-- **High Performance**: Utilizes Polars to process large datasets quickly and efficiently
+- **High Performance**: Utilizes Polars with vectorized operations to process large datasets quickly and efficiently
+- **Asynchronous Processing**: Job-based processing with real-time progress tracking via Server-Sent Events (SSE)
+- **Job Management**: Cancel running jobs and track processing status through the API
 - **API Documentation**: Automatic OpenAPI/Swagger documentation for easy integration
 - **Docker Deployment**: Provided as a Docker image for simple setup and deployment
+- **Custom Lookup Tables**: Extended Dutch name databases for improved detection accuracy
 
 ## Getting Started
 
-Follow the instructions on the [wiki](https://github.com/Carmenda-nl/Carmenda_pseudonymize/wiki).
+Follow the extended instructions on the [wiki](https://github.com/Carmenda-nl/Carmenda_pseudonymize/wiki), or refer to
+one of the sections in this README. For building an executable to use with the frontend, please consult the Wiki.
+
+For a detailed list of changes and version history, see the [CHANGELOG](CHANGELOG.md).
 
 ## How It Works
 
-Carmenda privacy tool uses the Deduce algorithm to replace sensitive information in textual data with pseudonyms.  
+The Privacytool uses the Deduce algorithm to detect and replace sensitive information in textual data with pseudonyms.  
+Enhanced with custom Dutch lookup tables for names, locations, and medical institutions
+the tool provides improved accuracy for Dutch healthcare data.  
 This method ensures that the data remains useful for analytical purposes while safeguarding individual privacy.
 
 ## License
@@ -41,7 +49,7 @@ For questions or support, please contact us at [support@carmenda.nl](mailto:supp
 
 ---
 
-## Docker Deployment (Backend)
+## Deployment (Docker)
 
 ### Build the Docker Image
 
@@ -52,15 +60,17 @@ Build the backend image from the Dockerfile:
 docker build -f deployment/Dockerfile -t privacy-backend:latest .
 ```
 
-### Run the Privacy tool
+### Run the Privacy Tool
 
-Use the following command to run the privacy tool with mounted volumes:
+Use the following command to run the privacy tool:
 
 ```bash
 docker run -it --rm -p 8000:8000 -e DEBUG=True privacy-backend:latest
 ```
 
 The API will be available at `http://localhost:8000/`
+
+> **Note:** Set `DEBUG=False` for production environments.
 
 ### API Documentation
 
@@ -84,21 +94,21 @@ If you encounter issues:
 
 ---
 
-## Backend Development
+## Development
 
 ### Step 1: Preparations
 
 Ensure Python is installed (minimum version 3.10) and Git.
-Clone this repository to your local machine.
+Clone this repository to your local machine:
 
 ```bash
-git clone --recursive https://github.com/Carmenda-nl/carmenda_pseudonymize_backend.git
+git clone --recursive https://github.com/Carmenda-nl/carmenda_pseudonymize_core.git
 ```
 
-Open a terminal and navigate to the app folder of this project:
+Open a terminal and navigate to the `app` folder of this project:
 
 ```bash
-cd app
+cd carmenda_pseudonymize_core/app
 ```
 
 Create a virtual environment, as all dependencies need to be loaded into it:
@@ -109,11 +119,23 @@ python virtualenv .venv
 
 Activate the virtual environment:
 
+**Windows (Command Prompt):**
+
 ```bash
-source .venv\bin\activate
+.venv\Scripts\activate
 ```
 
-> **Note:** This example assumes you are on a Windows system using WSL.  
+**Windows (PowerShell):**
+
+```bash
+.venv\Scripts\Activate.ps1
+```
+
+**Linux/macOS:**
+
+```bash
+source .venv/bin/activate
+```
 
 ### Step 2: Install dependencies
 
@@ -123,70 +145,25 @@ Install the project dependencies:
 pip install -r requirements.txt
 ```
 
-Add a `.env` file with the following data
+### Step 3: Configuration
 
-```bash
-DEBUG=True
-SECRET_KEY=add any string-based key here
-CSRF_TRUSTED_ORIGINS=http://127.0.0.1
-```
+Create an `.env` file in the `app` folder with the following configuration:
 
-You can now test-run the server to verify everything functions properly:
-
-```bash
-python manage.py runserver
-```
-
-## Backend Building
-
-### Step 1: Setup
-
-Pull this repository to your local machine.
-
-```bash
-git clone --recursive https://github.com/Carmenda-nl/carmenda_pseudonymize_backend.git
-```
-
-> **Important:** The operating system (OS) you use will determine the target build.  
-> For example, using Windows will generate a Windows executable; using Mac will generate a MacOS executable.
-
-Ensure Python is installed (minimum version 3.10).
-
-Open a terminal and navigate to the app folder:
-
-```bash
-cd app
-```
-
-Create a virtual environment, as all dependencies need to be loaded into it:
-
-```bash
-virtualenv .venv
-```
-
-Activate the virtual environment:
-
-```bash
-.venv\Scripts\activate
-```
-
-> **Note:** This example assumes you are on a Windows system *without* using WSL.  
-> **Be aware:** Using WSL will create a Linux-based build.
-
-Install the project dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Add a `.env` file with the following data
-
-```bash
+```env
 DJANGO_RUNSERVER_HIDE_WARNING=true
+
 DEBUG=False
-SECRET_KEY=add any string-based key here
+LOG_LEVEL=INFO
+
+SECRET_KEY=your-secret-key-here
 CSRF_TRUSTED_ORIGINS=http://127.0.0.1
+
+JOB_LOG_ONLY=True
 ```
+
+> **Note:** Replace `your-secret-key-here` with a secure random string. For production environments, ensure `DEBUG=False` and use appropriate CSRF trusted origins.
+
+### Step 4: Run the Server
 
 You can now test-run the server to verify everything functions properly:
 
@@ -194,49 +171,4 @@ You can now test-run the server to verify everything functions properly:
 python manage.py runserver
 ```
 
-### Step 2: Building
-
-With the terminal still open and the virtual environment active, move up one folder:
-
-```bash
-cd ..
-```
-
-Install PyInstaller:
-
-```bash
-pip install pyinstaller
-```
-
-Build the backend with the following command:
-
-```bash
-pyinstaller build.spec --noconfirm
-```
-
-> This process may take some time.
-
-### Step 3: Run
-
-After building is complete, navigate to the created distribution folder:
-
-```bash
-cd dist\backend\
-```
-
-Test-run the built backend:
-
-On windows this is:
-
-```bash
-backend.exe runserver --noreload
-```
-
-On a mac run:
-
-```bash
-./backend runserver --noreload
-```
-
-If everything is functioning correctly, you can copy the `backend` folder from
-the dist folder to the frontend dist folder.
+The API will be available at `http://127.0.0.1:8000/`
