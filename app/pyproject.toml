@@ -1,9 +1,28 @@
 [tool.ruff]
 line-length = 120
 select = ['ALL']
+exclude = ['migrations']
+ignore = [
+    'ARG002', # (`request` & `pk` are mandatory for DRF)
+    'D106',   # (Meta classes don't need a docstring)
+    'DTZ005', # (Timezones are managed by django)
+    'SLF001', # (MEIPASS use for PyInstaller)
+    'S301',   # (pickle file loading)
+]
 
 [tool.ruff.format]
 quote-style = 'single'
 
 [tool.ruff.flake8-quotes]
 inline-quotes = 'single'
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = 'main.settings'
+python_files = ['tests.py', 'test_*.py', '*_tests.py']
+addopts = [
+    '--cov=.',
+    '--cov-report=term:skip-covered',
+    '--cov-fail-under=25',
+    '-p',
+    'no:warnings'
+]

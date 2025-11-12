@@ -14,3 +14,7 @@
 **/.coverage
 **/.pytest_cache
 data/
+
+# -------------------------- django files & folders -------------------------- #
+
+**/setup.cfg

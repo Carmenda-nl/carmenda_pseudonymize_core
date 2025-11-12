@@ -3,9 +3,8 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Core package.
+"""API package for Django backend.
 
-This package provides core functionality for pseudonymizing data.
-The main modules include de-identification handlers, Deduce instance management,
- extended name detection, and utility functions for logging and job control.
+This package contains the API endpoints and serializers for the Django backend.
+The API is designed to be used with the Django REST framework.
 """

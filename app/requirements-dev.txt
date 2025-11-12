@@ -17,5 +17,10 @@ chardet==5.2.0
 # Deduce packages
 deduce==3.0.6
 
-# Production server
-gunicorn==23.0.0
+# Unit testing
+pytest==8.4.2
+pytest-django==4.11.1
+pytest-cov==7.0.0
+
+# Package builder
+pyinstaller==6.16.0

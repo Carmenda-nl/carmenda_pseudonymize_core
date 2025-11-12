@@ -3,9 +3,12 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Core package.
+"""WebSocket routing for real-time job progress updates."""
 
-This package provides core functionality for pseudonymizing data.
-The main modules include de-identification handlers, Deduce instance management,
- extended name detection, and utility functions for logging and job control.
-"""
+from django.urls import re_path
+
+from api import consumers
+
+websocket_urlpatterns = [
+    re_path(r'ws/jobs/(?P<job_id>[^/]+)/progress/$', consumers.JobProgressConsumer.as_asgi()),
+]

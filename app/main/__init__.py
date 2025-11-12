@@ -3,9 +3,8 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Core package.
+"""Main package for the Django project.
 
-This package provides core functionality for pseudonymizing data.
-The main modules include de-identification handlers, Deduce instance management,
- extended name detection, and utility functions for logging and job control.
+This package contains the main components and settings for the Django application.
+ASGI is setup to use a websocket protocol to handle requests asynchronously.
 """

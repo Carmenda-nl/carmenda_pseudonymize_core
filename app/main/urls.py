@@ -3,9 +3,15 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Core package.
+"""URL configuration for the Django project."""
 
-This package provides core functionality for pseudonymizing data.
-The main modules include de-identification handlers, Deduce instance management,
- extended name detection, and utility functions for logging and job control.
-"""
+from django.conf import settings
+from django.conf.urls.static import static
+from django.urls import include, path
+from django.views.generic import RedirectView
+
+urlpatterns = [
+    path('', RedirectView.as_view(url='/api/', permanent=True)),
+    path('api/', include('api.urls')),
+    *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
+]

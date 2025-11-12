@@ -3,9 +3,11 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Core package.
+"""WSGI configuration for the Django project."""
 
-This package provides core functionality for pseudonymizing data.
-The main modules include de-identification handlers, Deduce instance management,
- extended name detection, and utility functions for logging and job control.
-"""
+import os
+
+from django.core.wsgi import get_wsgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'main.settings')
+application = get_wsgi_application()
