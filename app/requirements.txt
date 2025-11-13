@@ -1,21 +1,18 @@
 # Django packages
-Django==5.2.7
+Django==5.2.8
 django-environ==0.12.0
 django-cors-headers==4.9.0
 djangorestframework==3.16.1
-drf-spectacular==0.28.0
+drf-spectacular==0.29.0
 
 # Websockets & real-time
 channels[daphne]==4.3.1
 channels-redis==4.3.0
 
 # Large-scale data processing
-polars[pandas]==1.34.0
+polars[pandas]==1.35.2
 rich==14.2.0
 chardet==5.2.0
 
 # Deduce packages
 deduce==3.0.6
-
-# Production server
-gunicorn==23.0.0

@@ -54,6 +54,10 @@ def check_file(input_file: str) -> tuple[str, str, str]:
         encoding_result = chardet.detect(data_sample)
         encoding = encoding_result['encoding'] or 'utf-8'
 
+        # Treat ASCII as UTF-8 since UTF-8 is backwards compatible.
+        if encoding.lower() == 'ascii':
+            encoding = 'utf-8'
+
         # Detect line endings - Polars only supports single-byte eol_char
         if b'\r\n' in data_sample:
             line_ending = '\n'

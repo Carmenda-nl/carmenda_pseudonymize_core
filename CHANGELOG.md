@@ -3,6 +3,22 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2025-11-13
+
+### Added
+
+- Missing copyright text in progress_control.py
+- Force ASCII to UTF-8 encoding
+
+### Changed
+
+- Update: Docker version to python:3.13.6-slim
+- Update: pypi packages
+
+### Fixed
+
+- Force ASCII to UTF-8 encoding
+
 ## [1.2.6] - 2025-11-12
 
 ### Added
