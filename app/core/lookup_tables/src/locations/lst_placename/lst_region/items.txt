@@ -1,5 +1,5 @@
-Acht Zaligheden
 Achterhoek
+Acht Zaligheden
 Alblasserwaard
 Ameland
 Amstelland
@@ -22,9 +22,10 @@ De Biesbosch
 De Duffelt
 De Graafschap
 De Streek
-de Weerribben
-de Wieden
+De Weerribben
+De Wieden
 Delfland
+Dieverderdingspel
 Dokkumer Wouden
 Dollardpolders
 Drechterland
@@ -41,7 +42,6 @@ Eiland Van Dordrecht
 Ellertsveld
 Fivelingo
 Flevopolder
-Friese Meren
 Friese merengebied
 Friese Wouden
 Gaasterland
@@ -75,6 +75,7 @@ Kempen
 Kennemerland
 Klei-Oldambt
 Kleistreek
+Koningslaagte
 Kop Van Noord-Holland
 Kop Van Overijssel
 Krimpenerwaard
@@ -108,11 +109,10 @@ Maasland
 Maasland of Maaskant
 Maasplassen
 Markiezaat van Bergen op Zoom
-Markizaat Van Bergen Op Zoom
 Marne
 Marnewaard
 Mastenbroek
-Meierij Van 'S-Hertogenbosch
+Meierij Van 's-Hertogenbosch
 Menterne
 Mergelland
 Middag
@@ -125,11 +125,11 @@ Neder-Betuwe
 Nederkwartier
 Nifterlake
 Noord-Beveland
+Noord-Limburg
+Noord-Zeeland
 Noordelijke Bouwstreek
 Noordenveld
-Noord-Limburg
 Noordoostpolder
-Noord-Zeeland
 Oldambt
 Ommelanden
 Oostelijk Flevoland
@@ -145,7 +145,8 @@ Over-Betuwe
 Overflakkee
 Overkwartier
 Overveluwe
-Peel
+Parkstad Limburg
+de Peel
 Peelland
 Plateau Van Margraten
 Prins Alexanderpolder
@@ -198,7 +199,6 @@ Vredewold
 Vrije van Sluis
 Walcheren
 Waterland
-Weerterland
 Weidestreken
 Westelijke Mijnstreek
 Westergo
@@ -219,9 +219,10 @@ Zeevang
 Zeven Heerlijkheden
 Zevenwouden
 Zuid-Beveland
+Zuid-Hollandse Eilanden
+Zuid-Limburg
 Zuidelijk Flevoland
 Zuidenveld
-Zuid-Limburg
 Zuidplaspolder
 Zuidwesthoek
 Zwijndrechtse Waard
