@@ -35,7 +35,7 @@ from api.schemas import (
     PROCESS_JOB_POST_SCHEMA,
 )
 from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
-from api.utils import collect_output_files, create_zipfile, match_output_cols, setup_job_logging
+from api.utils import collect_output_files, create_zipfile, generate_input_preview, match_output_cols, setup_job_logging
 from core.processor import process_data
 from core.utils.logger import setup_logging
 from core.utils.progress_control import JobCancelledError, job_control
@@ -281,6 +281,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         job = serializer.save(status='pending')
+        generate_input_preview(job)
+
         message = 'Job created successfully and is ready to be processed'
         url = f'{request.build_absolute_uri()}{job.job_id}/process/'
         process_url = f'curl -X POST {url}'
