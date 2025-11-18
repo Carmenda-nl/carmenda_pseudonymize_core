@@ -44,7 +44,7 @@ class DeidentificationJob(models.Model):
     )
 
     job_id = models.UUIDField(default=uuid.uuid1, editable=False, primary_key=True)
-    input_cols = models.CharField(null=False, blank=False)
+    input_cols = models.CharField(blank=True)
     input_file = models.FileField(upload_to=input_path)
     datakey = models.FileField(upload_to=input_path, null=True, blank=True)
     output_file = models.FileField(upload_to=output_path, null=True, blank=True)

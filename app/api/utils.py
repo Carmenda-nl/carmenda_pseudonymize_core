@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -17,11 +18,46 @@ if TYPE_CHECKING:
     from api.models import DeidentificationJob
 
 from django.conf import settings
+from rest_framework import serializers
 
 from core.utils.file_handling import check_file
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
+
+
+def validate_input_cols(value: str) -> str:
+    """Validate that `input_cols` follows the required format.
+
+    1. Comma-separated
+    2. Each value follows the format: key=value
+    3. Must contain the key `report`
+    """
+    if not isinstance(value, str):
+        message = 'Input columns must be a string'
+        raise serializers.ValidationError(message)
+
+    fields = [field.strip() for field in value.split(',')]
+
+    pattern = re.compile(r'^([^=]+)=(.+)$')
+    field_dict = {}
+
+    for field in fields:
+        match = pattern.match(field)
+
+        if not match:
+            message = f"Field '{field}' does not follow the format 'key=value'"
+            raise serializers.ValidationError(message)
+
+        key = match.group(1)
+        val = match.group(2)
+        field_dict[key] = val
+
+    if 'report' not in field_dict:
+        message = "The 'report' key must be present (report=value)"
+        raise serializers.ValidationError(message)
+
+    return value
 
 
 def match_output_cols(input_cols: str) -> str:

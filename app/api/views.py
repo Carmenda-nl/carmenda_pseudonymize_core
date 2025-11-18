@@ -34,8 +34,19 @@ from api.schemas import (
     PROCESS_JOB_GET_SCHEMA,
     PROCESS_JOB_POST_SCHEMA,
 )
-from api.serializers import DeidentificationJobListSerializer, DeidentificationJobSerializer
-from api.utils import collect_output_files, create_zipfile, generate_input_preview, match_output_cols, setup_job_logging
+from api.serializers import (
+    DeidentificationJobListSerializer,
+    DeidentificationJobSerializer,
+    DeidentificationJobUpdateSerializer,
+    JobStatusSerializer,
+)
+from api.utils import (
+    collect_output_files,
+    create_zipfile,
+    generate_input_preview,
+    match_output_cols,
+    setup_job_logging,
+)
 from core.processor import process_data
 from core.utils.logger import setup_logging
 from core.utils.progress_control import JobCancelledError, job_control
@@ -212,12 +223,16 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
-    http_method_names: ClassVar = ['get', 'post', 'delete']
+    http_method_names: ClassVar = ['get', 'post', 'put', 'delete']
 
     def get_serializer_class(self) -> DeidentificationJobSerializer:
         """Return the appropriate serializer based on the action."""
         if self.action == 'list':
             return DeidentificationJobListSerializer
+        if self.action == 'update':
+            return DeidentificationJobUpdateSerializer
+        if self.action in ['process', 'cancel']:
+            return JobStatusSerializer
 
         return DeidentificationJobSerializer
 
@@ -300,6 +315,15 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     def process(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Start the deidentification process for a job."""
         job = self.get_object()
+
+        if not job.input_cols:
+            return Response(
+                {
+                    'error': 'Cannot process job without input_cols',
+                    'message': 'Please update the job with valid input_cols before processing',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Get current progress from tracker if processing
         if request.method == 'GET':

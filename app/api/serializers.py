@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import re
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -18,7 +17,7 @@ if TYPE_CHECKING:
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
-from api.utils import get_metadata
+from api.utils import get_metadata, validate_input_cols
 from core.utils.file_handling import check_file
 from core.utils.progress_tracker import tracker
 
@@ -111,37 +110,11 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         ]
 
     def validate_input_cols(self, value: str) -> str:
-        """Validate that `input_cols` follows the required format.
+        """Validate input_cols on proper format, skip when empty."""
+        if not value:
+            return value
 
-        1. Comma-separated
-        2. Each value follows the format: key=value
-        3. Must contain the key `report`
-        """
-        if not isinstance(value, str):
-            message = 'Input columns must be a string'
-            raise serializers.ValidationError(message)
-
-        fields = [field.strip() for field in value.split(',')]
-
-        pattern = re.compile(r'^([^=]+)=(.+)$')
-        field_dict = {}
-
-        for field in fields:
-            match = pattern.match(field)
-
-            if not match:
-                message = f"Field '{field}' does not follow the format 'key=value'"
-                raise serializers.ValidationError(message)
-
-            key = match.group(1)
-            val = match.group(2)
-            field_dict[key] = val
-
-        if 'report' not in field_dict:
-            message = "The 'report' key must be present (report=value)"
-            raise serializers.ValidationError(message)
-
-        return value
+        return validate_input_cols(value)
 
     def validate_input_file(self, value: UploadedFile) -> UploadedFile:
         """Validate the uploaded file and check column existence."""
@@ -162,6 +135,26 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         return get_metadata(representation, instance, fields)
 
 
+class DeidentificationJobUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating the input_cols of a job."""
+
+    class Meta:
+        model = DeidentificationJob
+        fields: ClassVar = ['input_cols']
+
+    def validate_input_cols(self, value: str) -> str:
+        """Validate input_cols on proper format."""
+        return validate_input_cols(value)
+
+    def update(self, instance: DeidentificationJob, validated_data: dict) -> DeidentificationJob:
+        """Update job instance, only allowing input_cols to be modified."""
+        if 'input_cols' in validated_data:
+            instance.input_cols = validated_data['input_cols']
+            instance.save()
+
+        return instance
+
+
 class JobStatusSerializer(serializers.ModelSerializer):
     """Provide detailed information about the current state of a job."""
 
@@ -170,7 +163,8 @@ class JobStatusSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DeidentificationJob
-        fields = '__all__'
+        fields: ClassVar = ['job_id', 'status', 'progress', 'error_message']
+        read_only_fields: ClassVar = ['job_id', 'status', 'progress', 'error_message']
 
     def get_status(self, obj: DeidentificationJob) -> str:
         """Get the combined status and stage information."""
