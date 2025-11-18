@@ -104,6 +104,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             'log_file',
             'zip_file',
             'zip_preview',
+            'preview',
             'processed_preview',
             'status',
             'error_message',

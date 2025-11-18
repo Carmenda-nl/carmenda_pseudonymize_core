@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 from django.conf import settings
 
+from core.utils.file_handling import check_file
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
@@ -86,6 +87,26 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
         files_to_zip.append(str(log_path))
 
     return files_to_zip, output_filename
+
+
+def generate_input_preview(job: DeidentificationJob) -> None:
+    """Generate a preview from the first 3 lines of the input file."""
+    file_path = job.input_file.path
+    encoding, line_ending, separator = check_file(file_path)
+
+    with Path(file_path).open(encoding=encoding, newline=line_ending) as file:
+        lines = file.readlines()
+
+    header = [col.strip() for col in lines[0].strip().split(separator)]
+
+    preview_data = [
+        dict(zip(header, [val.strip() for val in line.strip().split(separator)], strict=False))
+        for line in lines[1:4]
+        if line.strip()
+    ]
+
+    job.preview = preview_data
+    job.save(update_fields=['preview'])
 
 
 def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:

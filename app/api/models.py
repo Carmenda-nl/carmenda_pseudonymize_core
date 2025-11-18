@@ -51,6 +51,7 @@ class DeidentificationJob(models.Model):
     log_file = models.FileField(upload_to=output_path, null=True, blank=True)
     zip_file = models.FileField(upload_to=output_path, null=True, blank=True)
     zip_preview = models.JSONField(null=True, blank=True)
+    preview = models.JSONField(null=True, blank=True)
     processed_preview = models.JSONField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     error_message = models.TextField(default='', blank=True)
