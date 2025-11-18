@@ -148,7 +148,14 @@ class DeidentifyHandler:
 
             report_text = row.get('report')
             clientname = row.get('clientname') or None
-            results.append(self._process_report(report_text, clientname))
+
+            # Skip empty/null rows that may appear in batches
+            if not report_text:
+                results.append('')
+                continue
+
+            result = self._process_report(report_text, clientname)
+            results.append(result)
 
             max_percentage = 100
             self.processed_count += 1
