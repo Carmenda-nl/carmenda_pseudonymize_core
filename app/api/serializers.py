@@ -117,12 +117,26 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         return validate_input_cols(value)
 
     def validate_input_file(self, value: UploadedFile) -> UploadedFile:
-        """Validate the uploaded file and check column existence."""
+        """Validate the uploaded file and check column existence.
+
+        Skip validation:
+            if this is an existing file path (PUT)
+        """
+        if isinstance(value, str):
+            return value
+
         input_cols = self.initial_data.get('input_cols')
         return _validate_file(value, input_cols)
 
     def validate_datakey(self, value: UploadedFile) -> UploadedFile:
-        """Validate the datakey if provided and valid."""
+        """Validate the datakey if provided and valid.
+
+        Skip validation:
+            if this is an existing file path (PUT)
+        """
+        if isinstance(value, str):
+            return value
+
         if value:
             return _validate_file(value)
         return value
@@ -133,26 +147,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         fields = ['input_file', 'output_file', 'datakey', 'log_file', 'zip_file']
 
         return get_metadata(representation, instance, fields)
-
-
-class DeidentificationJobUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating the input_cols of a job."""
-
-    class Meta:
-        model = DeidentificationJob
-        fields: ClassVar = ['input_cols']
-
-    def validate_input_cols(self, value: str) -> str:
-        """Validate input_cols on proper format."""
-        return validate_input_cols(value)
-
-    def update(self, instance: DeidentificationJob, validated_data: dict) -> DeidentificationJob:
-        """Update job instance, only allowing input_cols to be modified."""
-        if 'input_cols' in validated_data:
-            instance.input_cols = validated_data['input_cols']
-            instance.save()
-
-        return instance
 
 
 class JobStatusSerializer(serializers.ModelSerializer):

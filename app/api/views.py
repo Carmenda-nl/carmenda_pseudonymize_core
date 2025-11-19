@@ -37,7 +37,6 @@ from api.schemas import (
 from api.serializers import (
     DeidentificationJobListSerializer,
     DeidentificationJobSerializer,
-    DeidentificationJobUpdateSerializer,
     JobStatusSerializer,
 )
 from api.utils import (
@@ -219,21 +218,97 @@ def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: 
 @extend_schema(tags=[ApiTags.JOBS])
 @extend_schema_view(process=extend_schema(tags=[ApiTags.PROCESSING]))
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing deidentification jobs."""
+    """Deidentification Job ViewSet for managing jobs via API."""
 
+    @action(detail=True, methods=['patch'])
+    def update_files(self, request: HttpRequest, pk: str | None = None) -> Response:
+        """Update input_file en/of datakey van een job (DRY, met serializer validatie)."""
+        job = self.get_object()
+        files = {}
+        if 'input_file' in request.FILES:
+            files['input_file'] = request.FILES['input_file']
+        if 'datakey' in request.FILES:
+            files['datakey'] = request.FILES['datakey']
+        if not files:
+            return Response({'message': 'No files provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = DeidentificationJobSerializer(job, data=files, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                'message': 'Files updated successfully',
+                'job_id': str(job.job_id),
+                'input_file': job.input_file.name if job.input_file else None,
+                'datakey': job.datakey.name if job.datakey else None,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    """ViewSet for managing deidentification jobs."""
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
     http_method_names: ClassVar = ['get', 'post', 'put', 'delete']
+
+    def _clean_file(self, file_field: object, job_id: str, file_type: str) -> None:
+        """Delete old file from storage if it exists."""
+        if not file_field:
+            return
+
+        try:
+            old_file_path = Path(file_field.path)
+
+            if old_file_path.exists():
+                old_file_path.unlink()
+        except (OSError, ValueError) as error:
+            logger.warning('Failed to delete old %s file for job %s: %s', file_type, job_id, error)
+
+    def _prepare_data(self, request: HttpRequest, job: DeidentificationJob) -> dict:
+        """Prepare data for update, handling file fields and input_cols reset."""
+        data = request.data.copy()
+
+        if 'input_file' in request.FILES and 'input_cols' not in data:
+            data['input_cols'] = ''
+
+        if 'input_file' not in request.FILES and job.input_file:
+            data['input_file'] = job.input_file
+
+        if 'datakey' not in request.FILES:
+            if job.datakey:
+                data['datakey'] = job.datakey
+            else:
+                data.pop('datakey', None)
+
+        return data
+
+    def update(self, request: HttpRequest, *args: object, **kwargs: object) -> Response:
+        """Update a job with PUT request, deleting old files before adding new ones."""
+        job = self.get_object()
+
+        data = self._prepare_data(request, job)
+        serializer = self.get_serializer(job, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        if 'input_file' in request.FILES:
+            self._clean_file(job.input_file, str(job.job_id), 'input')
+
+        if 'datakey' in request.FILES:
+            self._clean_file(job.datakey, str(job.job_id), 'datakey')
+
+        serializer.save()
+
+        if 'input_file' in request.FILES:
+            generate_input_preview(job)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def get_serializer_class(self) -> DeidentificationJobSerializer:
         """Return the appropriate serializer based on the action."""
         if self.action == 'list':
             return DeidentificationJobListSerializer
-        if self.action == 'update':
-            return DeidentificationJobUpdateSerializer
         if self.action in ['process', 'cancel']:
             return JobStatusSerializer
-
         return DeidentificationJobSerializer
 
     def perform_destroy(self, instance: DeidentificationJob) -> None:
