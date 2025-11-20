@@ -120,22 +120,35 @@ class DeidentifyHandler:
         return merged_result
 
     def _deduce_detection(self, report_text: str, clientname: str | None = None) -> str:
-        """Apply Deduce detection with or without clientname."""
+        """Apply Deduce detection with or without clientname (case-insensitive)."""
         metadata = {}
 
         if clientname:
-            name_parts = clientname.split(' ', maxsplit=1)
-            client_initials = ''.join([name[0] for name in name_parts])
+            name_parts = clientname.split()
+            first_name = name_parts[0] if name_parts else None
 
-            if len(name_parts) == 1:
-                patient = Person(first_names=[name_parts[0]])
+            full_name_pattern = r'\b' + re.escape(clientname) + r'\b'
+            preprocessed_text = re.sub(full_name_pattern, clientname, report_text, flags=re.IGNORECASE)
+
+            if first_name and len(first_name) > 1:
+                first_name_pattern = r'\b' + re.escape(first_name) + r'\b'
+                preprocessed_text = re.sub(first_name_pattern, first_name, preprocessed_text, flags=re.IGNORECASE)
+
+            name_parts_with_surname = clientname.split(' ', maxsplit=1)
+            client_initials = ''.join([name[0] for name in name_parts_with_surname])
+
+            if len(name_parts_with_surname) == 1:
+                client = Person(first_names=[name_parts_with_surname[0]])
             else:
-                patient = Person(first_names=[name_parts[0]], surname=name_parts[1], initials=client_initials)
+                client = Person(
+                    first_names=[name_parts_with_surname[0]],
+                    surname=name_parts_with_surname[1],
+                    initials=client_initials,
+                )
 
-            metadata['patient'] = patient
+            metadata['patient'] = client
 
-        result = self.deduce_instance.deidentify(report_text, metadata=metadata)
-
+        result = self.deduce_instance.deidentify(preprocessed_text, metadata=metadata)
         return result.deidentified_text
 
     def _deidentify_batch(self, batch: pl.Series) -> pl.Series:
