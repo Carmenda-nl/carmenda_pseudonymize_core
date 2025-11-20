@@ -33,6 +33,7 @@ from api.schemas import (
     CREATE_JOB_SCHEMA,
     PROCESS_JOB_GET_SCHEMA,
     PROCESS_JOB_POST_SCHEMA,
+    UPDATE_FILES_SCHEMA,
 )
 from api.serializers import (
     DeidentificationJobListSerializer,
@@ -220,6 +221,7 @@ def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: 
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
     """Deidentification Job ViewSet for managing jobs via API."""
 
+    @UPDATE_FILES_SCHEMA
     @action(detail=True, methods=['patch'])
     def update_files(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Update input_file en/of datakey van een job (DRY, met serializer validatie)."""

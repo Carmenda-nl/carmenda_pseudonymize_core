@@ -89,6 +89,28 @@ class JobCancellationErrorSerializer(serializers.Serializer):
     error = serializers.CharField()
 
 
+class JobUpdateFilesResponseSerializer(serializers.Serializer):
+    """Response serializer for job file updates."""
+
+    message = serializers.CharField(default='Files updated successfully')
+    job_id = serializers.CharField()
+    input_file = serializers.CharField(allow_null=True)
+    datakey = serializers.CharField(allow_null=True)
+
+
+class JobUpdateFilesErrorSerializer(serializers.Serializer):
+    """Response serializer for job file update errors."""
+
+    message = serializers.CharField(default='No files provided')
+
+
+class JobProcessErrorSerializer(serializers.Serializer):
+    """Response serializer for job processing validation errors."""
+
+    error = serializers.CharField()
+    message = serializers.CharField()
+
+
 # Schema definitions for endpoints
 API_ROOT_SCHEMA = extend_schema(
     responses={
@@ -106,6 +128,7 @@ PROCESS_JOB_POST_SCHEMA = extend_schema(
     methods=['post'],
     responses={
         202: JobProcessingResponseSerializer,
+        400: JobProcessErrorSerializer,
         500: JobProcessingErrorResponseSerializer,
     },
 )
@@ -130,5 +153,13 @@ CANCEL_JOB_GET_SCHEMA = extend_schema(
     methods=['get'],
     responses={
         200: JobCancellationStatusSerializer,
+    },
+)
+
+UPDATE_FILES_SCHEMA = extend_schema(
+    methods=['patch'],
+    responses={
+        200: JobUpdateFilesResponseSerializer,
+        400: JobUpdateFilesErrorSerializer,
     },
 )
