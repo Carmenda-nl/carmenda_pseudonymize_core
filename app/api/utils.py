@@ -10,11 +10,14 @@ from __future__ import annotations
 import logging
 import os
 import re
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from django.core.files.uploadedfile import UploadedFile
+
     from api.models import DeidentificationJob
 
 from django.conf import settings
@@ -58,6 +61,109 @@ def validate_input_cols(value: str) -> str:
         raise serializers.ValidationError(message)
 
     return value
+
+
+def _get_file_path(uploaded_file: UploadedFile) -> tuple[str, bool]:
+    """Get file path from uploaded file, creating temporary file if needed."""
+    if hasattr(uploaded_file, 'temporary_file_path'):
+        return uploaded_file.temporary_file_path(), False
+
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        for chunk in uploaded_file.chunks():
+            temp_file.write(chunk)
+
+        return temp_file.name, True
+
+
+def _validate_content(file_path: str, encoding: str, separator: str) -> None:
+    """Validate if a header is present and there is minimal 1 row present."""
+    with Path(file_path).open(encoding=encoding) as file:
+        header = file.readline().strip()
+
+        if not header:
+            message = 'File must contain a header row'
+            raise serializers.ValidationError(message)
+
+        columns = [col.strip() for col in header.split(separator)]
+
+        if not columns or (len(columns) == 1 and not columns[0]):
+            message = 'File header is empty or invalid'
+            raise serializers.ValidationError(message)
+
+        max_row_checks = 10
+        data_rows = []
+
+        for line in file:
+            if line.strip():
+                data_rows.append(line)
+            if len(data_rows) >= max_row_checks:
+                break
+        if len(data_rows) < 1:
+            message = 'File must contain at least 1 data row.'
+            raise serializers.ValidationError(message)
+
+
+def _validate_file_columns(file_path: str, encoding: str, separator: str, input_cols: str) -> None:
+    """Validate that specified columns exist in the file."""
+    input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
+
+    with Path(file_path).open(encoding=encoding) as file:
+        header = file.readline().strip()
+        columns = [col.strip() for col in header.split(separator)]
+
+        for col_value in input_cols_dict.values():
+            if col_value not in columns:
+                available_cols = ', '.join(columns)
+                message = f'Column "{col_value}" not found in input file, available columns: {available_cols}'
+                raise serializers.ValidationError(message)
+
+
+def _validate_datakey_columns(file_path: str, encoding: str, separator: str) -> None:
+    """Validate that datakey file has the required columns."""
+    with Path(file_path).open(encoding=encoding) as file:
+        header = file.readline().strip()
+        columns = [col.strip() for col in header.split(separator)]
+
+        required_columns = ['Clientnaam', 'Synoniemen', 'Code']
+        missing_columns = [col for col in required_columns if col not in columns]
+
+        if missing_columns:
+            message = (f'Datakey file must contain columns: {", ".join(required_columns)}.')
+            raise serializers.ValidationError(message)
+
+
+def validate_file(uploaded_file: UploadedFile, input_cols: str | None = None, datakey: str = '') -> UploadedFile:
+    """Validate uploaded file.
+
+    Checks that the file:
+      - has valid encoding, line endings and separator.
+      - has a header and at least 1 data row.
+      - if the input columns have the specified columns.
+      - if the datakey has the mandatory columns.
+    """
+    file_path, temp_file = _get_file_path(uploaded_file)
+
+    encoding, line_ending, separator = check_file(file_path)
+    checks = {'encoding': encoding, 'line endings': line_ending, 'column separator': separator}
+    missing = [check for check, value in checks.items() if not value]
+
+    if missing:
+        message = f'Could not determine file {", ".join(missing)}'
+        raise serializers.ValidationError(message)
+
+    _validate_content(file_path, encoding, separator)
+
+    if input_cols and not datakey:
+        _validate_file_columns(file_path, encoding, separator, input_cols)
+
+    if datakey:
+        _validate_datakey_columns(file_path, encoding, separator)
+
+    # Clean up temporary file if we created one
+    if temp_file and file_path:
+        Path(file_path).unlink(missing_ok=True)
+
+    return uploaded_file
 
 
 def match_output_cols(input_cols: str) -> str:

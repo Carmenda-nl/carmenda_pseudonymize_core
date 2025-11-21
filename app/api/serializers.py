@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -17,54 +15,8 @@ if TYPE_CHECKING:
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
-from api.utils import get_metadata, validate_input_cols
-from core.utils.file_handling import check_file
+from api.utils import get_metadata, validate_file, validate_input_cols
 from core.utils.progress_tracker import tracker
-
-
-def _get_file_path(uploaded_file: UploadedFile) -> tuple[str, bool]:
-    """Get file path from uploaded file, creating temporary file if needed."""
-    if hasattr(uploaded_file, 'temporary_file_path'):
-        return uploaded_file.temporary_file_path(), False
-
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        for chunk in uploaded_file.chunks():
-            temp_file.write(chunk)
-
-        return temp_file.name, True
-
-
-def _validate_file(uploaded_file: UploadedFile, input_cols: str | None = None) -> UploadedFile:
-    """Validate uploaded file has valid encoding, line endings, and separator."""
-    file_path, temp_file = _get_file_path(uploaded_file)
-
-    encoding, line_ending, separator = check_file(file_path)
-    checks = {'encoding': encoding, 'line endings': line_ending, 'column separator': separator}
-    missing = [check for check, value in checks.items() if not value]
-
-    if missing:
-        message = f'Could not determine file {", ".join(missing)}'
-        raise serializers.ValidationError(message)
-
-    if input_cols:
-        input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
-
-        with Path(file_path).open(encoding=encoding) as file:
-            header = file.readline().strip()
-            columns = [col.strip() for col in header.split(separator)]
-
-            # Validate that specified columns exist in the file
-            for col_value in input_cols_dict.values():
-                if col_value not in columns:
-                    available_cols = ', '.join(columns)
-                    message = f'Column "{col_value}" not found in input file, available columns: {available_cols}'
-                    raise serializers.ValidationError(message)
-
-    # Clean up temporary file if we created one
-    if temp_file and file_path:
-        Path(file_path).unlink(missing_ok=True)
-
-    return uploaded_file
 
 
 class DeidentificationJobListSerializer(serializers.ModelSerializer):
@@ -126,7 +78,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             return value
 
         input_cols = self.initial_data.get('input_cols')
-        return _validate_file(value, input_cols)
+        return validate_file(value, input_cols)
 
     def validate_datakey(self, value: UploadedFile) -> UploadedFile:
         """Validate the datakey if provided and valid.
@@ -138,7 +90,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             return value
 
         if value:
-            return _validate_file(value)
+            return validate_file(value, datakey='datakey')
         return value
 
     def to_representation(self, instance: DeidentificationJob) -> dict:
