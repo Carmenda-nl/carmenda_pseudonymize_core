@@ -122,6 +122,7 @@ class DeidentifyHandler:
     def _deduce_detection(self, report_text: str, clientname: str | None = None) -> str:
         """Apply Deduce detection with or without clientname (case-insensitive)."""
         metadata = {}
+        preprocessed_text = report_text
 
         if clientname:
             name_parts = clientname.split()

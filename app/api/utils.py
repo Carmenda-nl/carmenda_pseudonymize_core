@@ -243,7 +243,7 @@ def generate_input_preview(job: DeidentificationJob) -> None:
 
     preview_data = [
         dict(zip(header, [val.strip() for val in line.strip().split(separator)], strict=False))
-        for line in lines[1:4]
+        for line in lines[1:3]
         if line.strip()
     ]
 
