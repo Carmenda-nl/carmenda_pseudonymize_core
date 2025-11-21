@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - API: input_cols is optional when creating a job
+- API: closer in functionality of frontend
 - Update: channels package -> v4.3.2
 
 ### Fixed
