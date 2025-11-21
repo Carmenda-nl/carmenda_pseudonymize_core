@@ -33,7 +33,6 @@ from api.schemas import (
     CREATE_JOB_SCHEMA,
     PROCESS_JOB_GET_SCHEMA,
     PROCESS_JOB_POST_SCHEMA,
-    UPDATE_FILES_SCHEMA,
 )
 from api.serializers import (
     DeidentificationJobListSerializer,
@@ -219,36 +218,8 @@ def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: 
 @extend_schema(tags=[ApiTags.JOBS])
 @extend_schema_view(process=extend_schema(tags=[ApiTags.PROCESSING]))
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
-    """Deidentification Job ViewSet for managing jobs via API."""
-
-    @UPDATE_FILES_SCHEMA
-    @action(detail=True, methods=['patch'])
-    def update_files(self, request: HttpRequest, pk: str | None = None) -> Response:
-        """Update input_file en/of datakey van een job (DRY, met serializer validatie)."""
-        job = self.get_object()
-        files = {}
-        if 'input_file' in request.FILES:
-            files['input_file'] = request.FILES['input_file']
-        if 'datakey' in request.FILES:
-            files['datakey'] = request.FILES['datakey']
-        if not files:
-            return Response({'message': 'No files provided'}, status=status.HTTP_400_BAD_REQUEST)
-
-        serializer = DeidentificationJobSerializer(job, data=files, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(
-            {
-                'message': 'Files updated successfully',
-                'job_id': str(job.job_id),
-                'input_file': job.input_file.name if job.input_file else None,
-                'datakey': job.datakey.name if job.datakey else None,
-            },
-            status=status.HTTP_200_OK,
-        )
-
     """ViewSet for managing deidentification jobs."""
+
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
     http_method_names: ClassVar = ['get', 'post', 'put', 'delete']
@@ -270,8 +241,11 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         """Prepare data for update, handling file fields and input_cols reset."""
         data = request.data.copy()
 
-        if 'input_file' in request.FILES and 'input_cols' not in data:
-            data['input_cols'] = ''
+        if 'input_file' in request.FILES:
+            # Reset input_cols if input_file is being replaced
+            input_cols_in_request = data.get('input_cols')
+            if input_cols_in_request is None or input_cols_in_request == job.input_cols:
+                data['input_cols'] = ''
 
         if 'input_file' not in request.FILES and job.input_file:
             data['input_file'] = job.input_file
