@@ -247,10 +247,13 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             if input_cols_in_request is None or input_cols_in_request == job.input_cols:
                 data['input_cols'] = ''
 
+            data['processed_preview'] = None
+            data['status'] = 'pending'
+
         if 'input_file' not in request.FILES and job.input_file:
             data['input_file'] = job.input_file
 
-        if 'datakey' not in request.FILES:
+        if 'datakey' not in request.FILES and 'input_file' not in request.FILES:
             if job.datakey:
                 data['datakey'] = job.datakey
             else:
@@ -267,7 +270,19 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         if 'input_file' in request.FILES:
+            # Clean old files when new input_file is uploaded
             self._clean_file(job.input_file, str(job.job_id), 'input')
+
+            if job.zip_file:
+                job.zip_file.delete(save=False)
+            if job.log_file:
+                job.log_file.delete(save=False)
+            if job.output_file:
+                job.output_file.delete(save=False)
+
+            # Clean datakey only if not being replaced
+            if 'datakey' not in request.FILES and job.datakey:
+                job.datakey.delete(save=False)
 
         if 'datakey' in request.FILES:
             self._clean_file(job.datakey, str(job.job_id), 'datakey')
@@ -275,6 +290,20 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         serializer.save()
 
         if 'input_file' in request.FILES:
+            job.refresh_from_db()
+
+            # Reset fields and other related data
+            job.zip_file = None
+            job.log_file = None
+            job.output_file = None
+            job.zip_preview = None
+            job.processed_preview = None
+            job.status = 'pending'
+
+            if 'datakey' not in request.FILES:
+                job.datakey = None
+
+            job.save()
             generate_input_preview(job)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
