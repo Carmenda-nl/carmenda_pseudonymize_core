@@ -6,7 +6,7 @@ djangorestframework==3.16.1
 drf-spectacular==0.29.0
 
 # Websockets & real-time
-channels[daphne]==4.3.1
+channels[daphne]==4.3.2
 channels-redis==4.3.0
 
 # Large-scale data processing

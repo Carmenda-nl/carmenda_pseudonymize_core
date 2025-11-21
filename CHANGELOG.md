@@ -3,6 +3,23 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.8] - 2025-11-21
+
+### Added
+
+- API: update files, input_cols & fileMeta trough PUT
+- API: Extra checks on input file and datakey
+- Core: Pre-process clientnames as case-insensitive
+
+### Changed
+
+- API: input_cols is optional when creating a job
+- Update: channels package -> v4.3.2
+
+### Fixed
+
+- Lookup tables false-positives
+
 ## [1.2.7] - 2025-11-13
 
 ### Added
