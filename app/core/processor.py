@@ -39,7 +39,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = f'{input_folder}/{input_file}' if not input_file.startswith('/') else input_file
-    df = load_data_file(input_file_path)
+    df = load_data_file(input_file_path, output_folder)
 
     if df is not None:
         input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))

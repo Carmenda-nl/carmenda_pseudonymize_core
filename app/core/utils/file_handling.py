@@ -7,20 +7,19 @@
 
 from __future__ import annotations
 
-import logging
+import csv
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
-import chardet
 import polars as pl
+from charset_normalizer import from_bytes
 
 from .logger import setup_logging
 
 logger = setup_logging()
-
-# Suppress chardet debug logs (noise)
-logging.getLogger('chardet').setLevel(logging.WARNING)
 
 
 def get_environment() -> tuple[str, str]:
@@ -48,14 +47,15 @@ def check_file(input_file: str) -> tuple[str, str, str]:
     file_path = Path(input_file)
     filename = file_path.name
 
-    with file_path.open('rb') as file:
-        # Read the first 10KB to avoid memory issues
-        data_sample = file.read(10240)
-        encoding_result = chardet.detect(data_sample)
-        encoding = encoding_result['encoding'] or 'utf-8'
+    with file_path.open('rb') as rawdata:
+        data_sample = rawdata.read(10240)
 
-        # Treat ASCII as UTF-8 since UTF-8 is backwards compatible.
-        if encoding.lower() == 'ascii':
+        try:
+            detection = from_bytes(data_sample)
+            best = detection.best()
+            encoding = best.encoding if best and getattr(best, 'encoding', None) else 'utf-8'
+        except (LookupError, ValueError, TypeError):
+            logger.debug('Encoding detection failed, using UTF-8')
             encoding = 'utf-8'
 
         # Detect line endings - Polars only supports single-byte eol_char
@@ -68,11 +68,12 @@ def check_file(input_file: str) -> tuple[str, str, str]:
         else:
             line_ending = '\n'
 
-    try:
-        with file_path.open(encoding=encoding) as file:
-            header = file.readline().strip()
-    except (UnicodeDecodeError, LookupError):
-        logger.warning('File cannot be decoded with encoding "%s"', encoding)
+        try:
+            rawdata.seek(0)
+            header_bytes = rawdata.readline()
+            header = header_bytes.decode(encoding).strip()
+        except (UnicodeDecodeError, LookupError):
+            logger.warning('File cannot be decoded with encoding "%s"', encoding)
 
     if not header:
         logger.error('File is empty or has no header.')
@@ -89,28 +90,50 @@ def check_file(input_file: str) -> tuple[str, str, str]:
     return encoding, line_ending, separator
 
 
-def load_data_file(input_file_path: str) -> pl.DataFrame | None:
+def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | None:
     """Check data file, log and return as a Polars DataFrame."""
-    if Path(input_file_path).is_file():
-        input_extension = Path(input_file_path).suffix
-        file_size = Path(input_file_path).stat().st_size
-        logger.info('%s file of size: %s', input_extension, file_size)
+    file_path = Path(input_file_path)
+    if not file_path.is_file():
+        return None
 
-        encoding, line_ending, separator = check_file(input_file_path)
+    input_extension = file_path.suffix
+    file_size = file_path.stat().st_size
+    logger.info('%s file of size: %s', input_extension, file_size)
 
-        if input_extension == '.csv':
-            df = pl.read_csv(input_file_path, encoding=encoding, eol_char=line_ending, separator=separator)
-        else:
-            return None
+    encoding, line_ending, separator = check_file(input_file_path)
 
-        # Log columns schema
-        schema_str = 'root\n' + '\n'.join([f' |-- {name}: {dtype}' for name, dtype in df.schema.items()])
-        logger.debug('%s \n', schema_str)
+    error_count = 0
+    with (
+        tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
+        tempfile.NamedTemporaryFile('wb', delete=False) as utf8_temp,
+        file_path.open('rb') as rawdata,
+    ):
+        error_writer = csv.writer(error_temp)
 
-        return df
+        for line_nr, line in enumerate(rawdata, start=1):
+            try:
+                decoded_line = line.decode(encoding)
+                utf8_temp.write(decoded_line.encode('utf-8'))
+                logger.debug('Decoded line %s: %s', line_nr, decoded_line)
+            except UnicodeDecodeError:  # noqa: PERF203 - except block is necessary here to collect bad rows
+                bad_row = line.decode('latin1', errors='replace').strip().split(separator)
+                error_writer.writerow(bad_row)
+                error_count += 1
 
-    # File does not exist
-    return None
+    # Create a Polars DataFrame from the UTF-8 encoded temporary file
+    df = pl.read_csv(utf8_temp.name, separator=separator, eol_char=line_ending, use_pyarrow=True)
+
+    if error_count > 0:
+        parent = file_path.parent.relative_to('data/input')
+        target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
+        error_csv = target_dir / f'{file_path.stem}_errors.csv'
+        shutil.move(error_temp.name, error_csv)
+        logger.warning('Found %s rows with errors that are written to: %s', error_count, error_csv)
+    else:
+        Path(error_temp.name).unlink()
+        logger.info('No errors in rows found.')
+
+    return df
 
 
 def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
@@ -124,8 +147,9 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
-        file_path = target_dir / f'{stem}_deidentified.csv'
-        df.write_csv(str(file_path))
+        filepath = target_dir / f'{stem}_deidentified.csv'
+
+        df.write_csv(str(filepath))
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)
 
