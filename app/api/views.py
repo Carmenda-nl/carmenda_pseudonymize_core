@@ -378,16 +378,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         job = serializer.save(status='pending')
         generate_input_preview(job)
 
-        message = 'Job created successfully and is ready to be processed'
-        url = f'{request.build_absolute_uri()}{job.job_id}/process/'
-        process_url = f'curl -X POST {url}'
-
-        response_data = {
-            'message': message,
-            'job_id': str(job.job_id),
-            'process_url': process_url,
-        }
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        detail_serializer = DeidentificationJobSerializer(job, context={'request': request})
+        return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
     @PROCESS_JOB_POST_SCHEMA
     @PROCESS_JOB_GET_SCHEMA
