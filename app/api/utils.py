@@ -209,6 +209,7 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
     output_path = job_output_dir / output_filename
     datakey_path = job_output_dir / 'datakey.csv'
     log_path = job_output_dir / 'deidentification.log'
+    error_path = job_output_dir / f'{base_name}_errors.csv'
 
     files_to_zip: list[str] = []
 
@@ -227,6 +228,10 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
         relative_path = log_path.relative_to(Path(settings.MEDIA_ROOT))
         job.log_file.name = str(relative_path)
         files_to_zip.append(str(log_path))
+
+    if error_path.exists():
+        relative_path = error_path.relative_to(Path(settings.MEDIA_ROOT))
+        files_to_zip.append(str(error_path))
 
     return files_to_zip, output_filename
 

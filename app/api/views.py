@@ -277,6 +277,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 job.zip_file.delete(save=False)
             if job.log_file:
                 job.log_file.delete(save=False)
+            if job.error_rows_file:
+                job.error_rows_file.delete(save=False)
             if job.output_file:
                 job.output_file.delete(save=False)
 
@@ -295,6 +297,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             # Reset fields and other related data
             job.zip_file = None
             job.log_file = None
+            job.error_rows_file = None
             job.output_file = None
             job.zip_preview = None
             job.processed_preview = None
@@ -348,7 +351,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 logger.warning('[JOB %s] Failed to cancel job before deletion: %s', instance.job_id, error)
 
         # Delete associated files
-        files = ['input_file', 'datakey', 'output_file', 'log_file', 'zip_file']
+        files = ['input_file', 'datakey', 'output_file', 'log_file', 'error_rows_file', 'zip_file']
 
         for file in files:
             file_field = getattr(instance, file, None)

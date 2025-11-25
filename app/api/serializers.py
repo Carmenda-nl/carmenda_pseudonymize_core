@@ -53,6 +53,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             'job_id',
             'output_file',
             'log_file',
+            'error_rows_file',
             'zip_file',
             'zip_preview',
             'preview',
@@ -96,7 +97,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the job including file metadata."""
         representation = super().to_representation(instance)
-        fields = ['input_file', 'output_file', 'datakey', 'log_file', 'zip_file']
+        fields = ['input_file', 'output_file', 'datakey', 'log_file', 'error_rows_file', 'zip_file']
 
         return get_metadata(representation, instance, fields)
 

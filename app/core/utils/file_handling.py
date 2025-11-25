@@ -68,6 +68,8 @@ def check_file(input_file: str) -> tuple[str, str, str]:
         else:
             line_ending = '\n'
 
+        header = ''
+
         try:
             rawdata.seek(0)
             header_bytes = rawdata.readline()
