@@ -23,4 +23,4 @@ pytest-django==4.11.1
 pytest-cov==7.0.0
 
 # Package builder
-pyinstaller==6.16.0
+pyinstaller==6.17.0
