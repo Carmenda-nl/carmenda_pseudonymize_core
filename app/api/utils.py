@@ -269,7 +269,7 @@ def generate_input_preview(job: DeidentificationJob) -> None:
     encoding, line_ending, separator = check_file(file_path)
 
     with Path(file_path).open(encoding=encoding, newline=line_ending) as file:
-        lines = file.readlines()
+        lines = [file.readline() for _ in range(3)]
 
     header = [col.strip() for col in lines[0].strip().split(separator)]
 
