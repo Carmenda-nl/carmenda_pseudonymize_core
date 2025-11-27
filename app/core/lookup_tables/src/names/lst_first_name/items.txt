@@ -119762,6 +119762,7 @@ Gde
 G'dion
 G-dyene
 G-dyson
+Gea
 Géa
 Geabriël
 Geabrion
@@ -166479,6 +166480,7 @@ Jennowi
 Jennrino
 Jennsen
 Jennt
+Jenny
 Jennyca
 Jennyce
 Jennyck
@@ -171583,6 +171585,7 @@ Jitsina
 Jitsje
 Jitsk
 Jitska
+Jitske
 Jitske-Akkelien
 Jitskhak
 Jitskiena
@@ -177984,6 +177987,7 @@ Judiska
 Judisthir
 Judita
 Judite
+Judith
 Jüdith
 Juditha
 Judith-Anne
@@ -182676,6 +182680,7 @@ Kareman
 Karembega
 Karemely
 Karemina
+Karen
 Karémo
 Karèn
 Karena
@@ -201276,6 +201281,7 @@ Limsie
 Limuel
 Limwell
 Lín
+Lina
 Liná
 Linã
 Lïna
@@ -201344,6 +201350,7 @@ Linck
 Lincohn
 Lincon
 Lincy
+Linda
 Línda
 Lindaa
 Lindaci
@@ -212450,6 +212457,7 @@ Mandek
 Mandeka
 Mandel
 Mändel
+Manon
 Man-dela
 Mandelano
 Mandelay
