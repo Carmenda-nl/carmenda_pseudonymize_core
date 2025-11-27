@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import gc
 import json
 import logging
 import shutil
@@ -234,7 +235,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
             if old_file_path.exists():
                 old_file_path.unlink()
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, PermissionError) as error:
             logger.warning('Failed to delete old %s file for job %s: %s', file_type, job_id, error)
 
     def _prepare_data(self, request: HttpRequest, job: DeidentificationJob) -> dict:
@@ -352,6 +353,9 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         # Delete associated files
         files = ['input_file', 'datakey', 'output_file', 'log_file', 'error_rows_file', 'zip_file']
+
+        # Force garbage collection to release file handles
+        gc.collect()
 
         for file in files:
             file_field = getattr(instance, file, None)
