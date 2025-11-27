@@ -63,6 +63,15 @@ def validate_input_cols(value: str) -> str:
     return value
 
 
+def _validate_extension(file: UploadedFile) -> None:
+    """Validate that the uploaded file has an allowed extension."""
+    filename = file.name.lower()
+
+    if not filename.endswith('.csv'):
+        message = 'Only CSV files are allowed.'
+        raise serializers.ValidationError(message)
+
+
 def _get_file_path(uploaded_file: UploadedFile) -> tuple[str, bool]:
     """Get file path from uploaded file, creating temporary file if needed."""
     if hasattr(uploaded_file, 'temporary_file_path'):
@@ -136,11 +145,14 @@ def validate_file(uploaded_file: UploadedFile, input_cols: str | None = None, da
     """Validate uploaded file.
 
     Checks that the file:
+      - is a csv file
       - has valid encoding, line endings and separator.
       - has a header and at least 1 data row.
       - if the input columns have the specified columns.
       - if the datakey has the mandatory columns.
     """
+    _validate_extension(uploaded_file)
+
     file_path, temp_file = _get_file_path(uploaded_file)
 
     encoding, line_ending, separator = check_file(file_path)
