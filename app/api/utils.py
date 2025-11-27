@@ -137,7 +137,6 @@ def _is_datakey(file_path: str, encoding: str, separator: str) -> bool:
         return columns[:3] == datakey_columns
 
 
-
 def _validate_datakey_columns(file_path: str, encoding: str, separator: str) -> None:
     """Validate that datakey file has the required columns."""
     with Path(file_path).open(encoding=encoding) as file:
@@ -148,7 +147,7 @@ def _validate_datakey_columns(file_path: str, encoding: str, separator: str) -> 
         missing_columns = [col for col in required_columns if col not in columns]
 
         if missing_columns:
-            message = (f'Datakey file must contain columns: {", ".join(required_columns)}.')
+            message = f'Datakey file must contain columns: {", ".join(required_columns)}.'
             raise serializers.ValidationError(message)
 
 
