@@ -48,6 +48,7 @@ class DeidentificationJob(models.Model):
     input_file = models.FileField(upload_to=input_path)
     datakey = models.FileField(upload_to=input_path, null=True, blank=True)
     output_file = models.FileField(upload_to=output_path, null=True, blank=True)
+    output_datakey = models.FileField(upload_to=output_path, null=True, blank=True)
     log_file = models.FileField(upload_to=output_path, null=True, blank=True)
     error_rows_file = models.FileField(upload_to=output_path, null=True, blank=True)
     zip_file = models.FileField(upload_to=output_path, null=True, blank=True)
