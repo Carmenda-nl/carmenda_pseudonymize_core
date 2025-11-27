@@ -127,6 +127,17 @@ def _validate_file_columns(file_path: str, encoding: str, separator: str, input_
                 raise serializers.ValidationError(message)
 
 
+def _is_datakey(file_path: str, encoding: str, separator: str) -> bool:
+    """Check if file appears to be a datakey based on header columns."""
+    with Path(file_path).open(encoding=encoding) as file:
+        header = file.readline().strip()
+        columns = [col.strip() for col in header.split(separator)]
+
+        datakey_columns = ['Clientnaam', 'Synoniemen', 'Code']
+        return columns[:3] == datakey_columns
+
+
+
 def _validate_datakey_columns(file_path: str, encoding: str, separator: str) -> None:
     """Validate that datakey file has the required columns."""
     with Path(file_path).open(encoding=encoding) as file:
@@ -164,6 +175,10 @@ def validate_file(uploaded_file: UploadedFile, input_cols: str | None = None, da
         raise serializers.ValidationError(message)
 
     _validate_content(file_path, encoding, separator)
+
+    if not datakey and _is_datakey(file_path, encoding, separator):
+        message = 'This appears to be a datakey file (columns: Clientnaam, Synoniemen, Code)'
+        raise serializers.ValidationError(message)
 
     if input_cols and not datakey:
         _validate_file_columns(file_path, encoding, separator, input_cols)
