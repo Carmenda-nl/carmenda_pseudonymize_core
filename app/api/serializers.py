@@ -158,7 +158,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
         elif input_cols and self.instance and self.instance.input_file:
             file_path = self.instance.input_file.path
-            encoding, separator = check_file(file_path)
+            encoding, _line_ending, separator = check_file(file_path)
             validate_file_columns(file_path, encoding, separator, input_cols)
 
         return attrs
