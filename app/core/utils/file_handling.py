@@ -112,11 +112,10 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
     ):
         error_writer = csv.writer(error_temp)
 
-        for line_nr, line in enumerate(rawdata, start=1):
+        for line in rawdata:
             try:
                 decoded_line = line.decode(encoding)
                 utf8_temp.write(decoded_line.encode('utf-8'))
-                logger.debug('Decoded line %s: %s', line_nr, decoded_line)
             except UnicodeDecodeError:  # noqa: PERF203 - except block is necessary here to collect bad rows
                 bad_row = line.decode('latin1', errors='replace').strip().split(separator)
                 error_writer.writerow(bad_row)
@@ -171,20 +170,21 @@ def load_datakey(datakey_path: str) -> pl.DataFrame:
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 
-def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str) -> None:
+def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datakey_name: str | None = None) -> None:
     """Save the processed datakey to a CSV file for future use."""
     filepath = Path(filename)
     parent = filepath.parent
-    filename = 'datakey.csv'
+
+    output_filename = datakey_name if datakey_name else 'datakey.csv'
 
     # If filename included a parent (like job_id), write into that subfolder under output.
     target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
-    file_path = target_dir / filename
+    file_path = target_dir / output_filename
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=';')
-        logger.debug('Saving datakey: %s\n%s\n', filename, datakey)
+        logger.debug('Saving datakey: %s\n%s\n', output_filename, datakey)
     except OSError:
         logger.warning('Cannot write datakey to "%s".', file_path)
