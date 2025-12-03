@@ -16,6 +16,8 @@ from pathlib import Path
 
 import polars as pl
 from charset_normalizer import from_bytes
+from lxml.etree import ParserError
+from lxml.html import fromstring
 
 from .logger import setup_logging
 
@@ -92,6 +94,14 @@ def check_file(input_file: str) -> tuple[str, str, str]:
     return encoding, line_ending, separator
 
 
+def clean_html(decoded_line: str) -> str:
+    """Remove HTML tags from input file."""
+    line = decoded_line
+    tree = fromstring(line)
+
+    return tree.text_content()
+
+
 def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | None:
     """Check data file, log and return as a Polars DataFrame."""
     file_path = Path(input_file_path)
@@ -104,6 +114,15 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
 
     encoding, line_ending, separator = check_file(input_file_path)
 
+    def process_line(line: bytes) -> tuple[bytes | None, str | None]:
+        """Process a single line: decode, clean HTML, re-encode."""
+        try:
+            decoded_line = line.decode(encoding)
+            cleaned_line = clean_html(decoded_line)
+            return cleaned_line.encode('utf-8'), None
+        except (LookupError, UnicodeDecodeError, TypeError, ParserError):
+            return None, str(line)
+
     error_count = 0
     with (
         tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
@@ -111,14 +130,13 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
         file_path.open('rb') as rawdata,
     ):
         error_writer = csv.writer(error_temp)
-
         for line in rawdata:
-            try:
-                decoded_line = line.decode(encoding)
-                utf8_temp.write(decoded_line.encode('utf-8'))
-            except UnicodeDecodeError:  # noqa: PERF203 - except block is necessary here to collect bad rows
-                bad_row = line.decode('latin1', errors='replace').strip().split(separator)
-                error_writer.writerow(bad_row)
+            cleaned_data, error_data = process_line(line)
+
+            if cleaned_data is not None:
+                utf8_temp.write(cleaned_data)
+            else:
+                error_writer.writerow([error_data])
                 error_count += 1
 
     # Create a Polars DataFrame from the UTF-8 encoded temporary file
@@ -129,7 +147,7 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
         target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
         error_csv = target_dir / f'{file_path.stem}_errors.csv'
         shutil.move(error_temp.name, error_csv)
-        logger.warning('Found %s rows with errors that are written to: %s', error_count, error_csv)
+        logger.warning('Found %s rows with errors that are written to: %s\n', error_count, error_csv)
     else:
         Path(error_temp.name).unlink()
         logger.info('No errors in rows found.')

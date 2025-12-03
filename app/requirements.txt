@@ -13,6 +13,7 @@ channels-redis==4.3.0
 polars[pandas]==1.35.2
 rich==14.2.0
 charset-normalizer==3.4.4
+lxml==6.0.2
 
 # Deduce packages
 deduce==3.0.6
