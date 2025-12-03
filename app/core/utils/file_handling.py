@@ -16,8 +16,6 @@ from pathlib import Path
 
 import polars as pl
 from charset_normalizer import from_bytes
-from lxml.etree import ParserError
-from lxml.html import fromstring
 
 from .logger import setup_logging
 
@@ -94,16 +92,40 @@ def check_file(input_file: str) -> tuple[str, str, str]:
     return encoding, line_ending, separator
 
 
-def clean_html(decoded_line: str) -> str:
-    """Remove HTML tags from input file."""
-    line = decoded_line.strip()
+def _replace_html(text: str, html_tags: str = 'encode') -> str:
+    """Replace HTML entities with placeholders or vice versa."""
+    replacements = {
+        '&quot;': '___QUOT___',
+        '&nbsp;': '___NBSP___',
+        '&#39;': '___APOS___',
+        '&euml;': '___EUML___',
+        '&lt;': '___LT___',
+        '&gt;': '___GT___',
+        '&amp;': '___AMP___',
+    }
 
-    # Skip empty lines
-    if not line:
-        return decoded_line
+    if html_tags == 'encode':
+        for entity, placeholder in replacements.items():
+            text = text.replace(entity, placeholder)
+    else:
+        for entity, placeholder in replacements.items():
+            text = text.replace(placeholder, entity)
 
-    tree = fromstring(line)
-    return tree.text_content()
+    return text
+
+
+def _process_line(line: bytes, encoding: str, separator: str) -> tuple[bytes | None, str | None]:
+    """Process a single line: decode and re-encode to UTF-8."""
+    try:
+        decoded_line = line.decode(encoding)
+
+        # Execute if separator is semicolon and line contains HTML that could confuse parser,
+        if separator == ';' and ('&' in decoded_line):
+            decoded_line = _replace_html(decoded_line, html_tags='encode')
+
+        return decoded_line.encode('utf-8'), None
+    except (LookupError, UnicodeDecodeError):
+        return None, str(line)
 
 
 def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | None:
@@ -118,15 +140,6 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
 
     encoding, line_ending, separator = check_file(input_file_path)
 
-    def process_line(line: bytes) -> tuple[bytes | None, str | None]:
-        """Process a single line: decode, clean HTML, re-encode."""
-        try:
-            decoded_line = line.decode(encoding)
-            cleaned_line = clean_html(decoded_line)
-            return cleaned_line.encode('utf-8'), None
-        except (LookupError, UnicodeDecodeError, TypeError, ParserError):
-            return None, str(line)
-
     error_count = 0
     with (
         tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
@@ -134,17 +147,25 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
         file_path.open('rb') as rawdata,
     ):
         error_writer = csv.writer(error_temp)
+
         for line in rawdata:
-            cleaned_data, error_data = process_line(line)
+            cleaned_data, error_data = _process_line(line, encoding, separator)
 
             if cleaned_data is not None:
                 utf8_temp.write(cleaned_data)
-            else:
+            elif error_data is not None:
                 error_writer.writerow([error_data])
                 error_count += 1
 
     # Create a Polars DataFrame from the UTF-8 encoded temporary file
     df = pl.read_csv(utf8_temp.name, separator=separator, eol_char=line_ending, use_pyarrow=True)
+
+    # Restore HTML entities that were temporarily replaced
+    if separator == ';':
+        for col in df.columns:
+            df = df.with_columns(
+                pl.col(col).map_elements(lambda text: _replace_html(text, html_tags='decode'), return_dtype=pl.Utf8),
+            )
 
     if error_count > 0:
         parent = file_path.parent.relative_to('data/input')
