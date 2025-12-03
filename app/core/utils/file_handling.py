@@ -96,9 +96,13 @@ def check_file(input_file: str) -> tuple[str, str, str]:
 
 def clean_html(decoded_line: str) -> str:
     """Remove HTML tags from input file."""
-    line = decoded_line
-    tree = fromstring(line)
+    line = decoded_line.strip()
 
+    # Skip empty lines
+    if not line:
+        return decoded_line
+
+    tree = fromstring(line)
     return tree.text_content()
 
 
