@@ -168,9 +168,13 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
     # Restore HTML entities that were temporarily replaced
     if separator == ';':
         for col in df.columns:
-            df = df.with_columns(
-                pl.col(col).map_elements(lambda text: _replace_html(text, html_tags='decode'), return_dtype=pl.Utf8),
-            )
+            # Only process string columns to avoid AttributeError on numeric types.
+            if df[col].dtype == pl.Utf8:
+                df = df.with_columns(
+                    pl.col(col).map_elements(
+                        lambda text: _replace_html(text, html_tags='decode'), return_dtype=pl.Utf8,
+                    ),
+                )
 
     if error_count > 0:
         parent = file_path.parent.relative_to('data/input')
