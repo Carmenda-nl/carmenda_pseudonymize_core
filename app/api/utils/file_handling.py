@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 from django.conf import settings
 
+from core.utils.file_handling import strip_bom
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
@@ -99,7 +100,8 @@ def generate_input_preview(job: DeidentificationJob, encoding: str, line_ending:
     with Path(file_path).open(encoding=encoding, newline=line_ending) as file:
         lines = [file.readline() for _ in range(3)]
 
-    header = [col.strip() for col in lines[0].strip().split(separator)]
+    header_line = strip_bom(lines[0].strip())
+    header = [col.strip() for col in header_line.split(separator)]
 
     preview_data = [
         dict(zip(header, [val.strip() for val in line.strip().split(separator)], strict=False))

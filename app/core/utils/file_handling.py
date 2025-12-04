@@ -22,6 +22,11 @@ from .logger import setup_logging
 logger = setup_logging()
 
 
+def strip_bom(text: str) -> str:
+    """Remove BOM (Byte Order Mark) from the header if present in UTF-8 encoding."""
+    return text.removeprefix('\ufeff')
+
+
 def get_environment() -> tuple[str, str]:
     """Get input and output folder paths based on the current environment."""
     if os.environ.get('DOCKER_ENV') == 'true':
@@ -73,7 +78,7 @@ def check_file(input_file: str) -> tuple[str, str, str]:
         try:
             rawdata.seek(0)
             header_bytes = rawdata.readline()
-            header = header_bytes.decode(encoding).strip()
+            header = strip_bom(header_bytes.decode(encoding).strip())
         except (UnicodeDecodeError, LookupError):
             logger.warning('File cannot be decoded with encoding "%s"', encoding)
 
