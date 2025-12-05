@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Prevent confused parser on semicolons
-- Cleanup UTF-8 BOM characters from header 
+- Cleanup UTF-8 BOM characters from header per column
 
 ## [1.2.8] - 2025-11-25
 

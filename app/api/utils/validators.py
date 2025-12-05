@@ -76,7 +76,7 @@ def validate_file_columns(file_path: str, encoding: str, separator: str, input_c
 
     with Path(file_path).open(encoding=encoding) as file:
         header = strip_bom(file.readline().strip())
-        columns = [col.strip() for col in header.split(separator)]
+        columns = [strip_bom(col.strip()) for col in header.split(separator)]
 
         for col_value in input_cols_dict.values():
             if col_value not in columns:
