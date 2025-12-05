@@ -108,4 +108,4 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     performance_metrics(start_time, df.height)
     save_datafile(df, input_file, output_folder)
 
-    return json.dumps({'data': df.head(2).to_dicts()})
+    return json.dumps({'data': df.head(2).to_dicts()}, default=str)
