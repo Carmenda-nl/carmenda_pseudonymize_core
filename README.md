@@ -43,7 +43,7 @@ This method ensures that the data remains useful for analytical purposes while s
 ## License
 
 This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later.  
-© 2025 Carmenda. All rights reserved.
+© 2026 Carmenda. All rights reserved.
 
 ## Contact
 
