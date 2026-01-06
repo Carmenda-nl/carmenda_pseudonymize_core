@@ -10,7 +10,7 @@ channels[daphne]==4.3.2
 channels-redis==4.3.0
 
 # Large-scale data processing
-polars[pandas]==1.35.2
+polars[pandas]==1.36.1
 rich==14.2.0
 charset-normalizer==3.4.4
 lxml==6.0.2
