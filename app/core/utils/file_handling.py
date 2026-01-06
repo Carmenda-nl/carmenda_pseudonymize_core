@@ -163,7 +163,12 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
                 error_count += 1
 
     # Create a Polars DataFrame from the UTF-8 encoded temporary file
-    df = pl.read_csv(utf8_temp.name, separator=separator, eol_char=line_ending, use_pyarrow=True)
+    df = pl.read_csv(
+        source=utf8_temp.name,
+        separator=separator,
+        eol_char=line_ending,
+        quote_char=None,
+    )
 
     # Restore HTML entities that were temporarily replaced
     if separator == ';':
