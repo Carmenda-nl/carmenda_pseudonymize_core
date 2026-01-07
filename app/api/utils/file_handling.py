@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import csv
 import os
 import tempfile
 import zipfile
@@ -94,20 +95,17 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
 
 
 def generate_input_preview(job: DeidentificationJob, encoding: str, line_ending: str, separator: str) -> None:
-    """Generate a preview from the first 3 lines of the input file."""
+    """Generate a preview from the first 3 lines of the input file (1 header + 2 data lines)."""
     file_path = job.input_file.path
 
     with Path(file_path).open(encoding=encoding, newline=line_ending) as file:
-        lines = [file.readline() for _ in range(3)]
+        csv_reader = csv.reader(file, delimiter=separator)
 
-    header_line = strip_bom(lines[0].strip())
-    header = [col.strip() for col in header_line.split(separator)]
+        header_row = next(csv_reader)
+        header_row[0] = strip_bom(header_row[0])
+        header = [col.strip() for col in header_row]
 
-    preview_data = [
-        dict(zip(header, [val.strip() for val in line.strip().split(separator)], strict=False))
-        for line in lines[1:3]
-        if line.strip()
-    ]
+        preview_data = [dict(zip(header, [val.strip() for val in next(csv_reader)], strict=False)) for _ in range(2)]
 
     job.preview = preview_data
     job.save(update_fields=['preview'])
