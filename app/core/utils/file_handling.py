@@ -112,10 +112,13 @@ def _replace_html(text: str, html_tags: str = 'encode') -> str:
     if html_tags == 'encode':
         for entity, placeholder in replacements.items():
             text = text.replace(entity, placeholder)
+
+        text = text.replace('\n', '___NEWLINE___').replace('\r', '')
     else:
         for entity, placeholder in replacements.items():
             text = text.replace(placeholder, entity)
 
+        text = text.replace('___NEWLINE___', '\n')
     return text
 
 
@@ -149,18 +152,23 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
     with (
         tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
         tempfile.NamedTemporaryFile('wb', delete=False) as utf8_temp,
-        file_path.open('rb') as rawdata,
+        file_path.open('r', encoding=encoding, newline='') as rawdata,
     ):
-        error_writer = csv.writer(error_temp)
+        reader = csv.reader(rawdata, delimiter=separator)
 
-        for line in rawdata:
-            cleaned_data, error_data = _process_line(line, encoding, separator)
+        for row in reader:
+            # Execute if separator is semicolon and row contains HTML that could confuse parser
+            if separator == ';':
+                processed_row = [
+                    _replace_html(field, html_tags='encode') if field and ('&' in field or '\n' in field) else field
+                    for field in row
+                ]
+            else:
+                processed_row = row
 
-            if cleaned_data is not None:
-                utf8_temp.write(cleaned_data)
-            elif error_data is not None:
-                error_writer.writerow([error_data])
-                error_count += 1
+            # Write to temp file as CSV line
+            line = separator.join(processed_row) + '\n'
+            utf8_temp.write(line.encode('utf-8'))
 
     # Create a Polars DataFrame from the UTF-8 encoded temporary file
     df = pl.read_csv(
@@ -171,15 +179,15 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
     )
 
     # Restore HTML entities that were temporarily replaced
-    if separator == ';':
-        for col in df.columns:
-            # Only process string columns to avoid AttributeError on numeric types.
-            if df[col].dtype == pl.Utf8:
-                df = df.with_columns(
-                    pl.col(col).map_elements(
-                        lambda text: _replace_html(text, html_tags='decode'), return_dtype=pl.Utf8,
-                    ),
-                )
+    for col in df.columns:
+        # Only process string columns to avoid AttributeError on numeric types.
+        if df[col].dtype == pl.Utf8:
+            df = df.with_columns(
+                pl.col(col).map_elements(
+                    lambda text: _replace_html(text, html_tags='decode'),
+                    return_dtype=pl.Utf8,
+                ),
+            )
 
     if error_count > 0:
         parent = file_path.parent.relative_to('data/input')
