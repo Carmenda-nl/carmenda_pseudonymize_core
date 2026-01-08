@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import csv
+import html
 import os
 import tempfile
 import zipfile
@@ -105,7 +106,13 @@ def generate_input_preview(job: DeidentificationJob, encoding: str, line_ending:
         header_row[0] = strip_bom(header_row[0])
         header = [col.strip() for col in header_row]
 
-        preview_data = [dict(zip(header, [val.strip() for val in next(csv_reader)], strict=False)) for _ in range(2)]
+        preview_data = []
+        for _ in range(2):
+            row = next(csv_reader)
+
+            # Decode HTML entities in each field
+            decoded_row = [html.unescape(val) if val else val for val in row]
+            preview_data.append(dict(zip(header, decoded_row, strict=False)))
 
     job.preview = preview_data
     job.save(update_fields=['preview'])
