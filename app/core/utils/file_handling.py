@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------------ #
-# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
@@ -7,20 +7,24 @@
 
 from __future__ import annotations
 
-import logging
+import csv
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
-import chardet
 import polars as pl
+from charset_normalizer import from_bytes
 
 from .logger import setup_logging
 
 logger = setup_logging()
 
-# Suppress chardet debug logs (noise)
-logging.getLogger('chardet').setLevel(logging.WARNING)
+
+def strip_bom(text: str) -> str:
+    """Remove BOM (Byte Order Mark) from the header if present in UTF-8 encoding."""
+    return text.removeprefix('\ufeff')
 
 
 def get_environment() -> tuple[str, str]:
@@ -48,11 +52,16 @@ def check_file(input_file: str) -> tuple[str, str, str]:
     file_path = Path(input_file)
     filename = file_path.name
 
-    with file_path.open('rb') as file:
-        # Read the first 10KB to avoid memory issues
-        data_sample = file.read(10240)
-        encoding_result = chardet.detect(data_sample)
-        encoding = encoding_result['encoding'] or 'utf-8'
+    with file_path.open('rb') as rawdata:
+        data_sample = rawdata.read(10240)
+
+        try:
+            detection = from_bytes(data_sample)
+            best = detection.best()
+            encoding = best.encoding if best and getattr(best, 'encoding', None) else 'utf-8'
+        except (LookupError, ValueError, TypeError):
+            logger.debug('Encoding detection failed, using UTF-8')
+            encoding = 'utf-8'
 
         # Detect line endings - Polars only supports single-byte eol_char
         if b'\r\n' in data_sample:
@@ -64,11 +73,14 @@ def check_file(input_file: str) -> tuple[str, str, str]:
         else:
             line_ending = '\n'
 
-    try:
-        with file_path.open(encoding=encoding) as file:
-            header = file.readline().strip()
-    except (UnicodeDecodeError, LookupError):
-        logger.warning('File cannot be decoded with encoding "%s"', encoding)
+        header = ''
+
+        try:
+            rawdata.seek(0)
+            header_bytes = rawdata.readline()
+            header = strip_bom(header_bytes.decode(encoding).strip())
+        except (UnicodeDecodeError, LookupError):
+            logger.warning('File cannot be decoded with encoding "%s"', encoding)
 
     if not header:
         logger.error('File is empty or has no header.')
@@ -85,28 +97,109 @@ def check_file(input_file: str) -> tuple[str, str, str]:
     return encoding, line_ending, separator
 
 
-def load_data_file(input_file_path: str) -> pl.DataFrame | None:
+def _replace_html(text: str, html_tags: str = 'encode') -> str:
+    """Replace HTML entities with placeholders or vice versa."""
+    replacements = {
+        '&quot;': '___QUOT___',
+        '&nbsp;': '___NBSP___',
+        '&#39;': '___APOS___',
+        '&euml;': '___EUML___',
+        '&lt;': '___LT___',
+        '&gt;': '___GT___',
+        '&amp;': '___AMP___',
+    }
+
+    if html_tags == 'encode':
+        for entity, placeholder in replacements.items():
+            text = text.replace(entity, placeholder)
+
+        text = text.replace('\n', '___NEWLINE___').replace('\r', '')
+    else:
+        for entity, placeholder in replacements.items():
+            text = text.replace(placeholder, entity)
+
+        text = text.replace('___NEWLINE___', '\n')
+    return text
+
+
+def _process_line(line: bytes, encoding: str, separator: str) -> tuple[bytes | None, str | None]:
+    """Process a single line: decode and re-encode to UTF-8."""
+    try:
+        decoded_line = line.decode(encoding)
+
+        # Execute if separator is semicolon and line contains HTML that could confuse parser,
+        if separator == ';' and ('&' in decoded_line):
+            decoded_line = _replace_html(decoded_line, html_tags='encode')
+
+        return decoded_line.encode('utf-8'), None
+    except (LookupError, UnicodeDecodeError):
+        return None, str(line)
+
+
+def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | None:
     """Check data file, log and return as a Polars DataFrame."""
-    if Path(input_file_path).is_file():
-        input_extension = Path(input_file_path).suffix
-        file_size = Path(input_file_path).stat().st_size
-        logger.info('%s file of size: %s', input_extension, file_size)
+    file_path = Path(input_file_path)
+    if not file_path.is_file():
+        return None
 
-        encoding, line_ending, separator = check_file(input_file_path)
+    input_extension = file_path.suffix
+    file_size = file_path.stat().st_size
+    logger.info('%s file of size: %s', input_extension, file_size)
 
-        if input_extension == '.csv':
-            df = pl.read_csv(input_file_path, encoding=encoding, eol_char=line_ending, separator=separator)
-        else:
-            return None
+    encoding, line_ending, separator = check_file(input_file_path)
 
-        # Log columns schema
-        schema_str = 'root\n' + '\n'.join([f' |-- {name}: {dtype}' for name, dtype in df.schema.items()])
-        logger.debug('%s \n', schema_str)
+    error_count = 0
+    with (
+        tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
+        tempfile.NamedTemporaryFile('wb', delete=False) as utf8_temp,
+        file_path.open('r', encoding=encoding, newline='') as rawdata,
+    ):
+        reader = csv.reader(rawdata, delimiter=separator)
 
-        return df
+        for row in reader:
+            # Execute if separator is semicolon and row contains HTML that could confuse parser
+            if separator == ';':
+                processed_row = [
+                    _replace_html(field, html_tags='encode') if field and ('&' in field or '\n' in field) else field
+                    for field in row
+                ]
+            else:
+                processed_row = row
 
-    # File does not exist
-    return None
+            # Write to temp file as CSV line
+            line = separator.join(processed_row) + '\n'
+            utf8_temp.write(line.encode('utf-8'))
+
+    # Create a Polars DataFrame from the UTF-8 encoded temporary file
+    df = pl.read_csv(
+        source=utf8_temp.name,
+        separator=separator,
+        eol_char=line_ending,
+        quote_char=None,
+    )
+
+    # Restore HTML entities that were temporarily replaced
+    for col in df.columns:
+        # Only process string columns to avoid AttributeError on numeric types.
+        if df[col].dtype == pl.Utf8:
+            df = df.with_columns(
+                pl.col(col).map_elements(
+                    lambda text: _replace_html(text, html_tags='decode'),
+                    return_dtype=pl.Utf8,
+                ),
+            )
+
+    if error_count > 0:
+        parent = file_path.parent.relative_to('data/input')
+        target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
+        error_csv = target_dir / f'{file_path.stem}_errors.csv'
+        shutil.move(error_temp.name, error_csv)
+        logger.warning('Found %s rows with errors that are written to: %s\n', error_count, error_csv)
+    else:
+        Path(error_temp.name).unlink()
+        logger.info('No errors in rows found.')
+
+    return df
 
 
 def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
@@ -120,8 +213,9 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
-        file_path = target_dir / f'{stem}_deidentified.csv'
-        df.write_csv(str(file_path))
+        filepath = target_dir / f'{stem}_deidentified.csv'
+
+        df.write_csv(str(filepath))
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)
 
@@ -141,20 +235,21 @@ def load_datakey(datakey_path: str) -> pl.DataFrame:
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 
-def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str) -> None:
+def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datakey_name: str | None = None) -> None:
     """Save the processed datakey to a CSV file for future use."""
     filepath = Path(filename)
     parent = filepath.parent
-    filename = 'datakey.csv'
+
+    output_filename = datakey_name if datakey_name else 'datakey.csv'
 
     # If filename included a parent (like job_id), write into that subfolder under output.
     target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
-    file_path = target_dir / filename
+    file_path = target_dir / output_filename
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=';')
-        logger.debug('Saving datakey: %s\n%s\n', filename, datakey)
+        logger.debug('Saving datakey: %s\n%s\n', output_filename, datakey)
     except OSError:
         logger.warning('Cannot write datakey to "%s".', file_path)

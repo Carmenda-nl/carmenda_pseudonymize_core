@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------------ #
-# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
@@ -16,6 +16,7 @@ import json
 import logging
 import sys
 import time
+from pathlib import Path
 
 import polars as pl
 
@@ -39,7 +40,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = f'{input_folder}/{input_file}' if not input_file.startswith('/') else input_file
-    df = load_data_file(input_file_path)
+    df = load_data_file(input_file_path, output_folder)
 
     if df is not None:
         input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
@@ -67,8 +68,9 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
         # Strip whitespace from clientnames
         df = df.with_columns(pl.col(clientname_col).str.strip_chars())
 
-        datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
-        save_datakey(datakey, input_file, output_folder)
+        processed_datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
+        datakey_filename = Path(datakey).name if datakey else 'datakey.csv'
+        save_datakey(processed_datakey, input_file, output_folder, datakey_filename)
     else:
         logger.info('Clientname not provided, skipping datakey creation.\n')
 
@@ -77,11 +79,11 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     handler = DeidentifyHandler()
 
     if has_clientname:
-        df = handler.replace_synonym(df, datakey, input_cols_dict)
-        df = handler.deidentify_text(df, datakey, input_cols_dict)
-        df = handler.add_clientcodes(df, datakey, input_cols_dict)
+        df = handler.replace_synonym(df, processed_datakey, input_cols_dict)
+        df = handler.deidentify_text(df, processed_datakey, input_cols_dict)
+        df = handler.add_clientcodes(df, processed_datakey, input_cols_dict)
     else:
-        df = handler.deidentify_text(df, datakey, input_cols_dict)
+        df = handler.deidentify_text(df, None, input_cols_dict)
 
     # Prepare output data
     df = df.select(pl.selectors.by_name(*output_cols_list, require_all=False))
@@ -106,4 +108,4 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     performance_metrics(start_time, df.height)
     save_datafile(df, input_file, output_folder)
 
-    return json.dumps({'data': df.head(2).to_dicts()})
+    return json.dumps({'data': df.head(2).to_dicts()}, default=str)

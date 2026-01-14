@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------------ #
-# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
@@ -7,6 +7,8 @@
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
+
+from api.serializers import DeidentificationJobSerializer
 
 
 class APIRootResponseSerializer(serializers.Serializer):
@@ -89,6 +91,13 @@ class JobCancellationErrorSerializer(serializers.Serializer):
     error = serializers.CharField()
 
 
+class JobProcessErrorSerializer(serializers.Serializer):
+    """Response serializer for job processing validation errors."""
+
+    error = serializers.CharField()
+    message = serializers.CharField()
+
+
 # Schema definitions for endpoints
 API_ROOT_SCHEMA = extend_schema(
     responses={
@@ -98,7 +107,7 @@ API_ROOT_SCHEMA = extend_schema(
 
 CREATE_JOB_SCHEMA = extend_schema(
     responses={
-        201: JobCreatedResponseSerializer,
+        201: DeidentificationJobSerializer,
     },
 )
 
@@ -106,6 +115,7 @@ PROCESS_JOB_POST_SCHEMA = extend_schema(
     methods=['post'],
     responses={
         202: JobProcessingResponseSerializer,
+        400: JobProcessErrorSerializer,
         500: JobProcessingErrorResponseSerializer,
     },
 )

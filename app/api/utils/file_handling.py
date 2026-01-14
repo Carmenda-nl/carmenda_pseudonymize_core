@@ -1,26 +1,43 @@
 # ------------------------------------------------------------------------------------------------ #
-# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Utility & helper modules for processing deidentification jobs API."""
+"""File utilities for processing deidentification jobs API."""
 
 from __future__ import annotations
 
-import logging
+import csv
+import html
 import os
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from django.core.files.uploadedfile import UploadedFile
+
     from api.models import DeidentificationJob
 
 from django.conf import settings
 
+from core.utils.file_handling import strip_bom
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
+
+
+def get_file_path(uploaded_file: UploadedFile) -> tuple[str, bool]:
+    """Get file path from uploaded file, creating temporary file if needed."""
+    if hasattr(uploaded_file, 'temporary_file_path'):
+        return uploaded_file.temporary_file_path(), False
+
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        for chunk in uploaded_file.chunks():
+            temp_file.write(chunk)
+
+        return temp_file.name, True
 
 
 def match_output_cols(input_cols: str) -> str:
@@ -41,22 +58,6 @@ def match_output_cols(input_cols: str) -> str:
     return ', '.join(output_cols)
 
 
-def setup_job_logging(job_id: str) -> logging.FileHandler:
-    """Create a per-job FileHandler to the 'deidentify' logger."""
-    deidentify_logger = logging.getLogger('deidentify')
-    job_log_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job_id)
-    job_log_dir.mkdir(parents=True, exist_ok=True)
-    job_log_path = job_log_dir / 'deidentification.log'
-
-    # Open in write mode to overwrite existing file for this job.
-    job_handler = logging.FileHandler(str(job_log_path), mode='w', encoding='utf-8')
-    job_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    job_handler.setLevel(deidentify_logger.level)
-    deidentify_logger.addHandler(job_handler)
-
-    return job_handler
-
-
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
     """Collect paths of all `the output files that need to be zipped."""
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
@@ -64,8 +65,10 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
 
     output_filename = f'{base_name}_deidentified.csv'
     output_path = job_output_dir / output_filename
-    datakey_path = job_output_dir / 'datakey.csv'
+    datakey_filename = Path(job.datakey.name).name if job.datakey and job.datakey.name else 'datakey.csv'
+    output_datakey_path = job_output_dir / datakey_filename
     log_path = job_output_dir / 'deidentification.log'
+    error_path = job_output_dir / f'{base_name}_errors.csv'
 
     files_to_zip: list[str] = []
 
@@ -75,17 +78,44 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
         files_to_zip.append(str(output_path))
         output_filename = output_path.name
 
-    if datakey_path.exists():
-        relative_path = datakey_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.datakey.name = str(relative_path)
-        files_to_zip.append(str(datakey_path))
+    if output_datakey_path.exists():
+        relative_path = output_datakey_path.relative_to(Path(settings.MEDIA_ROOT))
+        job.output_datakey.name = str(relative_path)
+        files_to_zip.append(str(output_datakey_path))
 
     if log_path.exists():
         relative_path = log_path.relative_to(Path(settings.MEDIA_ROOT))
         job.log_file.name = str(relative_path)
         files_to_zip.append(str(log_path))
 
+    if error_path.exists():
+        relative_path = error_path.relative_to(Path(settings.MEDIA_ROOT))
+        files_to_zip.append(str(error_path))
+
     return files_to_zip, output_filename
+
+
+def generate_input_preview(job: DeidentificationJob, encoding: str, line_ending: str, separator: str) -> None:
+    """Generate a preview from the first 3 lines of the input file (1 header + 2 data lines)."""
+    file_path = job.input_file.path
+
+    with Path(file_path).open(encoding=encoding, newline=line_ending) as file:
+        csv_reader = csv.reader(file, delimiter=separator)
+
+        header_row = next(csv_reader)
+        header_row[0] = strip_bom(header_row[0])
+        header = [col.strip() for col in header_row]
+
+        preview_data = []
+        for _ in range(2):
+            row = next(csv_reader)
+
+            # Decode HTML entities in each field
+            decoded_row = [html.unescape(val) if val else val for val in row]
+            preview_data.append(dict(zip(header, decoded_row, strict=False)))
+
+    job.preview = preview_data
+    job.save(update_fields=['preview'])
 
 
 def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:

@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------------ #
-# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
@@ -44,13 +44,16 @@ class DeidentificationJob(models.Model):
     )
 
     job_id = models.UUIDField(default=uuid.uuid1, editable=False, primary_key=True)
-    input_cols = models.CharField(null=False, blank=False)
+    input_cols = models.CharField(blank=True)
     input_file = models.FileField(upload_to=input_path)
     datakey = models.FileField(upload_to=input_path, null=True, blank=True)
     output_file = models.FileField(upload_to=output_path, null=True, blank=True)
+    output_datakey = models.FileField(upload_to=output_path, null=True, blank=True)
     log_file = models.FileField(upload_to=output_path, null=True, blank=True)
+    error_rows_file = models.FileField(upload_to=output_path, null=True, blank=True)
     zip_file = models.FileField(upload_to=output_path, null=True, blank=True)
     zip_preview = models.JSONField(null=True, blank=True)
+    preview = models.JSONField(null=True, blank=True)
     processed_preview = models.JSONField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     error_message = models.TextField(default='', blank=True)

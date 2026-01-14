@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------------ #
-# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
@@ -13,6 +13,8 @@ from functools import reduce
 
 import polars as pl
 from deduce.person import Person
+from lxml.etree import ParserError
+from lxml.html import fromstring
 
 from core.deduce import DeduceInstanceManager
 from core.name_detector import DutchNameDetector, NameAnnotation
@@ -79,6 +81,39 @@ class DeidentifyHandler:
             pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('clientcode'))),
         )
 
+    def _deduce_detection(self, report_text: str, clientname: str | None = None) -> str:
+        """Apply Deduce detection with or without clientname (case-insensitive)."""
+        metadata = {}
+        preprocessed_text = report_text
+
+        if clientname:
+            name_parts = clientname.split()
+            first_name = name_parts[0] if name_parts else None
+
+            full_name_pattern = r'\b' + re.escape(clientname) + r'\b'
+            preprocessed_text = re.sub(full_name_pattern, clientname, report_text, flags=re.IGNORECASE)
+
+            if first_name and len(first_name) > 1:
+                first_name_pattern = r'\b' + re.escape(first_name) + r'\b'
+                preprocessed_text = re.sub(first_name_pattern, first_name, preprocessed_text, flags=re.IGNORECASE)
+
+            name_parts_with_surname = clientname.split(' ', maxsplit=1)
+            client_initials = ''.join([name[0] for name in name_parts_with_surname])
+
+            if len(name_parts_with_surname) == 1:
+                client = Person(first_names=[name_parts_with_surname[0]])
+            else:
+                client = Person(
+                    first_names=[name_parts_with_surname[0]],
+                    surname=name_parts_with_surname[1],
+                    initials=client_initials,
+                )
+
+            metadata['patient'] = client
+
+        result = self.deduce_instance.deidentify(preprocessed_text, metadata=metadata)
+        return result.deidentified_text
+
     def _merge_detections(self, report_text: str, deduce_result: str, extend_result: list[NameAnnotation]) -> str:
         """Merge Deduce and custom detections."""
         result_text = deduce_result
@@ -119,25 +154,6 @@ class DeidentifyHandler:
 
         return merged_result
 
-    def _deduce_detection(self, report_text: str, clientname: str | None = None) -> str:
-        """Apply Deduce detection with or without clientname."""
-        metadata = {}
-
-        if clientname:
-            name_parts = clientname.split(' ', maxsplit=1)
-            client_initials = ''.join([name[0] for name in name_parts])
-
-            if len(name_parts) == 1:
-                patient = Person(first_names=[name_parts[0]])
-            else:
-                patient = Person(first_names=[name_parts[0]], surname=name_parts[1], initials=client_initials)
-
-            metadata['patient'] = patient
-
-        result = self.deduce_instance.deidentify(report_text, metadata=metadata)
-
-        return result.deidentified_text
-
     def _deidentify_batch(self, batch: pl.Series) -> pl.Series:
         """Collect a batch of report texts and process them per row, while tracking progress."""
         results = []
@@ -148,7 +164,14 @@ class DeidentifyHandler:
 
             report_text = row.get('report')
             clientname = row.get('clientname') or None
-            results.append(self._process_report(report_text, clientname))
+
+            # Skip empty/null rows that may appear in batches
+            if not report_text:
+                results.append('')
+                continue
+
+            result = self._process_report(report_text, clientname)
+            results.append(result)
 
             max_percentage = 100
             self.processed_count += 1
@@ -164,6 +187,26 @@ class DeidentifyHandler:
 
         return pl.Series(results)
 
+    def _clean_html(self, text: str) -> str:
+        """Remove HTML tags and decode HTML entities from text."""
+        if not text or not isinstance(text, str):
+            return text
+
+        text = text.strip()
+
+        # Skip if no HTML tags or entities present
+        if '<' not in text and '&' not in text:
+            return text
+
+        try:
+            tree = fromstring(text)
+            cleaned = tree.text_content()
+        except (ParserError, ValueError):
+            # If parsing fails, return original text
+            return text
+        else:
+            return cleaned if cleaned else text
+
     def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
         """De-identify report text with or without clientname."""
         report_col = input_cols['report']
@@ -178,7 +221,8 @@ class DeidentifyHandler:
         self.total_count = total_rows
         self.last_update = 0
 
-        struct_cols = [pl.col(report_col).alias('report')]
+        struct_cols = [pl.col(report_col).map_elements(self._clean_html, return_dtype=pl.Utf8).alias('report')]
+
         if has_clientname:
             clientname_col = input_cols.get('clientname')
             struct_cols.append(pl.col(clientname_col).alias('clientname'))
@@ -186,7 +230,7 @@ class DeidentifyHandler:
         processed_reports = df.select(
             [
                 pl.struct(struct_cols)
-                .map_batches(lambda batch: self._deidentify_batch(batch))
+                .map_batches(lambda batch: self._deidentify_batch(batch), return_dtype=pl.Utf8)
                 .alias('processed_report'),
             ],
         )

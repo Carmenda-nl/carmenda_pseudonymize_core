@@ -3,6 +3,66 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] - 2026-01-06
+
+### Changed
+
+- Update polars v1.36.1
+- Copyright year 2026
+
+### Fixed
+
+- Ignore quote char in strings
+- Minor false positives in lookup tables
+
+## [1.2.9] - 2025-12-04
+
+### Added
+
+- Core: Major coverage update, adding missing first names
+- Core: Clean HTML tags in report text
+
+### Fixed
+
+- Prevent confused parser on semicolons
+- Cleanup UTF-8 BOM characters from header per column
+
+## [1.2.8] - 2025-11-25
+
+### Added
+
+- API: update files, input_cols & fileMeta trough PUT
+- API: Extra checks on input file and datakey
+- API: Error row collector
+- Core: Pre-process clientnames as case-insensitive
+
+### Changed
+
+- API: input_cols is optional when creating a job
+- API: closer in functionality of frontend
+- API: Improved file handler for robust encoding support
+- Update: channels package -> v4.3.2
+
+### Fixed
+
+- Lookup tables false-positives
+
+## [1.2.7] - 2025-11-13
+
+### Added
+
+- Missing copyright text in progress_control.py
+- Force ASCII to UTF-8 encoding
+
+### Changed
+
+- Update: Docker version to python:3.13.6-slim
+- Update: pypi packages
+
+### Fixed
+
+- Force ASCII to UTF-8 encoding
+
 ## [1.2.6] - 2025-11-12
 
 ### Added

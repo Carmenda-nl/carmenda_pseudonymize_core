@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------------ #
-# Copyright (c) 2025 Carmenda. All rights reserved.                                                #
+# Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import re
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
@@ -18,54 +16,10 @@ if TYPE_CHECKING:
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
-from api.utils import get_metadata
+from api.utils.file_handling import get_file_path, get_metadata
+from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
 from core.utils.file_handling import check_file
 from core.utils.progress_tracker import tracker
-
-
-def _get_file_path(uploaded_file: UploadedFile) -> tuple[str, bool]:
-    """Get file path from uploaded file, creating temporary file if needed."""
-    if hasattr(uploaded_file, 'temporary_file_path'):
-        return uploaded_file.temporary_file_path(), False
-
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        for chunk in uploaded_file.chunks():
-            temp_file.write(chunk)
-
-        return temp_file.name, True
-
-
-def _validate_file(uploaded_file: UploadedFile, input_cols: str | None = None) -> UploadedFile:
-    """Validate uploaded file has valid encoding, line endings, and separator."""
-    file_path, temp_file = _get_file_path(uploaded_file)
-
-    encoding, line_ending, separator = check_file(file_path)
-    checks = {'encoding': encoding, 'line endings': line_ending, 'column separator': separator}
-    missing = [check for check, value in checks.items() if not value]
-
-    if missing:
-        message = f'Could not determine file {", ".join(missing)}'
-        raise serializers.ValidationError(message)
-
-    if input_cols:
-        input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
-
-        with Path(file_path).open(encoding=encoding) as file:
-            header = file.readline().strip()
-            columns = [col.strip() for col in header.split(separator)]
-
-            # Validate that specified columns exist in the file
-            for col_value in input_cols_dict.values():
-                if col_value not in columns:
-                    available_cols = ', '.join(columns)
-                    message = f'Column "{col_value}" not found in input file, available columns: {available_cols}'
-                    raise serializers.ValidationError(message)
-
-    # Clean up temporary file if we created one
-    if temp_file and file_path:
-        Path(file_path).unlink(missing_ok=True)
-
-    return uploaded_file
 
 
 class DeidentificationJobListSerializer(serializers.ModelSerializer):
@@ -100,63 +54,119 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields: ClassVar = [
             'job_id',
+            'output_datakey',
             'output_file',
             'log_file',
+            'error_rows_file',
             'zip_file',
             'zip_preview',
+            'preview',
             'processed_preview',
             'status',
             'error_message',
         ]
 
     def validate_input_cols(self, value: str) -> str:
-        """Validate that `input_cols` follows the required format.
+        """Validate input_cols on proper format, skip when empty."""
+        if not value:
+            return value
 
-        1. Comma-separated
-        2. Each value follows the format: key=value
-        3. Must contain the key `report`
-        """
-        if not isinstance(value, str):
-            message = 'Input columns must be a string'
-            raise serializers.ValidationError(message)
-
-        fields = [field.strip() for field in value.split(',')]
-
-        pattern = re.compile(r'^([^=]+)=(.+)$')
-        field_dict = {}
-
-        for field in fields:
-            match = pattern.match(field)
-
-            if not match:
-                message = f"Field '{field}' does not follow the format 'key=value'"
-                raise serializers.ValidationError(message)
-
-            key = match.group(1)
-            val = match.group(2)
-            field_dict[key] = val
-
-        if 'report' not in field_dict:
-            message = "The 'report' key must be present (report=value)"
-            raise serializers.ValidationError(message)
-
-        return value
+        return validate_input_cols(value)
 
     def validate_input_file(self, value: UploadedFile) -> UploadedFile:
-        """Validate the uploaded file and check column existence."""
-        input_cols = self.initial_data.get('input_cols')
-        return _validate_file(value, input_cols)
+        """Validate the uploaded file basic checks.
 
-    def validate_datakey(self, value: UploadedFile) -> UploadedFile:
-        """Validate the datakey if provided and valid."""
+        Skip validation:
+            if this is an existing file path (PUT)
+            if input_file is not in the request data (partial update)
+        """
+        if isinstance(value, str):
+            return value
+
+        if 'input_file' not in self.initial_data:
+            return value
+
+        # Validate file without input_cols check.
+        validated_file, encoding, line_ending, separator = validate_file(value, input_cols=None)
+
+        if not hasattr(self, '_file_metadata'):
+            self._file_metadata = {}
+
+        self._file_metadata['input_file'] = {
+            'encoding': encoding,
+            'line_ending': line_ending,
+            'separator': separator,
+            'uploaded_file': value,
+        }
+
+        return validated_file
+
+    def validate_datakey(self, value: UploadedFile) -> UploadedFile | None:
+        """Validate the datakey if provided and valid.
+
+        Skip validation:
+            if this is an existing file path (PUT)
+            if datakey is not in the request data (partial update)
+
+        Allow removal:
+            if value is None or empty string, return None to clear the field
+        """
+        if isinstance(value, str):
+            if not value:
+                return None
+            return value
+
+        if 'datakey' not in self.initial_data:
+            return value
+
         if value:
-            return _validate_file(value)
-        return value
+            validated_file, encoding, line_ending, separator = validate_file(value, datakey='datakey')
+
+            if not hasattr(self, '_file_metadata'):
+                self._file_metadata = {}
+            self._file_metadata['datakey'] = {
+                'encoding': encoding,
+                'line_ending': line_ending,
+                'separator': separator,
+            }
+
+            return validated_file
+        return None
+
+    def validate(self, attrs: dict) -> dict:
+        """Cross-validate input_cols against input_file columns."""
+        input_cols = attrs.get('input_cols')
+        input_file = attrs.get('input_file')
+
+        if 'input_cols' not in self.initial_data:
+            return attrs
+
+        if input_cols and input_file and not isinstance(input_file, str):
+            metadata = getattr(self, '_file_metadata', {}).get('input_file', {})
+            uploaded_file = metadata.get('uploaded_file')
+            encoding = metadata.get('encoding')
+            separator = metadata.get('separator')
+
+            if uploaded_file and encoding and separator:
+                file_path, is_temp = get_file_path(uploaded_file)
+
+                try:
+                    validate_file_columns(file_path, encoding, separator, input_cols)
+                finally:
+                    if is_temp and file_path:
+                        Path(file_path).unlink(missing_ok=True)
+
+        elif input_cols and self.instance and self.instance.input_file:
+            file_path = self.instance.input_file.path
+            encoding, _line_ending, separator = check_file(file_path)
+            validate_file_columns(file_path, encoding, separator, input_cols)
+
+        return attrs
 
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the job including file metadata."""
         representation = super().to_representation(instance)
-        fields = ['input_file', 'output_file', 'datakey', 'log_file', 'zip_file']
+        fields = ['input_file', 'output_file', 'datakey', 'output_datakey', 'log_file', 'error_rows_file', 'zip_file']
 
         return get_metadata(representation, instance, fields)
 
@@ -169,7 +179,8 @@ class JobStatusSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DeidentificationJob
-        fields = '__all__'
+        fields: ClassVar = ['job_id', 'status', 'progress', 'error_message']
+        read_only_fields: ClassVar = ['job_id', 'status', 'progress', 'error_message']
 
     def get_status(self, obj: DeidentificationJob) -> str:
         """Get the combined status and stage information."""
