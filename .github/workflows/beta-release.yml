@@ -55,14 +55,17 @@ jobs:
           requirements: "app/requirements.txt"
           options: "--noconfirm"
 
+
+
+
+          
       - name: Create zip archive
         run: |
-          cd dist
-          Compress-Archive -Path backend.exe,_internal -DestinationPath "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}.zip"
+          Compress-Archive -Path dist\* -DestinationPath "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}.zip"
         shell: pwsh
 
       - name: Upload to Beta Release
         uses: softprops/action-gh-release@v2.5.0
         with:
           tag_name: ${{ needs.create-beta-release.outputs.tag }}
-          files: dist/*.zip
+          files: "*.zip"
