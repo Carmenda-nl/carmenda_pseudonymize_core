@@ -53,11 +53,16 @@ jobs:
           python_ver: "3.13.7"
           spec: "build.spec"
           requirements: "app/requirements.txt"
-          upload_exe_with_name: "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}"
           options: "--noconfirm"
+
+      - name: Create zip archive
+        run: |
+          cd dist
+          Compress-Archive -Path backend.exe,_internal -DestinationPath "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}.zip"
+        shell: pwsh
 
       - name: Upload to Beta Release
         uses: softprops/action-gh-release@v2.5.0
         with:
           tag_name: ${{ needs.create-beta-release.outputs.tag }}
-          files: dist/*
+          files: dist/*.zip
