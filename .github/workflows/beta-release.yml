@@ -58,10 +58,10 @@ jobs:
 
 
 
-          
+
       - name: Create zip archive
         run: |
-          Compress-Archive -Path dist\* -DestinationPath "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}.zip"
+          Compress-Archive -Path dist\backend\* -DestinationPath "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}.zip"
         shell: pwsh
 
       - name: Upload to Beta Release
