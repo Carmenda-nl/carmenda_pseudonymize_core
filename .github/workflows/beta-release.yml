@@ -1,0 +1,63 @@
+name: Beta Release
+
+on:
+  push:
+    tags:
+      - "v*b"
+
+permissions:
+  contents: write
+
+jobs:
+  create-beta-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Create beta release
+        uses: softprops/action-gh-release@v2.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Beta release ${{ github.ref_name }}"
+          body: |
+            🧪 Beta Release voor test doeleinden
+
+            **Tag:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha }}
+
+            ⚠️ Dit is een pre-release versie.
+          prerelease: true
+          draft: false
+          fail_on_unmatched_files: false
+          generate_release_notes: false
+
+  # -------------------------------------------------------------------------------- #
+
+  build-beta-windows:
+    needs: create-beta-release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Build core windows executable
+        uses: sayyid5416/pyinstaller@v1.8.0
+        with:
+          python_ver: "3.13.7"
+          spec: "build.spec"
+          requirements: "app/requirements.txt"
+          upload_exe_with_name: "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}"
+          options: "--noconfirm"
+
+      - name: Upload to Beta Release
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          tag_name: ${{ needs.create-beta-release.outputs.tag }}
+          files: dist/*
