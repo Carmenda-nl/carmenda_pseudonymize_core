@@ -65,8 +65,15 @@ class ProgressTracker:
             disable_console = Console(file=io.StringIO(), force_terminal=False)
 
             return Progress(
-                spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining,
-                console=disable_console, disable=False,
+                spinner,
+                text,
+                bar,
+                task_progress,
+                mofn,
+                time_elapsed,
+                time_remaining,
+                console=disable_console,
+                disable=False,
             )
         return Progress(spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining)
 
