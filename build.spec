@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import deduce
 import site
 import os
 import sys
@@ -55,10 +56,13 @@ datas = [(source, dest) for source, dest in datas if not (
 lookup_tables_path = os.path.join(app_path, 'core', 'lookup_tables')
 if os.path.exists(lookup_tables_path):
     datas.append((lookup_tables_path, 'lookup_tables'))
-    pickle_file = os.path.join(lookup_tables_path, 'cache', 'lookup_structs.pickle')
+    cache_path = os.path.join(lookup_tables_path, 'cache')
+    pickle_file = os.path.join(cache_path, 'lookup_structs.pickle')
 
     if os.path.exists(pickle_file):
         datas.append((pickle_file, os.path.join('lookup_tables', 'cache')))
+    else:
+        deduce_instance = deduce.Deduce(lookup_data_path=lookup_tables_path, cache_path=cache_path)
 
 # Add the .env file if available
 env_file = os.path.join(app_path, '.env')
@@ -121,6 +125,7 @@ exe = EXE(
     pyz,
     a.scripts,
     [],
+    exclude_binaries=True,
     name='backend',
     debug=False,
     bootloader_ignore_signals=False,
