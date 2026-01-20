@@ -14,7 +14,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -87,15 +87,16 @@ class APIRootView(APIView):
 def _send_job_progress(job_id: str, percentage: int, stage: str, job_status: str = 'processing') -> None:
     """Send job progress update via WebSocket."""
     channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f'job_progress_{job_id}',
-        {
-            'type': 'job_progress',
-            'percentage': percentage,
-            'stage': stage,
-            'status': job_status,
-        },
-    )
+    if channel_layer:
+        async_to_sync(channel_layer.group_send)(
+            f'job_progress_{job_id}',
+            {
+                'type': 'job_progress',
+                'percentage': percentage,
+                'stage': stage,
+                'status': job_status,
+            },
+        )
 
 
 def _handle_job_completion(
@@ -127,7 +128,9 @@ def _handle_job_cancellation(job_id: str) -> None:
     cancelled_job.status = 'cancelled'
     cancelled_job.save()
 
-    progress_percentage = tracker.get_progress().get('percentage', 0)
+    progress_info = tracker.get_progress()
+    percentage = progress_info.get('percentage', 0)
+    progress_percentage = int(percentage) if isinstance(percentage, str) else (percentage or 0)
     _send_job_progress(job_id, progress_percentage, 'Cancelled', 'cancelled')
 
 
@@ -142,7 +145,7 @@ def _handle_job_error(job_id: str, error: Exception) -> None:
     _send_job_progress(job_id, 0, f'Error: {error}', 'failed')
 
 
-def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: dict, datakey: str | None) -> None:
+def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: str, datakey: str) -> None:
     """Run processing in background thread."""
     current_job = DeidentificationJob.objects.get(pk=job_id)
     job_handler = setup_job_logging(job_id)
@@ -160,8 +163,12 @@ def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: 
                 last_percentage = -1
                 while not stop_monitoring.is_set():
                     progress_info = tracker.get_progress()
-                    current_percentage = progress_info['percentage']
-                    current_stage = progress_info['stage'] or 'Processing'
+                    raw_percentage = progress_info['percentage']
+                    current_percentage = (
+                        int(raw_percentage) if isinstance(raw_percentage, str) else (raw_percentage or 0)
+                    )
+                    raw_stage = progress_info['stage']
+                    current_stage = str(raw_stage) if raw_stage else 'Processing'
 
                     if abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage:
                         _send_job_progress(job_id, current_percentage, current_stage)
@@ -218,11 +225,11 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
-    http_method_names: ClassVar = ['get', 'post', 'put', 'delete']
+    http_method_names = ('get', 'post', 'put', 'delete')
 
     def _clean_file(self, file_field: object, job_id: str, file_type: str) -> None:
         """Delete old file from storage if it exists."""
-        if not file_field:
+        if not file_field or not hasattr(file_field, 'path'):
             return
 
         try:
@@ -293,7 +300,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         job.save()
 
-    def _prepare_data(self, request: HttpRequest, job: DeidentificationJob) -> dict:
+    def _prepare_data(self, request: Request, job: DeidentificationJob) -> dict:
         """Prepare data for update, handling file fields and input_cols reset."""
         data = request.data.copy()
 
@@ -317,7 +324,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         return data
 
-    def update(self, request: HttpRequest, *args: object, **kwargs: object) -> Response:
+    def update(self, request: Request, *args: object, **kwargs: object) -> Response:
         """Update a job with PUT request, deleting old files before adding new ones."""
         job = self.get_object()
         data = self._prepare_data(request, job)
@@ -348,7 +355,9 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def get_serializer_class(self) -> DeidentificationJobSerializer:
+    def get_serializer_class(
+        self,
+    ) -> type[DeidentificationJobSerializer | DeidentificationJobListSerializer | JobStatusSerializer]:
         """Return the appropriate serializer based on the action."""
         if self.action == 'list':
             return DeidentificationJobListSerializer
@@ -371,15 +380,16 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
                 # Send WebSocket notification
                 channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(
-                    f'job_progress_{instance.job_id}',
-                    {
-                        'type': 'job_progress',
-                        'percentage': tracker.get_progress().get('percentage', 0),
-                        'stage': 'Cancelled (deletion)',
-                        'status': 'cancelled',
-                    },
-                )
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f'job_progress_{instance.job_id}',
+                        {
+                            'type': 'job_progress',
+                            'percentage': tracker.get_progress().get('percentage', 0),
+                            'stage': 'Cancelled (deletion)',
+                            'status': 'cancelled',
+                        },
+                    )
 
                 # Give the process a moment to handle cancellation
                 time.sleep(0.5)
@@ -412,7 +422,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         super().perform_destroy(instance)
 
     @CREATE_JOB_SCHEMA
-    def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> Response:
+    def create(self, request: Request, *_args: object, **_kwargs: object) -> Response:
         """Prepare a new job with an uploaded file and column mapping configuration."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -540,15 +550,16 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.save()
 
             channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f'job_progress_{job.job_id}',
-                {
-                    'type': 'job_progress',
-                    'percentage': tracker.get_progress().get('percentage', 0),
-                    'stage': 'Cancelling',
-                    'status': 'cancelling',
-                },
-            )
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'job_progress_{job.job_id}',
+                    {
+                        'type': 'job_progress',
+                        'percentage': tracker.get_progress().get('percentage', 0),
+                        'stage': 'Cancelling',
+                        'status': 'cancelling',
+                    },
+                )
 
             return Response(
                 {'message': 'Cancellation requested', 'job_id': str(job.job_id)},

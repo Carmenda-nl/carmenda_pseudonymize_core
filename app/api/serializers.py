@@ -186,9 +186,10 @@ class JobStatusSerializer(serializers.ModelSerializer):
         """Get the combined status and stage information."""
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
+            stage = progress_info['stage']
 
-            if progress_info['stage']:
-                return progress_info['stage']
+            if stage:
+                return str(stage)
 
         return obj.status
 
@@ -196,6 +197,9 @@ class JobStatusSerializer(serializers.ModelSerializer):
         """Get the current progress percentage from the tracker."""
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
-            return progress_info['percentage']
+            percentage = progress_info['percentage']
+            if percentage is None:
+                return 0
+            return int(percentage) if isinstance(percentage, str) else percentage
 
         return 100 if obj.status == 'completed' else 0

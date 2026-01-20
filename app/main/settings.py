@@ -123,6 +123,7 @@ DATABASES = {
 # Django REST framework
 # https://www.django-rest-framework.org
 
+REST_FRAMEWORK: dict[str, object]
 if DEBUG:
     REST_FRAMEWORK = {
         'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -141,7 +142,7 @@ if DEBUG:
         ],
     }
 else:
-    REST_FRAMEWORK = {'DEFAULT_RENDERER_CLASSES': ('rest_framework.renderers.JSONRenderer',)}
+    REST_FRAMEWORK = {'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer']}
 
 
 # Password validation

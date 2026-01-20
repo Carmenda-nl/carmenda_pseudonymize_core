@@ -25,7 +25,7 @@ logger = setup_logging()
 
 def _validate_extension(file: UploadedFile) -> None:
     """Validate that the uploaded file has an allowed extension."""
-    filename = file.name.lower()
+    filename = (file.name or '').lower()
 
     if not filename.endswith('.csv'):
         message = 'Only CSV files are allowed.'
@@ -99,7 +99,11 @@ def _validate_datakey_columns(file_path: str, encoding: str, separator: str) -> 
             raise serializers.ValidationError(message)
 
 
-def validate_file(uploaded_file: UploadedFile, input_cols: str | None = None, datakey: str = '') -> UploadedFile:
+def validate_file(
+    uploaded_file: UploadedFile,
+    input_cols: str | None = None,
+    datakey: str = '',
+) -> tuple[UploadedFile, str, str, str]:
     """Validate uploaded file and return file with metadata.
 
     Checks that the file:

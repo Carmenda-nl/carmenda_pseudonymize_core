@@ -5,10 +5,22 @@
 
 """WebSocket routing for real-time job progress updates."""
 
-from django.urls import re_path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
+
+from django.urls import URLPattern, path
 
 from api import consumers
 
-websocket_urlpatterns = [
-    re_path(r'ws/jobs/(?P<job_id>[^/]+)/progress/$', consumers.JobProgressConsumer.as_asgi()),
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from django.http import HttpResponseBase
+
+websocket_urlpatterns: list[URLPattern] = [
+    path(
+        'ws/jobs/<str:job_id>/progress/',
+        cast('Callable[..., HttpResponseBase]', consumers.JobProgressConsumer.as_asgi()),
+    ),
 ]
