@@ -23,6 +23,9 @@ pytest==9.0.2
 pytest-django==4.11.1
 pytest-cov==7.0.0
 
+# Linting & formatting
+ruff==0.14.13
+
 # Type checking
 mypy==1.19.1
 django-stubs==5.2.8
