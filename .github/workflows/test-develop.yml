@@ -63,3 +63,12 @@ jobs:
           DJANGO_SETTINGS_MODULE: main.settings
           SECRET_KEY: secret-key-for-ci
           DEBUG: "False"
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v6.0.0
+        if: always()
+        with:
+          name: coverage-reports
+          path: |
+            app/htmlcov/
+            app/coverage.xml
