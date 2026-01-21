@@ -1,3 +1,11 @@
+[project]
+name = "Carmenda Privacytool - Backend API"
+dynamic = ["version"]
+
+[tool.setuptools_scm]
+root = ".."
+version_file = "api/_version.py"
+
 [tool.ruff]
 line-length = 120
 exclude = ['migrations']

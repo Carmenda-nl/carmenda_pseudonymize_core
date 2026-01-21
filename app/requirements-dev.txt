@@ -32,3 +32,4 @@ lxml-stubs==0.5.1
 
 # Package builder
 pyinstaller==6.18.0
+setuptools_scm==9.2.2
