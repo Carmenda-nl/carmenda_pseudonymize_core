@@ -18,6 +18,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v6.1.0
+        with:
+          python-version: "3.13.9"
+
+      - name: Install setuptools_scm
+        run: pip install setuptools_scm
+
       - name: Run Ruff linting
         uses: astral-sh/ruff-action@v3.5.1
         with:

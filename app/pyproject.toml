@@ -21,6 +21,9 @@ ignore = [
     'EXE001', # (Shebang in manage.py is OK without executable bit in Git)
 ]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = 'single'
 
