@@ -28,6 +28,7 @@ mypy==1.19.1
 django-stubs==5.2.8
 djangorestframework-stubs==3.16.7
 channels-stubs==0.1.9
+types-lxml==2026.1.1
 
 # Package builder
 pyinstaller==6.18.0

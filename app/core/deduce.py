@@ -19,8 +19,9 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
-import deduce
+import deduce  # type: ignore[import-untyped]
 
 from .utils.logger import setup_logging
 
@@ -207,7 +208,7 @@ class DeduceInstanceManager:
             base_path = Path(self.lookup_data_path) / 'src' / 'names'
             whitelist_path = Path(self.lookup_data_path) / 'src' / 'whitelist'
         else:
-            deduce_lookup = Path(self.deduce_instance.lookup_data_path)
+            deduce_lookup = Path(cast('deduce.Deduce', self.deduce_instance).lookup_data_path)
             base_path = deduce_lookup / 'src' / 'names'
             whitelist_path = deduce_lookup / 'src' / 'whitelist'
 

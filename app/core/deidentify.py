@@ -12,7 +12,7 @@ import re
 from functools import reduce
 
 import polars as pl
-from deduce.person import Person
+from deduce.person import Person  # type: ignore[import-untyped]
 from lxml.etree import ParserError
 from lxml.html import fromstring
 
@@ -37,8 +37,13 @@ class DeidentifyHandler:
         self.name_detection = DutchNameDetector(self.lookup_sets)
 
         # For debug logging of de-identification results
-        self.processed_reports = []
+        self.processed_reports: list[dict[str, str]] = []
         self.total_processed = 0
+
+        # Progress tracking
+        self.processed_count = 0
+        self.total_count = 0
+        self.last_update = 0
 
     def replace_synonym(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
         """Replace all synonyms in the report text with their main names."""
@@ -181,7 +186,7 @@ class DeidentifyHandler:
                 tracker.update_progress(
                     'Pseudonymize',
                     f'Processed {self.processed_count}/{self.total_count} rows',
-                    step_progress,
+                    int(step_progress),
                 )
                 self.last_update = self.processed_count
 
@@ -207,7 +212,12 @@ class DeidentifyHandler:
         else:
             return cleaned if cleaned else text
 
-    def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+    def deidentify_text(
+        self,
+        df: pl.DataFrame,
+        datakey: pl.DataFrame | None,
+        input_cols: dict[str, str],
+    ) -> pl.DataFrame:
         """De-identify report text with or without clientname."""
         report_col = input_cols['report']
         has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
@@ -223,9 +233,8 @@ class DeidentifyHandler:
 
         struct_cols = [pl.col(report_col).map_elements(self._clean_html, return_dtype=pl.Utf8).alias('report')]
 
-        if has_clientname:
-            clientname_col = input_cols.get('clientname')
-            struct_cols.append(pl.col(clientname_col).alias('clientname'))
+        if has_clientname and 'clientname' in input_cols:
+            struct_cols.append(pl.col(input_cols['clientname']).alias('clientname'))
 
         processed_reports = df.select(
             [

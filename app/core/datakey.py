@@ -65,7 +65,7 @@ def _add_clientcodes(df: pl.DataFrame) -> pl.DataFrame:
 
 def _check_existing_key(datakey_df: pl.DataFrame, missing_names_df: pl.Series | None = None) -> pl.DataFrame:
     """Check existing datakey, add missing names and merge duplicates."""
-    if missing_names_df.is_empty():
+    if missing_names_df is None or missing_names_df.is_empty():
         logger.debug('No missing names found to add to datakey')
     else:
         missing_df = _create_new_entry(missing_names_df)
@@ -97,7 +97,7 @@ def process_datakey(df: pl.DataFrame, input_cols: dict, datakey_file: str | None
         datakey_path = Path(input_folder) / datakey_file
 
         if Path(datakey_path).is_file():
-            datakey_df = load_datakey(datakey_path)
+            datakey_df = load_datakey(str(datakey_path))
 
             if datakey_df is not None:  # Valid encoded datakey
                 logger.info('Loaded existing datakey: %s', datakey_file)
