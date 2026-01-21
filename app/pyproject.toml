@@ -19,6 +19,7 @@ ignore = [
     'SLF001', # (MEIPASS use for PyInstaller)
     'S301',   # (pickle file loading)
     'EXE001', # (Shebang in manage.py is OK without executable bit in Git)
+    'COM812', # (May cause conflicts when used with the formatter)
 ]
 
 [tool.ruff.lint.pydocstyle]
