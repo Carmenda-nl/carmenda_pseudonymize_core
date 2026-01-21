@@ -1,9 +1,9 @@
-name: Beta Release
+name: Beta Release on tag push
 
 on:
   push:
     tags:
-      - "v*b"
+      - "v*-beta"
 
 permissions:
   contents: write
@@ -18,8 +18,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6.0.1
-        with:
-          fetch-depth: 0
 
       - name: Create beta release
         uses: softprops/action-gh-release@v2.5.0
@@ -49,13 +47,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6.0.1
-        with:
-          fetch-depth: 0
 
       - name: Build core windows executable
         uses: sayyid5416/pyinstaller@v1.8.0
         with:
-          python_ver: "3.13.7"
+          python_ver: "3.13.9"
           spec: "build.spec"
           requirements: "app/requirements.txt"
           options: "--noconfirm"
@@ -73,7 +69,7 @@ jobs:
           Compress-Archive -Path dist\backend\* -DestinationPath "Privacytool_backend_windows_${{ needs.create-beta-release.outputs.tag }}.zip"
         shell: pwsh
 
-      - name: Upload to Beta Release
+      - name: Upload to Beta pre-release
         uses: softprops/action-gh-release@v2.5.0
         with:
           tag_name: ${{ needs.create-beta-release.outputs.tag }}
