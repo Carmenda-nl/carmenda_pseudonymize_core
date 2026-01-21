@@ -23,7 +23,6 @@ quote-style = 'single'
 plugins = [
     'mypy_django_plugin.main',
     'mypy_drf_plugin.main',
-    'mypy_plugin_lxml.main'
 ]
 
 [[tool.mypy.overrides]]

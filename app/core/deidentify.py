@@ -14,7 +14,7 @@ from functools import reduce
 import polars as pl
 from deduce.person import Person  # type: ignore[import-untyped]
 from lxml.etree import ParserError
-from lxml.html import fromstring
+from lxml.html import HtmlElement, fromstring
 
 from core.deduce import DeduceInstanceManager
 from core.name_detector import DutchNameDetector, NameAnnotation
@@ -204,7 +204,7 @@ class DeidentifyHandler:
             return text
 
         try:
-            tree = fromstring(text)
+            tree: HtmlElement = fromstring(text)
             cleaned = tree.text_content()
         except (ParserError, ValueError):
             # If parsing fails, return original text
