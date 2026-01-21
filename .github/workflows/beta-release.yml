@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
 
       - name: Create beta release
         uses: softprops/action-gh-release@v2.5.0
@@ -47,6 +49,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
 
       - name: Build core windows executable
         uses: sayyid5416/pyinstaller@v1.8.0
