@@ -1,0 +1,97 @@
+name: Promote Beta to Stable
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      beta_tag:
+        description: 'Beta tag to promote (e.g., v1.2.11-beta)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  promote-beta-to-stable:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+      
+      - name: Determine beta tag to promote
+        id: determine_tag
+        run: |
+          if [ -n "${{ inputs.beta_tag }}" ]; then
+            BETA_TAG="${{ inputs.beta_tag }}"
+          else
+            # Haal de laatste beta release op
+            BETA_TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases | \
+              jq -r '[.[] | select(.prerelease==true and (.tag_name | contains("-beta")))] | sort_by(.created_at) | last | .tag_name')
+            
+            if [ "$BETA_TAG" = "null" ] || [ -z "$BETA_TAG" ]; then
+              echo "No beta release found to promote"
+              exit 1
+            fi
+          fi
+          
+          # Verwijder -beta suffix voor stable tag
+          STABLE_TAG="${BETA_TAG%-beta}"
+          
+          echo "beta_tag=$BETA_TAG" >> $GITHUB_OUTPUT
+          echo "stable_tag=$STABLE_TAG" >> $GITHUB_OUTPUT
+          echo "Promoting $BETA_TAG to $STABLE_TAG"
+      
+      - name: Get beta release info
+        id: beta_release
+        run: |
+          RELEASE_DATA=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.determine_tag.outputs.beta_tag }})
+          RELEASE_ID=$(echo "$RELEASE_DATA" | jq -r '.id')
+          BODY=$(echo "$RELEASE_DATA" | jq -r '.body')
+          
+          echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create stable tag
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Tag de huidige commit met stable tag
+          git tag ${{ steps.determine_tag.outputs.stable_tag }} ${{ steps.determine_tag.outputs.beta_tag }}
+          git push origin ${{ steps.determine_tag.outputs.stable_tag }}
+      
+      - name: Update beta release to stable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Update de beta release naar stable (prerelease = false)
+          curl -X PATCH \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/${{ github.repository }}/releases/${{ steps.beta_release.outputs.release_id }} \
+            -d '{
+              "tag_name": "${{ steps.determine_tag.outputs.stable_tag }}",
+              "name": "Release ${{ steps.determine_tag.outputs.stable_tag }}",
+              "body": "✅ Stable Release\n\n${{ steps.beta_release.outputs.body }}",
+              "prerelease": false,
+              "draft": false
+            }'
+          
+          echo "✅ Promoted ${{ steps.determine_tag.outputs.beta_tag }} to stable release ${{ steps.determine_tag.outputs.stable_tag }}"
+      
+      - name: Delete beta tag
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Verwijder de beta tag lokaal en remote
+          git push --delete origin ${{ steps.determine_tag.outputs.beta_tag }}
+          echo "🗑️ Deleted beta tag ${{ steps.determine_tag.outputs.beta_tag }}"
