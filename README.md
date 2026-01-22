@@ -1,11 +1,11 @@
 # Carmenda Privacytool - Backend API
 
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/downloads/release/python-3136/)
+[![API](https://img.shields.io/badge/api-REST-orange)](https://www.django-rest-framework.org/)
+[![Django](https://img.shields.io/badge/django-5.2-green)](https://docs.djangoproject.com/en/5.2/)
+[![Polars](https://img.shields.io/badge/polars-1.37-9cf)](https://pola.rs/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Tests](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/actions/workflows/test-develop.yml/badge.svg?branch=develop)](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/actions/workflows/test-develop.yml)
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/downloads/release/python-3136/)
-[![Django](https://img.shields.io/badge/django-5.2.8-green)](https://docs.djangoproject.com/en/5.2/)
-[![Polars](https://img.shields.io/badge/polars-1.35-9cf)](https://pola.rs/)
-[![API](https://img.shields.io/badge/api-REST-orange)](https://www.django-rest-framework.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 
@@ -102,7 +102,7 @@ If you encounter issues:
 
 ### Step 1: Preparations
 
-Ensure Python is installed (minimum version 3.10) and Git.
+Ensure Python is installed (minimum version 3.13) and Git.
 Clone this repository to your local machine:
 
 ```bash
@@ -146,7 +146,7 @@ source .venv/bin/activate
 Install the project dependencies:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ### Step 3: Configuration
