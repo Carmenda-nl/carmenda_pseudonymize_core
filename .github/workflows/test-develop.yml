@@ -6,7 +6,7 @@
 #   - PUSH to develop branch
 #   - PULL REQUESTS targeting the develop or main branch
 
-name: Run Python tests
+name: Tests
 
 on:
   push:
