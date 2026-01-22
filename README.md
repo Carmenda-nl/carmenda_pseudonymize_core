@@ -1,11 +1,13 @@
 # Carmenda Privacytool - Backend API
 
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Tests](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/actions/workflows/test-develop.yml/badge.svg?branch=develop)](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/actions/workflows/test-develop.yml)
 [![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/downloads/release/python-3136/)
 [![Django](https://img.shields.io/badge/django-5.2.8-green)](https://docs.djangoproject.com/en/5.2/)
 [![Polars](https://img.shields.io/badge/polars-1.35-9cf)](https://pola.rs/)
 [![API](https://img.shields.io/badge/api-REST-orange)](https://www.django-rest-framework.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
+
 
 **Carmenda Privacytool** is a REST API solution designed to pseudonymize textual data for care organizations.
 
