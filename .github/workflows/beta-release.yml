@@ -48,6 +48,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6.0.1
 
+      - name: Create .env file for build
+        run: |
+          @"
+          DJANGO_RUNSERVER_HIDE_WARNING=true
+          DEBUG=False
+          LOG_LEVEL=INFO
+          SECRET_KEY=${{ github.sha }}
+          CSRF_TRUSTED_ORIGINS=http://127.0.0.1
+          JOB_LOG_ONLY=True
+          "@ | Out-File -FilePath "app\.env" -Encoding utf8
+        shell: pwsh
+
       - name: Build core windows executable
         uses: sayyid5416/pyinstaller@v1.8.0
         with:
