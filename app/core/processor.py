@@ -64,7 +64,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
-    if has_clientname:
+    if has_clientname and clientname_col is not None:
         # Strip whitespace from clientnames
         df = df.with_columns(pl.col(clientname_col).str.strip_chars())
 

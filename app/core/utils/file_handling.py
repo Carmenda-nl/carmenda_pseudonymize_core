@@ -35,7 +35,7 @@ def get_environment() -> tuple[str, str]:
         output_folder = '/app/data/output'
     elif getattr(sys, 'frozen', False):
         # PyInstaller environment
-        base_path = Path(sys._MEIPASS)
+        base_path = Path(getattr(sys, '_MEIPASS', '.'))
         input_folder = str(base_path / 'data' / 'input')
         output_folder = str(base_path / 'data' / 'output')
     else:
@@ -87,7 +87,7 @@ def check_file(input_file: str) -> tuple[str, str, str]:
 
     candidates = [',', ';', '\t', '|']
     scores = {sep: header.count(sep) for sep in candidates}
-    separator = max(scores, key=scores.get)
+    separator = max(scores, key=scores.__getitem__)
 
     # Ensure we found at least one separator
     if scores[separator] == 0:
@@ -220,7 +220,7 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)
 
 
-def load_datakey(datakey_path: str) -> pl.DataFrame:
+def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     """Grab valid names from file and return as a Polars DataFrame."""
     encoding, line_ending, separator = check_file(datakey_path)
     accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')

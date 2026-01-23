@@ -24,7 +24,7 @@ def _get_log_level(arg_log_level: str | None = None) -> int:
 
 def setup_logging(log_level: str | None = None) -> logging.Logger:
     """Set up comprehensive logging with log levels."""
-    log_level = _get_log_level(log_level)
+    level: int = _get_log_level(log_level)
     log_path = Path(__file__).resolve().parent.parent.parent / 'data/output'
 
     try:
@@ -37,7 +37,7 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
 
     # Setup deidentify logger
     logger = logging.getLogger('deidentify')
-    logger.setLevel(log_level)
+    logger.setLevel(level)
     logger.propagate = True
 
     # Clear existing handlers to prevent duplicates

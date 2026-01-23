@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 import textwrap
+from typing import Any
 
 from .logger import setup_clean_logger
 
@@ -47,21 +48,23 @@ def colorize_tags(text: str) -> str:
     return re.sub(r'\[(TELEFOON|PHONE|EMAIL|BSN)-(\d+)\]', f'{colors["magenta"]}[\\1-\\2]{colors["reset"]}', text)
 
 
-def log_block(title: str, content: str | dict) -> None:
+# Counter storage for log block
+log_block_counter: list[int] = [0]
+
+
+def log_block(title: str, content: dict[str, Any]) -> None:
     """Log content in a nice formatted block for improved log readability."""
     logger = setup_clean_logger()
     width = get_terminal_width()
 
-    if not hasattr(log_block, 'counter'):
-        log_block.counter = 0
-    log_block.counter += 1
+    log_block_counter[0] += 1
 
     # Unicode box drawing characters
     top_line = '┌' + '─' * (width - 2) + '┐'
     bottom_line = '└' + '─' * (width - 2) + '┘'
     separator_line = '├' + '─' * (width - 2) + '┤'
 
-    header_title = f'{title.upper()} {log_block.counter}'
+    header_title = f'{title.upper()} {log_block_counter[0]}'
     title_padding = (width - len(header_title) - 2) // 2  # Align title to center
     header = f'│{" " * title_padding}{header_title}{" " * (width - len(header_title) - title_padding - 2)}│'
 
