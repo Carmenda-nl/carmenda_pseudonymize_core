@@ -31,18 +31,38 @@ jobs:
           BETA_TAG=$(gh api repos/${{ github.repository }}/releases --jq '[.[] | select(.prerelease==true and (.tag_name | contains("-beta")))] | sort_by(.created_at) | last | .tag_name')
 
           if [ -z "$BETA_TAG" ] || [ "$BETA_TAG" = "null" ]; then
-            echo "No beta release found"
-            exit 1
+            echo "No beta release found - will create new stable release from develop"
+            echo "has_beta=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found latest beta: $BETA_TAG"
+            STABLE_TAG="${BETA_TAG%-beta}"
+            echo "has_beta=true" >> $GITHUB_OUTPUT
+            echo "beta_tag=$BETA_TAG" >> $GITHUB_OUTPUT
+            echo "stable_tag=$STABLE_TAG" >> $GITHUB_OUTPUT
+            echo "Will promote $BETA_TAG → $STABLE_TAG"
           fi
-          echo "Found latest beta: $BETA_TAG"
 
-          STABLE_TAG="${BETA_TAG%-beta}"
+      - name: Determine version from latest release
+        if: steps.determine_tag.outputs.has_beta == 'false'
+        id: version_from_releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_STABLE=$(gh api repos/${{ github.repository }}/releases --jq '[.[] | select(.prerelease==false)] | sort_by(.created_at) | last | .tag_name')
 
-          echo "beta_tag=$BETA_TAG" >> $GITHUB_OUTPUT
-          echo "stable_tag=$STABLE_TAG" >> $GITHUB_OUTPUT
-          echo "Will promote $BETA_TAG → $STABLE_TAG"
+          if [ -z "$LATEST_STABLE" ] || [ "$LATEST_STABLE" = "null" ]; then
+            NEW_VERSION="v1.0.0"
+          else
+            echo "Latest stable release: $LATEST_STABLE"
+            IFS='.' read -r major minor patch <<< "$LATEST_STABLE"
+            NEW_VERSION="$major.$minor.$((patch + 1))"
+          fi
+
+          echo "stable_tag=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version will be: $NEW_VERSION"
 
       - name: Download beta release assets
+        if: steps.determine_tag.outputs.has_beta == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -61,6 +81,7 @@ jobs:
           ls -lh
 
       - name: Get beta release notes
+        if: steps.determine_tag.outputs.has_beta == 'true'
         id: notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -74,8 +95,9 @@ jobs:
             echo "EOFMARKER"
           } >> $GITHUB_OUTPUT
 
-      - name: Create stable release
-        id: create_stable
+      - name: Create stable release from beta
+        if: steps.determine_tag.outputs.has_beta == 'true'
+        id: create_stable_from_beta
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -85,11 +107,25 @@ jobs:
             --notes "${{ steps.notes.outputs.body }}" \
             --repo ${{ github.repository }} \
             *.zip
-          echo "Created stable release"
+          echo "Created stable release from beta"
+          echo "success=true" >> $GITHUB_OUTPUT
+
+      - name: Create stable release from develop
+        if: steps.determine_tag.outputs.has_beta == 'false'
+        id: create_stable_from_develop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version_from_releases.outputs.stable_tag }}" \
+            --title "Release ${{ steps.version_from_releases.outputs.stable_tag }}" \
+            --generate-notes \
+            --target develop \
+            --repo ${{ github.repository }}
+          echo "Created stable release from develop"
           echo "success=true" >> $GITHUB_OUTPUT
 
       - name: Delete beta release and tag
-        if: steps.create_stable.outputs.success == 'true'
+        if: steps.determine_tag.outputs.has_beta == 'true' && steps.create_stable_from_beta.outputs.success == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
