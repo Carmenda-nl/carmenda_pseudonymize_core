@@ -1,0 +1,102 @@
+# Github Actions workflow
+# This workflow promotes the latest beta release to a stable release.
+# It downloads the beta assets, renames them, and creates a new stable release.
+# Finally, it deletes the beta release and its tag.
+#
+# Triggered on:
+#   - PULL REQUEST from develop to main is approved & merged
+
+name: Promote Beta to Stable release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  promote-beta-to-stable:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'develop'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine beta tag to promote
+        id: determine_tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BETA_TAG=$(gh api repos/${{ github.repository }}/releases --jq '[.[] | select(.prerelease==true and (.tag_name | contains("-beta")))] | sort_by(.created_at) | last | .tag_name')
+
+          if [ -z "$BETA_TAG" ] || [ "$BETA_TAG" = "null" ]; then
+            echo "No beta release found"
+            exit 1
+          fi
+          echo "Found latest beta: $BETA_TAG"
+
+          STABLE_TAG="${BETA_TAG%-beta}"
+
+          echo "beta_tag=$BETA_TAG" >> $GITHUB_OUTPUT
+          echo "stable_tag=$STABLE_TAG" >> $GITHUB_OUTPUT
+          echo "Will promote $BETA_TAG → $STABLE_TAG"
+
+      - name: Download beta release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p assets
+          cd assets
+          gh release download "${{ steps.determine_tag.outputs.beta_tag }}" -R ${{ github.repository }}
+
+          for file in *-beta.zip; do
+            if [ -f "$file" ]; then
+              newname="${file//-beta.zip/.zip}"
+              mv "$file" "$newname"
+              echo "Renamed: $file → $newname"
+            fi
+          done
+
+          ls -lh
+
+      - name: Get beta release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.determine_tag.outputs.beta_tag }} --jq '.body')
+          BODY="${BODY//${{ steps.determine_tag.outputs.beta_tag }}/${{ steps.determine_tag.outputs.stable_tag }}}"
+          {
+            echo "body<<EOFMARKER"
+            echo ""
+            echo "$BODY"
+            echo "EOFMARKER"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create stable release
+        id: create_stable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd assets
+          gh release create "${{ steps.determine_tag.outputs.stable_tag }}" \
+            --title "Release ${{ steps.determine_tag.outputs.stable_tag }}" \
+            --notes "${{ steps.notes.outputs.body }}" \
+            --repo ${{ github.repository }} \
+            *.zip
+          echo "Created stable release"
+          echo "success=true" >> $GITHUB_OUTPUT
+
+      - name: Delete beta release and tag
+        if: steps.create_stable.outputs.success == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "${{ steps.determine_tag.outputs.beta_tag }}" -R ${{ github.repository }} --yes
+          echo "Deleted beta release"
+
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/${{ steps.determine_tag.outputs.beta_tag }}" || echo "Tag already deleted"
+          echo "Deleted beta tag"
+
+          echo "Promotion complete: ${{ steps.determine_tag.outputs.beta_tag }} → ${{ steps.determine_tag.outputs.stable_tag }}"
