@@ -1,4 +1,4 @@
-# Github Actions workflow
+# GitHub Actions workflow
 # This workflow promotes the latest beta release to a stable release.
 # It downloads the beta assets, renames them, and creates a new stable release.
 # Finally, it deletes the beta release and its tag.

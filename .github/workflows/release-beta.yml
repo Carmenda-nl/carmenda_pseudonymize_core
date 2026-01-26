@@ -1,4 +1,4 @@
-# Github Actions workflow
+# GitHub Actions workflow
 # This workflow builds a pre-release when a new beta tag is pushed.
 # The build artifact is uploaded to the created beta release.
 # Windows based build is currently supported.
