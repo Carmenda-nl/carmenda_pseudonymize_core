@@ -136,3 +136,12 @@ jobs:
           echo "Deleted beta tag"
 
           echo "Promotion complete: ${{ steps.determine_tag.outputs.beta_tag }} → ${{ steps.determine_tag.outputs.stable_tag }}"
+
+      - name: Trigger frontend build
+        if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer ${{ secrets.FRONTEND_TRIGGER_TOKEN }}" \
+            https://api.github.com/repos/Carmenda-nl/carmenda_pseudonymize_frontend/dispatches \
+            -d '{"event_type":"backend-release"}'
