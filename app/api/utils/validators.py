@@ -103,12 +103,12 @@ def validate_file(
     uploaded_file: UploadedFile,
     input_cols: str | None = None,
     datakey: str = '',
-) -> tuple[UploadedFile, str, str, str]:
+) -> tuple[UploadedFile, str, str]:
     """Validate uploaded file and return file with metadata.
 
     Checks that the file:
       - is a csv file
-      - has valid encoding, line endings and separator.
+      - has valid encoding and separator.
       - has a header and at least 1 data row.
       - if the input columns have the specified columns.
       - if the datakey has the mandatory columns.
@@ -117,8 +117,8 @@ def validate_file(
 
     file_path, temp_file = get_file_path(uploaded_file)
 
-    encoding, line_ending, separator = check_file(file_path)
-    checks = {'encoding': encoding, 'line endings': line_ending, 'column separator': separator}
+    encoding, separator = check_file(file_path)
+    checks = {'encoding': encoding, 'column separator': separator}
     missing = [check for check, value in checks.items() if not value]
 
     if missing:
@@ -141,7 +141,7 @@ def validate_file(
     if temp_file and file_path:
         Path(file_path).unlink(missing_ok=True)
 
-    return uploaded_file, encoding, line_ending, separator
+    return uploaded_file, encoding, separator
 
 
 def validate_input_cols(value: str) -> str:

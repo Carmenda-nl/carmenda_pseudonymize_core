@@ -14,17 +14,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pandas as pd
 import polars as pl
-from charset_normalizer import from_bytes
+from charset_normalizer import from_path
 
 from .logger import setup_logging
 
 logger = setup_logging()
-
-
-def strip_bom(text: str) -> str:
-    """Remove BOM (Byte Order Mark) from the header if present in UTF-8 encoding."""
-    return text.removeprefix('\ufeff')
 
 
 def get_environment() -> tuple[str, str]:
@@ -47,58 +43,79 @@ def get_environment() -> tuple[str, str]:
     return input_folder, output_folder
 
 
-def check_file(input_file: str) -> tuple[str, str, str]:
-    """Determine the encoding, line ending and separator."""
+def strip_bom(text: str) -> str:
+    """Remove BOM (Byte Order Mark) from the header if present in UTF-8 encoding."""
+    return text.removeprefix('\ufeff')
+
+
+def _detect_encoding(file_path: Path) -> str:
+    """Detect file encoding, defaults to UTF-8, ascii is treated as UTF-8."""
+    try:
+        detection = from_path(
+            file_path,
+            steps=6,
+            chunk_size=2 * 1024 * 1024,
+            threshold=0.2,
+            preemptive_behaviour=True,
+            language_threshold=0.3,
+            enable_fallback=False,
+        )
+        best = detection.best()
+        encoding = best.encoding if best and getattr(best, 'encoding', None) else 'utf-8'
+
+        if encoding.lower() == 'ascii':
+            encoding = 'utf-8'
+
+    except (LookupError, ValueError, TypeError, OSError):
+        logger.warning('Encoding detection failed, defaults to UTF-8 encoding.')
+        encoding = 'utf-8'
+
+    # Normalize encoding name (utf_8 -> utf-8) for consistency
+    return encoding.replace('_', '-')
+
+
+def _detect_separator(sample: str) -> str:
+    """Detect CSV separator from a sample string."""
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=',;\t|')
+    except csv.Error:
+        candidates = [',', ';', '\t', '|']
+        scores = {sep: sample.count(sep) for sep in candidates}
+        separator = max(scores, key=scores.__getitem__)
+
+        if scores[separator] == 0:
+            logger.warning('No valid separator found. Tried: %s', candidates)
+            return ','
+
+        return separator
+    else:
+        return dialect.delimiter
+
+
+def check_file(input_file: str) -> tuple[str, str]:
+    """Intergration function to check file encoding, separator and strip BOM."""
     file_path = Path(input_file)
     filename = file_path.name
 
-    with file_path.open('rb') as rawdata:
-        data_sample = rawdata.read(10240)
+    encoding = _detect_encoding(file_path)
 
-        try:
-            detection = from_bytes(data_sample)
-            best = detection.best()
-            encoding = best.encoding if best and getattr(best, 'encoding', None) else 'utf-8'
-        except (LookupError, ValueError, TypeError):
-            logger.debug('Encoding detection failed, using UTF-8')
-            encoding = 'utf-8'
-
-        # Detect line endings - Polars only supports single-byte eol_char
-        if b'\r\n' in data_sample:
-            line_ending = '\n'
-        elif b'\r' in data_sample:
-            line_ending = '\r'
-        elif b'\n' in data_sample:
-            line_ending = '\n'
-        else:
-            line_ending = '\n'
-
+    try:
+        with file_path.open('r', encoding=encoding, errors='replace') as file:
+            header = strip_bom(file.readline().strip())
+            if not header:
+                logger.error('File is empty or has no header.')
+    except OSError:
         header = ''
+        logger.exception('File cannot be opened: "%s"', file_path)
 
-        try:
-            rawdata.seek(0)
-            header_bytes = rawdata.readline()
-            header = strip_bom(header_bytes.decode(encoding).strip())
-        except (UnicodeDecodeError, LookupError):
-            logger.warning('File cannot be decoded with encoding "%s"', encoding)
+    separator = _detect_separator(header)
 
-    if not header:
-        logger.error('File is empty or has no header.')
-
-    candidates = [',', ';', '\t', '|']
-    scores = {sep: header.count(sep) for sep in candidates}
-    separator = max(scores, key=scores.__getitem__)
-
-    # Ensure we found at least one separator
-    if scores[separator] == 0:
-        logger.error('No valid separator found. Tried: %s', candidates)
-
-    logger.info('Checked %s: Encoding=%s, line endings=%r, separator=%r', filename, encoding, line_ending, separator)
-    return encoding, line_ending, separator
+    logger.info('Checked %s: Encoding=%s, separator=%r', filename, encoding, separator)
+    return encoding, separator
 
 
 def _replace_html(text: str, html_tags: str = 'encode') -> str:
-    """Replace HTML entities with placeholders or vice versa."""
+    """Replace HTML entities with placeholders or vice versa. (encode/decode)."""
     replacements = {
         '&quot;': '___QUOT___',
         '&nbsp;': '___NBSP___',
@@ -122,20 +139,6 @@ def _replace_html(text: str, html_tags: str = 'encode') -> str:
     return text
 
 
-def _process_line(line: bytes, encoding: str, separator: str) -> tuple[bytes | None, str | None]:
-    """Process a single line: decode and re-encode to UTF-8."""
-    try:
-        decoded_line = line.decode(encoding)
-
-        # Execute if separator is semicolon and line contains HTML that could confuse parser,
-        if separator == ';' and ('&' in decoded_line):
-            decoded_line = _replace_html(decoded_line, html_tags='encode')
-
-        return decoded_line.encode('utf-8'), None
-    except (LookupError, UnicodeDecodeError):
-        return None, str(line)
-
-
 def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | None:
     """Check data file, log and return as a Polars DataFrame."""
     file_path = Path(input_file_path)
@@ -146,17 +149,30 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
     file_size = file_path.stat().st_size
     logger.info('%s file of size: %s', input_extension, file_size)
 
-    encoding, line_ending, separator = check_file(input_file_path)
+    encoding, separator = check_file(input_file_path)
 
+    """
+    Open 3 files:
+        1. rawdata:    A temp text file to read the original data with the detected encoding.
+        2. utf8_temp:  A temp binary file to rewrite UTF-8 encoded data.
+        3. error_temp: A temp text file to log rows with errors.
+    """
     error_count = 0
     with (
-        tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
+        file_path.open('r', encoding=encoding, errors='replace', newline='') as rawdata,
         tempfile.NamedTemporaryFile('wb', delete=False) as utf8_temp,
-        file_path.open('r', encoding=encoding, newline='') as rawdata,
+        tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
     ):
-        reader = csv.reader(rawdata, delimiter=separator)
+        read_rawdata = csv.reader(rawdata, delimiter=separator)
+        error_writer = csv.writer(error_temp, delimiter=separator)
 
-        for row in reader:
+        for row in read_rawdata:
+            has_decode_errors = any('\ufffd' in (field or '') for field in row)  # detect � character
+            if has_decode_errors:
+                error_count += 1
+                error_writer.writerow(row)
+                continue
+
             # Execute if separator is semicolon and row contains HTML that could confuse parser
             if separator == ';':
                 processed_row = [
@@ -170,23 +186,37 @@ def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | N
             line = separator.join(processed_row) + '\n'
             utf8_temp.write(line.encode('utf-8'))
 
-    # Create a Polars DataFrame from the UTF-8 encoded temporary file
-    df = pl.read_csv(
-        source=utf8_temp.name,
-        separator=separator,
-        eol_char=line_ending,
-        quote_char=None,
-    )
+    """
+    Create a Polars DataFrame from the `utf8_temp` file.
+    If Polars fails due to malformed data, fallback to using pandas to read
+    the CSV and then convert it to a Polars DataFrame.
+    """
+    try:
+        df = pl.read_csv(source=utf8_temp.name, separator=separator, eol_char='\n', quote_char=None)
+    except (pl.exceptions.ComputeError, pl.exceptions.InvalidOperationError) as error:
+        logger.warning('Failed to read file: %s.\nFalling back to slower method to try again.', error)
+
+        try:
+            df_pandas = pd.read_csv(
+                utf8_temp.name,
+                sep=separator,
+                lineterminator='\n',
+                quoting=csv.QUOTE_NONE,
+                encoding='utf-8',
+            )
+            df = pl.from_pandas(df_pandas)
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, ValueError):
+            logger.exception('Failed to read CSV into model.')
+            Path(utf8_temp.name).unlink(missing_ok=True)
+            Path(error_temp.name).unlink(missing_ok=True)
+            return None
 
     # Restore HTML entities that were temporarily replaced
     for col in df.columns:
         # Only process string columns to avoid AttributeError on numeric types.
         if df[col].dtype == pl.Utf8:
             df = df.with_columns(
-                pl.col(col).map_elements(
-                    lambda text: _replace_html(text, html_tags='decode'),
-                    return_dtype=pl.Utf8,
-                ),
+                pl.col(col).map_elements(lambda text: _replace_html(text, html_tags='decode'), return_dtype=pl.Utf8),
             )
 
     if error_count > 0:
@@ -222,14 +252,14 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 
 def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     """Grab valid names from file and return as a Polars DataFrame."""
-    encoding, line_ending, separator = check_file(datakey_path)
+    encoding, separator = check_file(datakey_path)
     accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')
 
     if encoding not in accepted_encodings:
         logger.warning('Datakey encoding not supported, provided: %s.', encoding)
         return None
 
-    df = pl.read_csv(datakey_path, encoding=encoding, eol_char=line_ending, separator=separator)
+    df = pl.read_csv(datakey_path, encoding=encoding, eol_char='\n', separator=separator)
     df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
 
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
