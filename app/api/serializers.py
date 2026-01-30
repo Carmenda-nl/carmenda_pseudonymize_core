@@ -87,14 +87,13 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             return value
 
         # Validate file without input_cols check.
-        validated_file, encoding, line_ending, separator = validate_file(value, input_cols=None)
+        validated_file, encoding, separator = validate_file(value, input_cols=None)
 
         if not hasattr(self, '_file_metadata'):
             self._file_metadata = {}
 
         self._file_metadata['input_file'] = {
             'encoding': encoding,
-            'line_ending': line_ending,
             'separator': separator,
             'uploaded_file': value,
         }
@@ -120,13 +119,12 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             return value
 
         if value:
-            validated_file, encoding, line_ending, separator = validate_file(value, datakey='datakey')
+            validated_file, encoding, separator = validate_file(value, datakey='datakey')
 
             if not hasattr(self, '_file_metadata'):
                 self._file_metadata = {}
             self._file_metadata['datakey'] = {
                 'encoding': encoding,
-                'line_ending': line_ending,
                 'separator': separator,
             }
 
@@ -158,7 +156,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
         elif input_cols and self.instance and self.instance.input_file:
             file_path = self.instance.input_file.path
-            encoding, _line_ending, separator = check_file(file_path)
+            encoding, separator = check_file(file_path)
             validate_file_columns(file_path, encoding, separator, input_cols)
 
         return attrs

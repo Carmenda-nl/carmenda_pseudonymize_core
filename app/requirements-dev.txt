@@ -32,6 +32,7 @@ django-stubs==5.2.8
 djangorestframework-stubs==3.16.7
 channels-stubs==0.1.9
 lxml-stubs==0.5.1
+pandas-stubs==2.3.3.260113
 
 # Package builder
 pyinstaller==6.18.0

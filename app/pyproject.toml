@@ -17,6 +17,7 @@ ignore = [
     'D106',   # (Meta classes don't need a docstring)
     'DTZ005', # (Timezones are managed by django)
     'SLF001', # (MEIPASS use for PyInstaller)
+    'S101',   # (False positives when using with pytest)
     'S301',   # (pickle file loading)
     'EXE001', # (Shebang in manage.py is OK without executable bit in Git)
     'COM812', # (May cause conflicts when used with the formatter)
