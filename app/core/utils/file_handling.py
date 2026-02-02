@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
-from charset_normalizer import from_path
+from charset_normalizer import from_bytes
 
 from .logger import setup_logging
 
@@ -51,15 +51,10 @@ def strip_bom(text: str) -> str:
 def _detect_encoding(file_path: Path) -> str:
     """Detect file encoding, defaults to UTF-8, ascii is treated as UTF-8."""
     try:
-        detection = from_path(
-            file_path,
-            steps=6,
-            chunk_size=2 * 1024 * 1024,
-            threshold=0.2,
-            preemptive_behaviour=True,
-            language_threshold=0.3,
-            enable_fallback=False,
-        )
+        with file_path.open('rb') as rawdata:
+            data_sample = rawdata.read(2 * 1024 * 1024)
+
+        detection = from_bytes(data_sample)
         best = detection.best()
         encoding = best.encoding if best and getattr(best, 'encoding', None) else 'utf-8'
 
