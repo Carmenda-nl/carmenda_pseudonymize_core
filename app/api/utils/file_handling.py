@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 from django.conf import settings
 
-from core.utils.file_handling import strip_bom
+from core.utils.csv_handler import strip_bom
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
@@ -99,7 +99,7 @@ def generate_input_preview(job: DeidentificationJob, encoding: str, line_ending:
     """Generate a preview from the first 3 lines of the input file (1 header + 2 data lines)."""
     file_path = job.input_file.path
 
-    with Path(file_path).open(encoding=encoding, newline=line_ending) as file:
+    with Path(file_path).open(encoding=encoding, newline=line_ending, errors='ignore') as file:
         csv_reader = csv.reader(file, delimiter=separator)
 
         header_row = next(csv_reader)

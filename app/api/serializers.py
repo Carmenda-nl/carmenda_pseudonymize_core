@@ -18,7 +18,7 @@ from rest_framework import serializers
 from api.models import DeidentificationJob
 from api.utils.file_handling import get_file_path, get_metadata
 from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
-from core.utils.file_handling import check_file
+from core.utils.csv_handler import detect_properties
 from core.utils.progress_tracker import tracker
 
 
@@ -156,7 +156,8 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
         elif input_cols and self.instance and self.instance.input_file:
             file_path = self.instance.input_file.path
-            encoding, separator = check_file(file_path)
+            csv_properties = detect_properties(Path(file_path))
+            encoding, separator = csv_properties['encoding'], csv_properties['delimiter']
             validate_file_columns(file_path, encoding, separator, input_cols)
 
         return attrs

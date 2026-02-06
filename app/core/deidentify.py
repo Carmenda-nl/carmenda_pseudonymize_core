@@ -210,7 +210,7 @@ class DeidentifyHandler:
             # If parsing fails, return original text
             return text
         else:
-            return cleaned if cleaned else text
+            return cleaned or text
 
     def deidentify_text(
         self,
@@ -239,7 +239,7 @@ class DeidentifyHandler:
         processed_reports = df.select(
             [
                 pl.struct(struct_cols)
-                .map_batches(lambda batch: self._deidentify_batch(batch), return_dtype=pl.Utf8)
+                .map_batches(self._deidentify_batch, return_dtype=pl.Utf8)
                 .alias('processed_report'),
             ],
         )

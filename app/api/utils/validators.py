@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from rest_framework import serializers
 
 from api.utils.file_handling import get_file_path
-from core.utils.file_handling import check_file, strip_bom
+from core.utils.csv_handler import detect_properties, strip_bom
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
@@ -34,7 +34,7 @@ def _validate_extension(file: UploadedFile) -> None:
 
 def _validate_content(file_path: str, encoding: str, separator: str) -> None:
     """Validate if a header is present and there is minimal 1 row present."""
-    with Path(file_path).open(encoding=encoding) as file:
+    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
         header = strip_bom(file.readline().strip())
 
         if not header:
@@ -62,7 +62,7 @@ def _validate_content(file_path: str, encoding: str, separator: str) -> None:
 
 def _is_datakey(file_path: str, encoding: str, separator: str) -> bool:
     """Check if file appears to be a datakey based on header columns."""
-    with Path(file_path).open(encoding=encoding) as file:
+    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
         header = strip_bom(file.readline().strip())
         columns = [col.strip() for col in header.split(separator)]
 
@@ -74,7 +74,7 @@ def validate_file_columns(file_path: str, encoding: str, separator: str, input_c
     """Validate that specified columns exist in the file."""
     input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
 
-    with Path(file_path).open(encoding=encoding) as file:
+    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
         header = strip_bom(file.readline().strip())
         columns = [strip_bom(col.strip()) for col in header.split(separator)]
 
@@ -87,7 +87,7 @@ def validate_file_columns(file_path: str, encoding: str, separator: str, input_c
 
 def _validate_datakey_columns(file_path: str, encoding: str, separator: str) -> None:
     """Validate that datakey file has the required columns."""
-    with Path(file_path).open(encoding=encoding) as file:
+    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
         header = strip_bom(file.readline().strip())
         columns = [col.strip() for col in header.split(separator)]
 
@@ -117,7 +117,8 @@ def validate_file(
 
     file_path, temp_file = get_file_path(uploaded_file)
 
-    encoding, separator = check_file(file_path)
+    csv_properties = detect_properties(Path(file_path))
+    encoding, separator = csv_properties['encoding'], csv_properties['delimiter']
     checks = {'encoding': encoding, 'column separator': separator}
     missing = [check for check, value in checks.items() if not value]
 
