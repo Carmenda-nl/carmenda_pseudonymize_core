@@ -161,7 +161,7 @@ class TestDetectProperties:
 
         assert properties['encoding'] == 'utf-8'
         assert properties['delimiter'] == expected_sep
-        assert properties['header'] == content.split('\n')[0]
+        assert properties['header'] == content.split('\n', 1)[0]
 
     def test_utf8_with_bom(self, tmp_path: Path) -> None:
         """UTF-8 file with BOM is correctly detected and BOM stripped from header."""

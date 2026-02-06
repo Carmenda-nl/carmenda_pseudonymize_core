@@ -105,7 +105,7 @@ def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datak
     filepath = Path(filename)
     parent = filepath.parent
 
-    output_filename = datakey_name if datakey_name else 'datakey.csv'
+    output_filename = datakey_name or 'datakey.csv'
 
     # If filename included a parent (like job_id), write into that subfolder under output.
     target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
