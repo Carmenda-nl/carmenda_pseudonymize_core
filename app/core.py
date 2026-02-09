@@ -54,7 +54,7 @@ def parse_cli_arguments() -> argparse.Namespace:
         '--input_file',
         nargs='?',
         default='dummy_input.csv',
-        help='Name of the input file. Supported format: .csv',
+        help='Name of the input file. Supported formats will be checked during validation.',
     )
     parser.add_argument(
         '--input_cols',
