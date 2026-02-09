@@ -60,7 +60,7 @@ def _detect_delimiter(data_sample: str) -> str:
         return dialect.delimiter
 
 
-def detect_properties(file_path: Path) -> dict[str, str]:
+def detect_csv_properties(file_path: Path) -> dict[str, str]:
     """Detect the CSV encoding, delimiter and header in a CSV file."""
     with file_path.open('rb') as rawdata:
         data_sample = rawdata.read(2 * 1024 * 1024)
@@ -72,7 +72,7 @@ def detect_properties(file_path: Path) -> dict[str, str]:
 
     delimiter = _detect_delimiter(header)
 
-    logger.info('Detected %s: Encoding=%s, separator=%r', file_path.name, encoding, delimiter)
+    logger.info('Detected %s: Encoding=%s, delimiter=%r', file_path.name, encoding, delimiter)
 
     return {
         'header': header,

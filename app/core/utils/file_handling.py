@@ -13,7 +13,7 @@ from pathlib import Path
 
 import polars as pl
 
-from core.utils.csv_handler import detect_properties, normalize_csv, sanitize_csv
+from core.utils.csv_handler import detect_csv_properties, normalize_csv, sanitize_csv
 
 from .logger import setup_logging
 
@@ -48,21 +48,23 @@ def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
 
     input_extension = file_path.suffix
     file_size = file_path.stat().st_size
-    logger.info('%s file of size: %s', input_extension, file_size)
+    logger.info('%s file of size: %s bytes', input_extension, file_size)
 
     if input_extension.lower() == '.csv':
-        csv_properties = detect_properties(file_path)
-        sanitized_csv = sanitize_csv(file_path, csv_properties, output_folder)
-        input_file = normalize_csv(Path(sanitized_csv), csv_properties)
+        properties = detect_csv_properties(file_path)
+        sanitized_csv = sanitize_csv(file_path, properties, output_folder)
+        input_file = normalize_csv(Path(sanitized_csv), properties)
+
+        df = pl.read_csv(source=input_file, encoding='utf-8', separator=',')
+
+        # Cleanup temp files
+        Path(sanitized_csv).unlink(missing_ok=True)
+        Path(input_file).unlink(missing_ok=True)
+    elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
+        df = pl.read_excel(source=input_file, raise_if_empty=False)
     else:
-        logger.warning('Unsupported file type: %s. Only CSV files are supported.', input_extension)
+        logger.error('Unsupported file type: %s', input_extension)
         return None
-
-    df = pl.read_csv(source=input_file, encoding='utf-8', separator=',')
-
-    # Cleanup temp files
-    Path(sanitized_csv).unlink(missing_ok=True)
-    Path(input_file).unlink(missing_ok=True)
 
     return df
 
@@ -78,16 +80,20 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
-        filepath = target_dir / f'{stem}_deidentified.csv'
 
-        df.write_csv(str(filepath))
+        input_extension = filepath.suffix
+        filepath = target_dir / f'{stem}_deidentified{input_extension}'
+        if input_extension.lower() == '.csv':
+            df.write_csv(str(filepath))
+        elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
+            df.write_excel(str(filepath))
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)
 
 
 def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     """Grab valid names from file and return as a Polars DataFrame."""
-    properties = detect_properties(Path(datakey_path))
+    properties = detect_csv_properties(Path(datakey_path))
     accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')
 
     if properties['encoding'] not in accepted_encodings:
