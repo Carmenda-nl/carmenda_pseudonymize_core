@@ -153,12 +153,12 @@ def validate_file_columns(input_cols: str, file: UploadedFile | str) -> None:
     if isinstance(file, str):
         resolved_path = file
         is_temp = False
+        extension = Path(file).suffix.lower()
     else:
         resolved_path, is_temp = get_file_path(file)
+        extension = Path(file.name or '').suffix.lower()
 
     try:
-        extension = Path(resolved_path).suffix.lower()
-
         if extension in ('.xls', '.xlsx'):
             df = read_excel(resolved_path).load_sheet(0, n_rows=0).to_polars()
             columns = [str(col) for col in df.columns]
@@ -169,6 +169,9 @@ def validate_file_columns(input_cols: str, file: UploadedFile | str) -> None:
             with Path(resolved_path).open(encoding=encoding, errors='ignore') as csv_file:
                 header = strip_bom(csv_file.readline().strip())
                 columns = [strip_bom(col.strip()) for col in header.split(delimiter)]
+        else:
+            message = 'Unsupported file extension.'
+            raise serializers.ValidationError(message)
 
         _validate_required_columns(columns, input_cols)
     finally:
