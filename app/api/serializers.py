@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -16,9 +15,13 @@ if TYPE_CHECKING:
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
-from api.utils.file_handling import get_file_path, get_metadata
-from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
-from core.utils.csv_handler import detect_properties
+from api.utils.file_handling import get_metadata
+from api.utils.validators import (
+    validate_existing_file_cols,
+    validate_file,
+    validate_file_cols,
+    validate_input_cols,
+)
 from core.utils.progress_tracker import tracker
 
 
@@ -86,19 +89,21 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         if 'input_file' not in self.initial_data:
             return value
 
-        # Validate file without input_cols check.
-        validated_file, encoding, separator = validate_file(value, input_cols=None)
+        # Validate file without input_cols check
+        result = validate_file(value, input_cols=None)
 
         if not hasattr(self, '_file_metadata'):
             self._file_metadata = {}
 
-        self._file_metadata['input_file'] = {
-            'encoding': encoding,
-            'separator': separator,
-            'uploaded_file': value,
-        }
+        metadata: dict = {'uploaded_file': value, 'file_type': result['file_type']}
+        if result.get('encoding'):
+            metadata['encoding'] = result['encoding']
+        if result.get('delimiter'):
+            metadata['delimiter'] = result['delimiter']
 
-        return validated_file
+        self._file_metadata['input_file'] = metadata
+
+        return result['file']
 
     def validate_datakey(self, value: UploadedFile) -> UploadedFile | None:
         """Validate the datakey if provided and valid.
@@ -119,16 +124,20 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             return value
 
         if value:
-            validated_file, encoding, separator = validate_file(value, datakey='datakey')
+            result = validate_file(value, datakey='datakey')
 
             if not hasattr(self, '_file_metadata'):
                 self._file_metadata = {}
-            self._file_metadata['datakey'] = {
-                'encoding': encoding,
-                'separator': separator,
-            }
 
-            return validated_file
+            metadata: dict = {'file_type': result['file_type']}
+            if result.get('encoding'):
+                metadata['encoding'] = result['encoding']
+            if result.get('delimiter'):
+                metadata['delimiter'] = result['delimiter']
+
+            self._file_metadata['datakey'] = metadata
+
+            return result['file']
         return None
 
     def validate(self, attrs: dict) -> dict:
@@ -141,24 +150,16 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
         if input_cols and input_file and not isinstance(input_file, str):
             metadata = getattr(self, '_file_metadata', {}).get('input_file', {})
-            uploaded_file = metadata.get('uploaded_file')
-            encoding = metadata.get('encoding')
-            separator = metadata.get('separator')
-
-            if uploaded_file and encoding and separator:
-                file_path, is_temp = get_file_path(uploaded_file)
-
-                try:
-                    validate_file_columns(file_path, encoding, separator, input_cols)
-                finally:
-                    if is_temp and file_path:
-                        Path(file_path).unlink(missing_ok=True)
+            validate_file_cols(
+                metadata.get('uploaded_file'),
+                file_type=metadata.get('file_type', 'csv'),
+                input_cols=input_cols,
+                encoding=metadata.get('encoding', ''),
+                delimiter=metadata.get('delimiter', ''),
+            )
 
         elif input_cols and self.instance and self.instance.input_file:
-            file_path = self.instance.input_file.path
-            csv_properties = detect_properties(Path(file_path))
-            encoding, separator = csv_properties['encoding'], csv_properties['delimiter']
-            validate_file_columns(file_path, encoding, separator, input_cols)
+            validate_existing_file_cols(self.instance.input_file.path, input_cols)
 
         return attrs
 
