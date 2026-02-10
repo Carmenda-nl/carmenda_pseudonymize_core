@@ -99,9 +99,10 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
 def _csv_preview(file_path: str) -> list[dict]:
     """Read the first 2 data rows from a CSV file."""
     properties = detect_csv_properties(Path(file_path))
+    encoding, delimiter = properties['encoding'], properties['delimiter']
 
-    with Path(file_path).open(encoding=properties['encoding'], newline='', errors='ignore') as file:
-        csv_reader = csv.reader(file, delimiter=properties['delimiter'])
+    with Path(file_path).open(encoding=encoding, newline='', errors='ignore') as file:
+        csv_reader = csv.reader(file, delimiter=delimiter)
 
         header_row = next(csv_reader)
         header_row[0] = strip_bom(header_row[0])
@@ -121,12 +122,12 @@ def _csv_preview(file_path: str) -> list[dict]:
 def _excel_preview(file_path: str) -> list[dict]:
     """Read the first 2 data rows from an Excel file."""
     excel_reader = read_excel(file_path)
-    df = excel_reader.load_sheet(0).to_polars()
+    df = excel_reader.load_sheet(0, n_rows=2).to_polars()
 
     header = [str(col) for col in df.columns]
     preview_data = []
 
-    for row in df.head(2).iter_rows():
+    for row in df.iter_rows():
         row_dict = {
             col: html.unescape(str(val)) if val is not None else '' for col, val in zip(header, row, strict=False)
         }

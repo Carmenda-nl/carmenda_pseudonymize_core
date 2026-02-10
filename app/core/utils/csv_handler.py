@@ -102,14 +102,15 @@ def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> Non
         logger.info('No errors in rows found.')
 
 
-def sanitize_csv(file_path: Path, csv_properties: dict[str, str], output_folder: str) -> str:
+def sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: str) -> str:
     """Convert CSV to UTF-8 and sanitize content.
 
     When the delimiter is `;` replace &quot; with space and convert HTML character entities
     or Polars gets confused and treats it as delimiters,
     which can lead to parsing errors.
     """
-    replace_html = csv_properties['delimiter'] == ';'
+    header, encoding, delimiter = properties['header'], properties['encoding'], properties['delimiter']
+    replace_html = delimiter == ';'
 
     with (
         file_path.open('rb') as file,
@@ -120,7 +121,7 @@ def sanitize_csv(file_path: Path, csv_properties: dict[str, str], output_folder:
         buffer = b''
 
         # Add a header to the error file
-        error_temp.write(csv_properties['header'].replace(csv_properties['delimiter'], ',') + '\n')
+        error_temp.write(header.replace(delimiter, ',') + '\n')
 
         while True:
             chunk = file.read(chunk_size)
@@ -130,15 +131,15 @@ def sanitize_csv(file_path: Path, csv_properties: dict[str, str], output_folder:
             buffer += chunk
 
             try:
-                text = buffer.decode(csv_properties['encoding'])
+                text = buffer.decode(encoding)
             except (UnicodeDecodeError, LookupError):
                 for raw_line in buffer.split(b'\n'):
                     try:
                         # handle errors line by line if the chunk contains invalid sequences
-                        line = raw_line.decode(csv_properties['encoding'])
+                        line = raw_line.decode(encoding)
                     except (UnicodeDecodeError, LookupError):
-                        error_line = raw_line.decode(csv_properties['encoding'], errors='replace')
-                        error_line = error_line.replace(csv_properties['delimiter'], ',')
+                        error_line = raw_line.decode(encoding, errors='replace')
+                        error_line = error_line.replace(delimiter, ',')
                         error_temp.write(error_line + '\n')
                         continue
 
@@ -163,13 +164,14 @@ def sanitize_csv(file_path: Path, csv_properties: dict[str, str], output_folder:
     return temp_file.name
 
 
-def normalize_csv(file_path: Path, csv_properties: dict[str, str]) -> str:
+def normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
     """Convert delimiter to comma and remove empty rows."""
     with (
         file_path.open('r', encoding='utf-8', newline='') as file,
         tempfile.NamedTemporaryFile('w', encoding='utf-8', newline='', delete=False) as csv_temp,
     ):
-        reader = csv.reader(file, delimiter=csv_properties['delimiter'])
+        delimiter = properties['delimiter']
+        reader = csv.reader(file, delimiter=delimiter)
         writer = csv.writer(csv_temp, delimiter=',')
 
         empty_rows = 0

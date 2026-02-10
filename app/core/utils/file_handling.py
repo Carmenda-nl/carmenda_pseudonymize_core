@@ -94,13 +94,15 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     """Grab valid names from file and return as a Polars DataFrame."""
     properties = detect_csv_properties(Path(datakey_path))
+    encoding, delimiter = properties['encoding'], properties['delimiter']
+
     accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')
 
-    if properties['encoding'] not in accepted_encodings:
-        logger.warning('Datakey encoding not supported, provided: %s.', properties['encoding'])
+    if encoding not in accepted_encodings:
+        logger.warning('Datakey encoding not supported, provided: %s.', encoding)
         return None
 
-    df = pl.read_csv(datakey_path, encoding=properties['encoding'], separator=properties['delimiter'], eol_char='\n')
+    df = pl.read_csv(datakey_path, encoding=encoding, separator=delimiter, eol_char='\n')
     df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
 
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
