@@ -21,8 +21,9 @@ if TYPE_CHECKING:
     from api.models import DeidentificationJob
 
 from django.conf import settings
+from fastexcel import read_excel
 
-from core.utils.csv_handler import strip_bom
+from core.utils.csv_handler import detect_csv_properties, strip_bom
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
@@ -95,12 +96,12 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
     return files_to_zip, output_filename
 
 
-def generate_input_preview(job: DeidentificationJob, encoding: str, line_ending: str, separator: str) -> None:
-    """Generate a preview from the first 3 lines of the input file (1 header + 2 data lines)."""
-    file_path = job.input_file.path
+def _csv_preview(file_path: str) -> list[dict]:
+    """Read the first 2 data rows from a CSV file."""
+    properties = detect_csv_properties(Path(file_path))
 
-    with Path(file_path).open(encoding=encoding, newline=line_ending, errors='ignore') as file:
-        csv_reader = csv.reader(file, delimiter=separator)
+    with Path(file_path).open(encoding=properties['encoding'], newline='', errors='ignore') as file:
+        csv_reader = csv.reader(file, delimiter=properties['delimiter'])
 
         header_row = next(csv_reader)
         header_row[0] = strip_bom(header_row[0])
@@ -113,6 +114,35 @@ def generate_input_preview(job: DeidentificationJob, encoding: str, line_ending:
             # Decode HTML entities in each field
             decoded_row = [html.unescape(val) if val else val for val in row]
             preview_data.append(dict(zip(header, decoded_row, strict=False)))
+
+    return preview_data
+
+
+def _excel_preview(file_path: str) -> list[dict]:
+    """Read the first 2 data rows from an Excel file."""
+    excel_reader = read_excel(file_path)
+    df = excel_reader.load_sheet(0).to_polars()
+
+    header = [str(col) for col in df.columns]
+    preview_data = []
+
+    for row in df.head(2).iter_rows():
+        row_dict = {
+            col: html.unescape(str(val)) if val is not None else '' for col, val in zip(header, row, strict=False)
+        }
+        preview_data.append(row_dict)
+
+    return preview_data
+
+
+def generate_preview(job: DeidentificationJob, metadata: dict) -> None:
+    """Generate a preview from the first 3 rows of the input file (1 header + 2 data rows)."""
+    file_path = job.input_file.path
+
+    if metadata.get('file_type') == 'csv':
+        preview_data = _csv_preview(file_path)
+    elif metadata.get('file_type') == 'excel':
+        preview_data = _excel_preview(file_path)
 
     job.preview = preview_data
     job.save(update_fields=['preview'])
@@ -133,7 +163,7 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
 
     try:
         # Create the zip file
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipped_file:
             for file_path in files_to_zip:
                 file_path_obj = Path(file_path)
 
@@ -143,7 +173,7 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
                     raise RuntimeError(error_message)
 
                 basename = file_path_obj.name
-                zipf.write(file_path, basename)
+                zipped_file.write(file_path, basename)
                 included_files.append(basename)
 
         # Store zip information in job model
