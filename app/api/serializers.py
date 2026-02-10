@@ -16,12 +16,7 @@ from rest_framework import serializers
 
 from api.models import DeidentificationJob
 from api.utils.file_handling import get_metadata
-from api.utils.validators import (
-    validate_existing_file_cols,
-    validate_file,
-    validate_file_cols,
-    validate_input_cols,
-)
+from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
 from core.utils.progress_tracker import tracker
 
 
@@ -150,16 +145,10 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
         if input_cols and input_file and not isinstance(input_file, str):
             metadata = getattr(self, '_file_metadata', {}).get('input_file', {})
-            validate_file_cols(
-                metadata.get('uploaded_file'),
-                file_type=metadata.get('file_type', 'csv'),
-                input_cols=input_cols,
-                encoding=metadata.get('encoding', ''),
-                delimiter=metadata.get('delimiter', ''),
-            )
+            validate_file_columns(input_cols, metadata.get('uploaded_file'))
 
         elif input_cols and self.instance and self.instance.input_file:
-            validate_existing_file_cols(self.instance.input_file.path, input_cols)
+            validate_file_columns(input_cols, self.instance.input_file.path)
 
         return attrs
 

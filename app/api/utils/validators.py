@@ -9,39 +9,64 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from django.core.files.uploadedfile import UploadedFile
 
+from fastexcel import read_excel
 from rest_framework import serializers
 
 from api.utils.file_handling import get_file_path
-from core.utils.csv_handler import detect_properties, strip_bom
+from core.utils.csv_handler import detect_csv_properties, strip_bom
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
 
 
-def _validate_extension(file: UploadedFile) -> None:
-    """Validate that the uploaded file has an allowed extension."""
-    filename = (file.name or '').lower()
+def _validate_required_columns(columns: list[str], input_cols: str) -> None:
+    """Validate that all specified input columns exist in the given columns."""
+    required = dict(column.strip().split('=') for column in input_cols.split(','))
 
-    if not filename.endswith('.csv'):
-        message = 'Only CSV files are allowed.'
+    for col_value in required.values():
+        if col_value not in columns:
+            available = ', '.join(columns)
+            message = f'Column "{col_value}" not found in input file, available columns: {available}'
+            raise serializers.ValidationError(message)
+
+
+def _validate_datakey_columns(columns: list[str]) -> None:
+    """Validate that datakey columns are present."""
+    required_columns = ['Clientnaam', 'Synoniemen', 'Code']
+    missing = [col for col in required_columns if col not in columns]
+
+    if missing:
+        message = f'Datakey file must contain columns: {", ".join(required_columns)}.'
         raise serializers.ValidationError(message)
 
 
-def _validate_content(file_path: str, encoding: str, separator: str) -> None:
-    """Validate if a header is present and there is minimal 1 row present."""
-    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
-        header = strip_bom(file.readline().strip())
+class FileValidationResult(TypedDict, total=False):
+    """Return type for validate_file."""
+
+    file: UploadedFile
+    file_type: str
+    encoding: str
+    delimiter: str
+
+
+def _validate_csv(file_path: str, input_cols: str | None, datakey: str) -> FileValidationResult:
+    """Validate a CSV file: structure, columns and metadata."""
+    properties = detect_csv_properties(Path(file_path))
+    encoding, delimiter = properties['encoding'], properties['delimiter']
+
+    with Path(file_path).open(encoding=encoding, errors='ignore') as csv_file:
+        header = strip_bom(csv_file.readline().strip())
 
         if not header:
             message = 'File must contain a header row'
             raise serializers.ValidationError(message)
 
-        columns = [col.strip() for col in header.split(separator)]
+        columns = [col.strip() for col in header.split(delimiter)]
 
         if not columns or (len(columns) == 1 and not columns[0]):
             message = 'File header is empty or invalid'
@@ -49,100 +74,106 @@ def _validate_content(file_path: str, encoding: str, separator: str) -> None:
 
         max_row_checks = 10
         data_rows = []
-
-        for line in file:
+        for line in csv_file:
             if line.strip():
                 data_rows.append(line)
             if len(data_rows) >= max_row_checks:
                 break
+
         if len(data_rows) < 1:
             message = 'File must contain at least 1 data row.'
             raise serializers.ValidationError(message)
 
+    if not datakey and columns[:3] == ['Clientnaam', 'Synoniemen', 'Code']:
+        message = 'This appears to be a datakey file (columns: Clientnaam, Synoniemen, Code)'
+        raise serializers.ValidationError(message)
+    if input_cols and not datakey:
+        _validate_required_columns(columns, input_cols)
+    if datakey:
+        _validate_datakey_columns(columns)
 
-def _is_datakey(file_path: str, encoding: str, separator: str) -> bool:
-    """Check if file appears to be a datakey based on header columns."""
-    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
-        header = strip_bom(file.readline().strip())
-        columns = [col.strip() for col in header.split(separator)]
-
-        datakey_columns = ['Clientnaam', 'Synoniemen', 'Code']
-        return columns[:3] == datakey_columns
-
-
-def validate_file_columns(file_path: str, encoding: str, separator: str, input_cols: str) -> None:
-    """Validate that specified columns exist in the file."""
-    input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
-
-    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
-        header = strip_bom(file.readline().strip())
-        columns = [strip_bom(col.strip()) for col in header.split(separator)]
-
-        for col_value in input_cols_dict.values():
-            if col_value not in columns:
-                available_cols = ', '.join(columns)
-                message = f'Column "{col_value}" not found in input file, available columns: {available_cols}'
-                raise serializers.ValidationError(message)
+    return {
+        'file_type': 'csv',
+        'encoding': encoding,
+        'delimiter': delimiter,
+    }
 
 
-def _validate_datakey_columns(file_path: str, encoding: str, separator: str) -> None:
-    """Validate that datakey file has the required columns."""
-    with Path(file_path).open(encoding=encoding, errors='ignore') as file:
-        header = strip_bom(file.readline().strip())
-        columns = [col.strip() for col in header.split(separator)]
+def _validate_excel(file_path: str, input_cols: str | None) -> FileValidationResult:
+    """Validate an Excel file: structure, columns and metadata."""
+    df = read_excel(file_path).load_sheet(0, n_rows=1).to_polars()
 
-        required_columns = ['Clientnaam', 'Synoniemen', 'Code']
-        missing_columns = [col for col in required_columns if col not in columns]
+    if df.is_empty() or len(df) < 1:
+        message = 'Excel file must contain at least 1 data row.'
+        raise serializers.ValidationError(message)
 
-        if missing_columns:
-            message = f'Datakey file must contain columns: {", ".join(required_columns)}.'
-            raise serializers.ValidationError(message)
+    columns = [str(col) for col in df.columns]
+    if input_cols:
+        _validate_required_columns(columns, input_cols)
+
+    return {'file_type': 'excel'}
 
 
-def validate_file(
-    uploaded_file: UploadedFile,
-    input_cols: str | None = None,
-    datakey: str = '',
-) -> tuple[UploadedFile, str, str]:
+def validate_file(file: UploadedFile, input_cols: str | None = None, datakey: str = '') -> FileValidationResult:
     """Validate uploaded file and return file with metadata.
 
     Checks that the file:
-      - is a csv file
-      - has valid encoding and separator.
-      - has a header and at least 1 data row.
+      - has an allowed extension.
+      - if .csv has valid encoding and delimiter.
+      - has atleast 1 data row.
       - if the input columns have the specified columns.
       - if the datakey has the mandatory columns.
     """
-    _validate_extension(uploaded_file)
+    input_extension = Path(file.name or '').suffix.lower()
 
-    file_path, temp_file = get_file_path(uploaded_file)
-
-    csv_properties = detect_properties(Path(file_path))
-    encoding, separator = csv_properties['encoding'], csv_properties['delimiter']
-    checks = {'encoding': encoding, 'column separator': separator}
-    missing = [check for check, value in checks.items() if not value]
-
-    if missing:
-        message = f'Could not determine file {", ".join(missing)}'
+    if datakey and input_extension != '.csv':
+        message = 'Datakey must be a CSV file.'
         raise serializers.ValidationError(message)
 
-    _validate_content(file_path, encoding, separator)
+    file_path, temp_file = get_file_path(file)
 
-    if not datakey and _is_datakey(file_path, encoding, separator):
-        message = 'This appears to be a datakey file (columns: Clientnaam, Synoniemen, Code)'
-        raise serializers.ValidationError(message)
+    try:
+        if input_extension == '.csv':
+            result = _validate_csv(file_path, input_cols, datakey)
+        elif input_extension in ('.xls', '.xlsx'):
+            result = _validate_excel(file_path, input_cols)
+        else:
+            message = 'Unsupported file extension.'
+            raise serializers.ValidationError(message)
+    finally:
+        if temp_file and file_path:
+            Path(file_path).unlink(missing_ok=True)
 
-    if input_cols and not datakey:
-        validate_file_columns(file_path, encoding, separator, input_cols)
+    result['file'] = file
+    return result
 
-    if datakey:
-        _validate_datakey_columns(file_path, encoding, separator)
 
-    # Clean up temporary file if we created one
-    if temp_file and file_path:
-        Path(file_path).unlink(missing_ok=True)
+def validate_file_columns(input_cols: str, file: UploadedFile | str) -> None:
+    """Validate that specified input columns exist in a file."""
+    if isinstance(file, str):
+        resolved_path = file
+        is_temp = False
+    else:
+        resolved_path, is_temp = get_file_path(file)
 
-    return uploaded_file, encoding, separator
+    try:
+        extension = Path(resolved_path).suffix.lower()
+
+        if extension in ('.xls', '.xlsx'):
+            df = read_excel(resolved_path).load_sheet(0, n_rows=0).to_polars()
+            columns = [str(col) for col in df.columns]
+        elif extension == '.csv':
+            properties = detect_csv_properties(Path(resolved_path))
+            encoding, delimiter = properties['encoding'], properties['delimiter']
+
+            with Path(resolved_path).open(encoding=encoding, errors='ignore') as csv_file:
+                header = strip_bom(csv_file.readline().strip())
+                columns = [strip_bom(col.strip()) for col in header.split(delimiter)]
+
+        _validate_required_columns(columns, input_cols)
+    finally:
+        if is_temp and resolved_path:
+            Path(resolved_path).unlink(missing_ok=True)
 
 
 def validate_input_cols(value: str) -> str:
