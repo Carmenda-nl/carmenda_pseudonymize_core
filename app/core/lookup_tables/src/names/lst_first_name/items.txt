@@ -128069,7 +128069,6 @@ Ginevra
 Ginewell
 Gineya-Aliya
 Ginez
-Ging
 Ginga
 Ginger
 Gingerbeau
@@ -182138,7 +182137,6 @@ Jotunn
 Jotyka
 Jotykarai
 Jotysh
-Jou
 Joua
 Jouad
 Jouaira
@@ -192442,7 +192440,6 @@ Keremdeniz
 Keremhan
 Kerem-Kaan
 Keremşah
-Keren
 Kéren
 Kèren
 Kèrèn
@@ -355591,7 +355588,6 @@ Todoza
 Todung
 Tody
 Todz
-Toe
 Toeba
 Toebie
 Toechara
