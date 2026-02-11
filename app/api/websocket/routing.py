@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, cast
 
 from django.urls import URLPattern, path
 
-from api import consumers
+from api.websocket import consumers
 
 if TYPE_CHECKING:
     from collections.abc import Callable

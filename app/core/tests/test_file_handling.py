@@ -98,7 +98,7 @@ class TestLoadDatafile:
         """Basic CSV file returns a Polars DataFrame with correct structure."""
         csv_file.write_text('name,age,city\nAlice,30,Amsterdam\nBob,25,Rotterdam', encoding='utf-8')
 
-        def mock_detect_properties(_path: Path) -> dict[str, str]:
+        def mock_csv_properties(_path: Path) -> dict[str, str]:
             return {'encoding': 'utf-8', 'delimiter': ',', 'header': 'name,age,city'}
 
         def mock_sanitize(_path: Path, _props: dict, _out: str) -> str:
@@ -107,7 +107,7 @@ class TestLoadDatafile:
         def mock_normalize(_path: Path, _props: dict) -> str:
             return str(csv_file)
 
-        monkeypatch.setattr(csv_handler, 'detect_properties', mock_detect_properties)
+        monkeypatch.setattr(csv_handler, 'detect_csv_properties', mock_csv_properties)
         monkeypatch.setattr(csv_handler, 'sanitize_csv', mock_sanitize)
         monkeypatch.setattr(csv_handler, 'normalize_csv', mock_normalize)
 
@@ -200,11 +200,11 @@ class TestLoadDatakey:
             encoding='utf-8',
         )
 
-        # Mock detect_properties
-        def mock_detect_properties(_path: Path) -> dict[str, str]:
+        # Mock csv_properties
+        def mock_csv_properties(_path: Path) -> dict[str, str]:
             return {'encoding': 'utf-8', 'delimiter': ',', 'header': 'Clientnaam,Synoniemen,Code'}
 
-        monkeypatch.setattr(csv_handler, 'detect_properties', mock_detect_properties)
+        monkeypatch.setattr(csv_handler, 'detect_csv_properties', mock_csv_properties)
 
         df = load_datakey(str(file))
 
@@ -221,11 +221,11 @@ class TestLoadDatakey:
             encoding='utf-8',
         )
 
-        # Mock detect_properties
-        def mock_detect_properties(_path: Path) -> dict[str, str]:
+        # Mock csv_properties
+        def mock_csv_properties(_path: Path) -> dict[str, str]:
             return {'encoding': 'utf-8', 'delimiter': ',', 'header': 'Clientnaam,Synoniemen,Code'}
 
-        monkeypatch.setattr(csv_handler, 'detect_properties', mock_detect_properties)
+        monkeypatch.setattr(csv_handler, 'detect_csv_properties', mock_csv_properties)
 
         df = load_datakey(str(file))
 
@@ -243,11 +243,11 @@ class TestLoadDatakey:
         file = tmp_path / 'datakey.csv'
         file.write_text('Clientnaam,Synoniemen,Code\nTest,test,C001\n', encoding='utf-8')
 
-        # Mock detect_properties in the file_handling module where it's imported
-        def mock_detect_properties(_path: Path) -> dict[str, str]:
+        # Mock csv_properties in the file_handling module where it's imported
+        def mock_csv_properties(_path: Path) -> dict[str, str]:
             return {'encoding': 'utf-16', 'delimiter': ',', 'header': 'Clientnaam,Synoniemen,Code'}
 
-        monkeypatch.setattr(file_handling, 'detect_properties', mock_detect_properties)
+        monkeypatch.setattr(file_handling, 'detect_csv_properties', mock_csv_properties)
 
         with caplog.at_level(logging.WARNING):
             df = load_datakey(str(file))
@@ -263,7 +263,7 @@ class TestSaveDatakey:
     """Tests for save_datakey function."""
 
     def test_saves_with_dutch_columns(self, tmp_path: Path) -> None:
-        """Datakey is saved with Dutch column names and comma separator."""
+        """Datakey is saved with Dutch column names and comma delimiter."""
         df = pl.DataFrame({'clientname': ['Jan'], 'synonyms': ['J'], 'code': ['C001']})
 
         save_datakey(df, 'test.csv', str(tmp_path))

@@ -16,7 +16,7 @@ import pytest
 from core.utils.csv_handler import (
     _detect_delimiter,
     _detect_encoding,
-    detect_properties,
+    detect_csv_properties,
     normalize_csv,
     sanitize_csv,
     strip_bom,
@@ -116,7 +116,7 @@ class TestDetectDelimiter:
             ('name\tage\tcity\nJohn\t30\tAmsterdam', '\t'),
             ('name|age|city\nJohn|30|Amsterdam', '|'),
             ('', ','),  # Empty returns default
-            ('just some text without separators', ','),  # No separator returns default
+            ('just some text without delimiters', ','),  # No delimiter returns default
             ('a;b;c;d\n1;2;3;4', ';'),
             ('a]b]c;d;e;f', ';'),  # Sniffer fallback
         ],
@@ -141,7 +141,7 @@ class TestDetectDelimiter:
 
 
 class TestDetectProperties:
-    """Integration tests for detect_properties function."""
+    """Integration tests for detect_csv_properties function."""
 
     @pytest.mark.parametrize(
         ('content', 'expected_sep'),
@@ -152,12 +152,12 @@ class TestDetectProperties:
             ('name|age|city\nJohn|30|Amsterdam', '|'),
         ],
     )
-    def test_separator_detection(self, tmp_path: Path, content: str, expected_sep: str) -> None:
-        """Different separators are correctly detected."""
+    def test_delimiter_detection(self, tmp_path: Path, content: str, expected_sep: str) -> None:
+        """Different delimiters are correctly detected."""
         file = tmp_path / 'test.csv'
         file.write_text(content, encoding='utf-8')
 
-        properties = detect_properties(file)
+        properties = detect_csv_properties(file)
 
         assert properties['encoding'] == 'utf-8'
         assert properties['delimiter'] == expected_sep
@@ -168,7 +168,7 @@ class TestDetectProperties:
         file = tmp_path / 'test.csv'
         file.write_bytes(b'\xef\xbb\xbfname,age\nJohn,30')
 
-        properties = detect_properties(file)
+        properties = detect_csv_properties(file)
 
         assert properties['encoding'] == 'utf-8'
         assert properties['delimiter'] == ','
@@ -179,7 +179,7 @@ class TestDetectProperties:
         file = tmp_path / 'test.csv'
         file.write_bytes(b'naam;stad\nCaf\xe9;Br\xfcssel')
 
-        properties = detect_properties(file)
+        properties = detect_csv_properties(file)
 
         latin_encodings = ('cp1250', 'cp1252', 'windows-1252', 'iso-8859-1', 'iso-8859-2', 'latin-1')
         assert properties['encoding'] in latin_encodings or properties['encoding'].startswith('iso-8859')
