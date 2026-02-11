@@ -91,6 +91,7 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
 
     if error_path.exists():
         relative_path = error_path.relative_to(Path(settings.MEDIA_ROOT))
+        job.error_rows_file.name = str(relative_path)
         files_to_zip.append(str(error_path))
 
     return files_to_zip, output_filename

@@ -88,7 +88,8 @@ def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> Non
 
     if error_count > 0:
         try:
-            parent = file_path.parent.relative_to('data/input')
+            input_base = Path(output_folder).parent / 'input'
+            parent = file_path.parent.relative_to(input_base)
             target_dir = Path(output_folder) / parent
         except ValueError:
             target_dir = Path(output_folder)
@@ -96,7 +97,7 @@ def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> Non
         target_dir.mkdir(parents=True, exist_ok=True)
         error_csv = target_dir / f'{file_path.stem}_errors.csv'
         shutil.move(error_temp, error_csv)
-        logger.warning('Found %d encoding errors, written to: %s', error_count, error_csv)
+        logger.warning('%d errors in rows found.', error_count)
     else:
         error_file.unlink()
         logger.info('No errors in rows found.')
@@ -183,6 +184,6 @@ def normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
                 empty_rows += 1
 
         if empty_rows > 0:
-            logger.warning('Found %d empty rows.', empty_rows)
+            logger.warning('Found %d empty rows.\n', empty_rows)
 
     return csv_temp.name
