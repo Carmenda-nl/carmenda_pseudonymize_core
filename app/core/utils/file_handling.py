@@ -85,7 +85,7 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
         filepath = target_dir / f'{stem}_deidentified{input_extension}'
         if input_extension.lower() == '.csv':
             df.write_csv(str(filepath))
-        elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
+        elif input_extension.lower() in ('.xls', '.xlsx'):
             df.write_excel(str(filepath))
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)

@@ -62,9 +62,11 @@ def match_output_cols(input_cols: str) -> str:
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
     """Collect paths of all `the output files that need to be zipped."""
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
-    base_name = Path(input_file).stem
+    input_path = Path(input_file)
+    base_name = input_path.stem
+    input_extension = input_path.suffix
 
-    output_filename = f'{base_name}_deidentified.csv'
+    output_filename = f'{base_name}_deidentified{input_extension}'
     output_path = job_output_dir / output_filename
     datakey_filename = Path(job.datakey.name).name if job.datakey and job.datakey.name else 'datakey.csv'
     output_datakey_path = job_output_dir / datakey_filename
