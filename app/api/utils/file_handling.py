@@ -205,7 +205,7 @@ def get_metadata(represent: dict, instance: DeidentificationJob, fields: list[st
             if file_path.exists():
                 file = file_path.stat()
                 file_size = int(file.st_size)
-                file_creation = int(file.st_birthtime)
+                file_creation = int(getattr(file, 'st_birthtime', file.st_ctime))
 
                 if file_size >= 1 << 30:
                     filesize = f'{file_size / (1 << 30):.2f} Gb'
