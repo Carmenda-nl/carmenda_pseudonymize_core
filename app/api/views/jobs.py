@@ -117,6 +117,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         job.output_file = None
         job.output_datakey = None
         job.zip_preview = None
+        job.data_permission = False
         job.processed_preview = None
         job.status = 'pending'
         job.error_message = ''
