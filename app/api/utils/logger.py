@@ -13,12 +13,15 @@ from pathlib import Path
 from django.conf import settings
 
 
-def setup_job_logging(job_id: str) -> logging.FileHandler:
+def setup_job_logging(job_id: str, input_file: str) -> logging.FileHandler:
     """Create a per-job FileHandler to the 'deidentify' logger."""
     deidentify_logger = logging.getLogger('deidentify')
     job_log_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job_id)
     job_log_dir.mkdir(parents=True, exist_ok=True)
-    job_log_path = job_log_dir / 'deidentification.log'
+
+    base_name = Path(input_file).stem
+    log_filename = f'{base_name}.log'
+    job_log_path = job_log_dir / log_filename
 
     # Open in write mode to overwrite existing file for this job.
     job_handler = logging.FileHandler(str(job_log_path), mode='w', encoding='utf-8')

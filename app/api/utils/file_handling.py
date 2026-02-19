@@ -66,11 +66,11 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
     base_name = input_path.stem
     input_extension = input_path.suffix
 
-    output_filename = f'{base_name}_deidentified{input_extension}'
+    output_filename = f'{base_name}_pseudonymised{input_extension}'
     output_path = job_output_dir / output_filename
-    datakey_filename = Path(job.datakey.name).name if job.datakey and job.datakey.name else 'datakey.csv'
+    datakey_filename = Path(job.datakey.name).name if job.datakey and job.datakey.name else f'{base_name}_key.csv'
     output_datakey_path = job_output_dir / datakey_filename
-    log_path = job_output_dir / 'deidentification.log'
+    log_path = job_output_dir / f'{base_name}.log'
     error_path = job_output_dir / f'{base_name}_errors.csv'
 
     files_to_zip: list[str] = []

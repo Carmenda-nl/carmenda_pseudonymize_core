@@ -84,7 +84,7 @@ def _handle_job_error(job_id: str, error: Exception) -> None:
 def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: str, datakey: str) -> None:
     """Run processing in background thread."""
     current_job = DeidentificationJob.objects.get(pk=job_id)
-    job_handler = setup_job_logging(job_id)
+    job_handler = setup_job_logging(job_id, input_file)
 
     try:
         with job_control.run_job(job_id):
