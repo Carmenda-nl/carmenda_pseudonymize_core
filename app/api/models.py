@@ -44,7 +44,10 @@ class DeidentificationJob(models.Model):
     )
 
     job_id = models.UUIDField(default=uuid.uuid1, editable=False, primary_key=True)
-    input_cols = models.CharField(blank=True)
+    input_cols = models.CharField(
+        blank=True,
+        help_text="Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required.",
+    )
     input_file = models.FileField(upload_to=input_path, max_length=255)
     datakey = models.FileField(upload_to=input_path, null=True, blank=True, max_length=255)
     output_file = models.FileField(upload_to=output_path, null=True, blank=True, max_length=255)
