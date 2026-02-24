@@ -20,8 +20,8 @@ from api.utils.validators import validate_file, validate_file_columns, validate_
 from core.utils.progress_tracker import tracker
 
 
-class DeidentificationJobListSerializer(serializers.ModelSerializer):
-    """Listing jobs with basic status information."""
+class JobListSerializer(serializers.ModelSerializer):
+    """List deidentification jobs with basic status information."""
 
     details_url = serializers.SerializerMethodField()
     has_datakey = serializers.SerializerMethodField()
@@ -44,16 +44,23 @@ class DeidentificationJobListSerializer(serializers.ModelSerializer):
         return bool(obj.datakey)
 
 
-class DeidentificationJobSerializer(serializers.ModelSerializer):
-    """Validate job configuration parameters and handle deidentification job data."""
+class JobSerializer(serializers.ModelSerializer):
+    """Validate deidentification job config parameters and handle job data."""
+
+    input_cols = serializers.CharField(
+        required=False,
+        help_text="Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required.",
+    )
+    input_file = serializers.FileField(required=False)
+    datakey = serializers.FileField(required=False)
+    data_permission = serializers.BooleanField()
 
     class Meta:
         model = DeidentificationJob
         fields = '__all__'
         read_only_fields: ClassVar = [
-            'job_id',
-            'output_datakey',
             'output_file',
+            'output_datakey',
             'log_file',
             'error_rows_file',
             'zip_file',
@@ -65,14 +72,14 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         ]
 
     def validate_input_cols(self, value: str) -> str:
-        """Validate input_cols on proper format, skip when empty."""
+        """Validate input_cols on proper `key=value` format."""
         if not value:
             return value
 
         return validate_input_cols(value)
 
     def validate_input_file(self, value: UploadedFile) -> UploadedFile:
-        """Validate the uploaded file basic checks.
+        """Validate the uploaded file.
 
         Skip validation:
             if this is an existing file path (PUT)
@@ -84,7 +91,6 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         if 'input_file' not in self.initial_data:
             return value
 
-        # Validate file without input_cols check
         result = validate_file(value, input_cols=None)
 
         if not hasattr(self, '_file_metadata'):
@@ -153,7 +159,7 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         return attrs
 
     def to_representation(self, instance: DeidentificationJob) -> dict:
-        """Return the job including file metadata."""
+        """Return the job including files metadata, as size & built dates."""
         representation = super().to_representation(instance)
         fields = ['input_file', 'output_file', 'datakey', 'output_datakey', 'log_file', 'error_rows_file', 'zip_file']
 
