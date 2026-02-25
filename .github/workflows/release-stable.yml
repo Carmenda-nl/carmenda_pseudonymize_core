@@ -1,0 +1,147 @@
+# GitHub Actions workflow
+# This workflow promotes the latest beta release to a stable release.
+# It downloads the beta assets, renames them, and creates a new stable release.
+# Finally, it deletes the beta release and its tag.
+#
+# Triggered on:
+#   - PULL REQUEST from develop to main is approved & merged
+
+name: Promote Beta to Stable release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  promote-beta-to-stable:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'develop'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine beta tag to promote
+        id: determine_tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BETA_TAG=$(gh api repos/${{ github.repository }}/releases --jq '[.[] | select(.prerelease==true and (.tag_name | contains("-beta")))] | sort_by(.created_at) | last | .tag_name')
+
+          if [ -z "$BETA_TAG" ] || [ "$BETA_TAG" = "null" ]; then
+            echo "No beta release found - will create new stable release from develop"
+            echo "has_beta=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found latest beta: $BETA_TAG"
+            STABLE_TAG="${BETA_TAG%-beta}"
+            echo "has_beta=true" >> $GITHUB_OUTPUT
+            echo "beta_tag=$BETA_TAG" >> $GITHUB_OUTPUT
+            echo "stable_tag=$STABLE_TAG" >> $GITHUB_OUTPUT
+            echo "Will promote $BETA_TAG → $STABLE_TAG"
+          fi
+
+      - name: Determine version from latest release
+        if: steps.determine_tag.outputs.has_beta == 'false'
+        id: version_from_releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_STABLE=$(gh api repos/${{ github.repository }}/releases --jq '[.[] | select(.prerelease==false)] | sort_by(.created_at) | last | .tag_name')
+
+          if [ -z "$LATEST_STABLE" ] || [ "$LATEST_STABLE" = "null" ]; then
+            NEW_VERSION="v1.0.0"
+          else
+            echo "Latest stable release: $LATEST_STABLE"
+            IFS='.' read -r major minor patch <<< "$LATEST_STABLE"
+            NEW_VERSION="$major.$minor.$((patch + 1))"
+          fi
+
+          echo "stable_tag=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version will be: $NEW_VERSION"
+
+      - name: Download beta release assets
+        if: steps.determine_tag.outputs.has_beta == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p assets
+          cd assets
+          gh release download "${{ steps.determine_tag.outputs.beta_tag }}" -R ${{ github.repository }}
+
+          for file in *-beta.zip; do
+            if [ -f "$file" ]; then
+              newname="${file//-beta.zip/.zip}"
+              mv "$file" "$newname"
+              echo "Renamed: $file → $newname"
+            fi
+          done
+
+          ls -lh
+
+      - name: Get beta release notes
+        if: steps.determine_tag.outputs.has_beta == 'true'
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.determine_tag.outputs.beta_tag }} --jq '.body')
+          BODY="${BODY//${{ steps.determine_tag.outputs.beta_tag }}/${{ steps.determine_tag.outputs.stable_tag }}}"
+          {
+            echo "body<<EOFMARKER"
+            echo ""
+            echo "$BODY"
+            echo "EOFMARKER"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create stable release from beta
+        if: steps.determine_tag.outputs.has_beta == 'true'
+        id: create_stable_from_beta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd assets
+          gh release create "${{ steps.determine_tag.outputs.stable_tag }}" \
+            --title "Release ${{ steps.determine_tag.outputs.stable_tag }}" \
+            --notes "${{ steps.notes.outputs.body }}" \
+            --repo ${{ github.repository }} \
+            *.zip
+          echo "Created stable release from beta"
+          echo "success=true" >> $GITHUB_OUTPUT
+
+      - name: Create stable release from develop
+        if: steps.determine_tag.outputs.has_beta == 'false'
+        id: create_stable_from_develop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version_from_releases.outputs.stable_tag }}" \
+            --title "Release ${{ steps.version_from_releases.outputs.stable_tag }}" \
+            --generate-notes \
+            --target develop \
+            --repo ${{ github.repository }}
+          echo "Created stable release from develop"
+          echo "success=true" >> $GITHUB_OUTPUT
+
+      - name: Delete beta release and tag
+        if: steps.determine_tag.outputs.has_beta == 'true' && steps.create_stable_from_beta.outputs.success == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "${{ steps.determine_tag.outputs.beta_tag }}" -R ${{ github.repository }} --yes
+          echo "Deleted beta release"
+
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/${{ steps.determine_tag.outputs.beta_tag }}" || echo "Tag already deleted"
+          echo "Deleted beta tag"
+
+          echo "Promotion complete: ${{ steps.determine_tag.outputs.beta_tag }} → ${{ steps.determine_tag.outputs.stable_tag }}"
+
+      - name: Trigger frontend build
+        if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer ${{ secrets.FRONTEND_TRIGGER_TOKEN }}" \
+            https://api.github.com/repos/Carmenda-nl/carmenda_pseudonymize_frontend/dispatches \
+            -d '{"event_type":"backend-release"}'

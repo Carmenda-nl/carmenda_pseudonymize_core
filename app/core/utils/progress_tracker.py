@@ -21,6 +21,7 @@ from rich.progress import (
     MofNCompleteColumn,
     Progress,
     SpinnerColumn,
+    TaskID,
     TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
@@ -41,14 +42,14 @@ class ProgressTracker:
 
     def _default_state(self) -> None:
         """Set all state variables to default values."""
-        self.current_stage = None
-        self.current_step = None
-        self.start_time = None
+        self.current_stage: str | None = None
+        self.current_step: str | None = None
+        self.start_time: float | None = None
         self.total_rows = 0
         self.rows_processed = 0
         self.progress = 0
-        self.task_id = None
-        self.rich_progress = self._progress_bar()
+        self.task_id: TaskID | None = None
+        self.rich_progress: Progress | None = self._progress_bar()
 
     def _progress_bar(self) -> Progress:
         """Create a Rich progress bar with spinner."""
@@ -65,8 +66,15 @@ class ProgressTracker:
             disable_console = Console(file=io.StringIO(), force_terminal=False)
 
             return Progress(
-                spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining,
-                console=disable_console, disable=False,
+                spinner,
+                text,
+                bar,
+                task_progress,
+                mofn,
+                time_elapsed,
+                time_remaining,
+                console=disable_console,
+                disable=False,
             )
         return Progress(spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining)
 

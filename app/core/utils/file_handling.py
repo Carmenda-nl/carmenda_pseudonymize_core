@@ -7,24 +7,17 @@
 
 from __future__ import annotations
 
-import csv
 import os
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 import polars as pl
-from charset_normalizer import from_bytes
+
+from core.utils.csv_handler import detect_csv_properties, normalize_csv, sanitize_csv
 
 from .logger import setup_logging
 
 logger = setup_logging()
-
-
-def strip_bom(text: str) -> str:
-    """Remove BOM (Byte Order Mark) from the header if present in UTF-8 encoding."""
-    return text.removeprefix('\ufeff')
 
 
 def get_environment() -> tuple[str, str]:
@@ -35,7 +28,7 @@ def get_environment() -> tuple[str, str]:
         output_folder = '/app/data/output'
     elif getattr(sys, 'frozen', False):
         # PyInstaller environment
-        base_path = Path(sys._MEIPASS)
+        base_path = Path(getattr(sys, '_MEIPASS', '.'))
         input_folder = str(base_path / 'data' / 'input')
         output_folder = str(base_path / 'data' / 'output')
     else:
@@ -47,157 +40,31 @@ def get_environment() -> tuple[str, str]:
     return input_folder, output_folder
 
 
-def check_file(input_file: str) -> tuple[str, str, str]:
-    """Determine the encoding, line ending and separator."""
+def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
+    """Load datafile and return as a DataFrame."""
     file_path = Path(input_file)
-    filename = file_path.name
-
-    with file_path.open('rb') as rawdata:
-        data_sample = rawdata.read(10240)
-
-        try:
-            detection = from_bytes(data_sample)
-            best = detection.best()
-            encoding = best.encoding if best and getattr(best, 'encoding', None) else 'utf-8'
-        except (LookupError, ValueError, TypeError):
-            logger.debug('Encoding detection failed, using UTF-8')
-            encoding = 'utf-8'
-
-        # Detect line endings - Polars only supports single-byte eol_char
-        if b'\r\n' in data_sample:
-            line_ending = '\n'
-        elif b'\r' in data_sample:
-            line_ending = '\r'
-        elif b'\n' in data_sample:
-            line_ending = '\n'
-        else:
-            line_ending = '\n'
-
-        header = ''
-
-        try:
-            rawdata.seek(0)
-            header_bytes = rawdata.readline()
-            header = strip_bom(header_bytes.decode(encoding).strip())
-        except (UnicodeDecodeError, LookupError):
-            logger.warning('File cannot be decoded with encoding "%s"', encoding)
-
-    if not header:
-        logger.error('File is empty or has no header.')
-
-    candidates = [',', ';', '\t', '|']
-    scores = {sep: header.count(sep) for sep in candidates}
-    separator = max(scores, key=scores.get)
-
-    # Ensure we found at least one separator
-    if scores[separator] == 0:
-        logger.error('No valid separator found. Tried: %s', candidates)
-
-    logger.info('Checked %s: Encoding=%s, line endings=%r, separator=%r', filename, encoding, line_ending, separator)
-    return encoding, line_ending, separator
-
-
-def _replace_html(text: str, html_tags: str = 'encode') -> str:
-    """Replace HTML entities with placeholders or vice versa."""
-    replacements = {
-        '&quot;': '___QUOT___',
-        '&nbsp;': '___NBSP___',
-        '&#39;': '___APOS___',
-        '&euml;': '___EUML___',
-        '&lt;': '___LT___',
-        '&gt;': '___GT___',
-        '&amp;': '___AMP___',
-    }
-
-    if html_tags == 'encode':
-        for entity, placeholder in replacements.items():
-            text = text.replace(entity, placeholder)
-
-        text = text.replace('\n', '___NEWLINE___').replace('\r', '')
-    else:
-        for entity, placeholder in replacements.items():
-            text = text.replace(placeholder, entity)
-
-        text = text.replace('___NEWLINE___', '\n')
-    return text
-
-
-def _process_line(line: bytes, encoding: str, separator: str) -> tuple[bytes | None, str | None]:
-    """Process a single line: decode and re-encode to UTF-8."""
-    try:
-        decoded_line = line.decode(encoding)
-
-        # Execute if separator is semicolon and line contains HTML that could confuse parser,
-        if separator == ';' and ('&' in decoded_line):
-            decoded_line = _replace_html(decoded_line, html_tags='encode')
-
-        return decoded_line.encode('utf-8'), None
-    except (LookupError, UnicodeDecodeError):
-        return None, str(line)
-
-
-def load_data_file(input_file_path: str, output_folder: str) -> pl.DataFrame | None:
-    """Check data file, log and return as a Polars DataFrame."""
-    file_path = Path(input_file_path)
     if not file_path.is_file():
         return None
 
     input_extension = file_path.suffix
     file_size = file_path.stat().st_size
-    logger.info('%s file of size: %s', input_extension, file_size)
+    logger.info('%s file of size: %s bytes', input_extension, file_size)
 
-    encoding, line_ending, separator = check_file(input_file_path)
+    if input_extension.lower() == '.csv':
+        properties = detect_csv_properties(file_path)
+        sanitized_csv = sanitize_csv(file_path, properties, output_folder)
+        input_file = normalize_csv(Path(sanitized_csv), properties)
 
-    error_count = 0
-    with (
-        tempfile.NamedTemporaryFile('w+', encoding='utf-8', delete=False) as error_temp,
-        tempfile.NamedTemporaryFile('wb', delete=False) as utf8_temp,
-        file_path.open('r', encoding=encoding, newline='') as rawdata,
-    ):
-        reader = csv.reader(rawdata, delimiter=separator)
+        df = pl.read_csv(source=input_file, encoding='utf-8', separator=',')
 
-        for row in reader:
-            # Execute if separator is semicolon and row contains HTML that could confuse parser
-            if separator == ';':
-                processed_row = [
-                    _replace_html(field, html_tags='encode') if field and ('&' in field or '\n' in field) else field
-                    for field in row
-                ]
-            else:
-                processed_row = row
-
-            # Write to temp file as CSV line
-            line = separator.join(processed_row) + '\n'
-            utf8_temp.write(line.encode('utf-8'))
-
-    # Create a Polars DataFrame from the UTF-8 encoded temporary file
-    df = pl.read_csv(
-        source=utf8_temp.name,
-        separator=separator,
-        eol_char=line_ending,
-        quote_char=None,
-    )
-
-    # Restore HTML entities that were temporarily replaced
-    for col in df.columns:
-        # Only process string columns to avoid AttributeError on numeric types.
-        if df[col].dtype == pl.Utf8:
-            df = df.with_columns(
-                pl.col(col).map_elements(
-                    lambda text: _replace_html(text, html_tags='decode'),
-                    return_dtype=pl.Utf8,
-                ),
-            )
-
-    if error_count > 0:
-        parent = file_path.parent.relative_to('data/input')
-        target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
-        error_csv = target_dir / f'{file_path.stem}_errors.csv'
-        shutil.move(error_temp.name, error_csv)
-        logger.warning('Found %s rows with errors that are written to: %s\n', error_count, error_csv)
+        # Cleanup temp files
+        Path(sanitized_csv).unlink(missing_ok=True)
+        Path(input_file).unlink(missing_ok=True)
+    elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
+        df = pl.read_excel(source=input_file, raise_if_empty=False)
     else:
-        Path(error_temp.name).unlink()
-        logger.info('No errors in rows found.')
+        logger.error('Unsupported file type: %s', input_extension)
+        return None
 
     return df
 
@@ -213,23 +80,29 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
-        filepath = target_dir / f'{stem}_deidentified.csv'
 
-        df.write_csv(str(filepath))
+        input_extension = filepath.suffix
+        filepath = target_dir / f'{stem}_deidentified{input_extension}'
+        if input_extension.lower() == '.csv':
+            df.write_csv(str(filepath))
+        elif input_extension.lower() in ('.xls', '.xlsx'):
+            df.write_excel(str(filepath))
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)
 
 
-def load_datakey(datakey_path: str) -> pl.DataFrame:
+def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     """Grab valid names from file and return as a Polars DataFrame."""
-    encoding, line_ending, separator = check_file(datakey_path)
+    properties = detect_csv_properties(Path(datakey_path))
+    encoding, delimiter = properties['encoding'], properties['delimiter']
+
     accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')
 
     if encoding not in accepted_encodings:
         logger.warning('Datakey encoding not supported, provided: %s.', encoding)
         return None
 
-    df = pl.read_csv(datakey_path, encoding=encoding, eol_char=line_ending, separator=separator)
+    df = pl.read_csv(datakey_path, encoding=encoding, separator=delimiter, eol_char='\n')
     df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
 
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
@@ -240,7 +113,7 @@ def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datak
     filepath = Path(filename)
     parent = filepath.parent
 
-    output_filename = datakey_name if datakey_name else 'datakey.csv'
+    output_filename = datakey_name or 'datakey.csv'
 
     # If filename included a parent (like job_id), write into that subfolder under output.
     target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
@@ -249,7 +122,7 @@ def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datak
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
-        datakey.write_csv(file_path, separator=';')
+        datakey.write_csv(file_path, separator=',')
         logger.debug('Saving datakey: %s\n%s\n', output_filename, datakey)
     except OSError:
         logger.warning('Cannot write datakey to "%s".', file_path)

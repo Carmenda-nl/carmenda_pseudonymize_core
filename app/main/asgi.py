@@ -5,12 +5,18 @@
 
 """ASGI configuration for the Django project."""
 
+from __future__ import annotations
+
 import logging
 import os
+from typing import TYPE_CHECKING, cast
 
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
+
+if TYPE_CHECKING:
+    from channels.routing import _ExtendedURLPattern
 
 # Make asyncio and related loggers less noisy
 logging.getLogger('asyncio').setLevel(logging.WARNING)
@@ -22,14 +28,16 @@ logging.getLogger('daphne.ws_protocol').setLevel(logging.WARNING)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'main.settings')
 
-application = get_asgi_application()
+django_asgi = get_asgi_application()
 
 # Import routing after Django is initialized
-from api import routing  # noqa: E402
+from api.websocket import routing  # noqa: E402
 
-application = ProtocolTypeRouter(
+application: ProtocolTypeRouter = ProtocolTypeRouter(
     {
-        'http': application,
-        'websocket': AuthMiddlewareStack(URLRouter(routing.websocket_urlpatterns)),
+        'http': django_asgi,
+        'websocket': AuthMiddlewareStack(
+            URLRouter(cast('list[_ExtendedURLPattern | URLRouter]', routing.websocket_urlpatterns)),
+        ),
     },
 )

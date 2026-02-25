@@ -12,6 +12,20 @@ and pattern matching with case-insensitive support.
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING, Any, TypedDict
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from re import Pattern
+
+
+class WordPosition(TypedDict):
+    """Type for word position information."""
+
+    word: str
+    original: str
+    start: int
+    end: int
 
 
 class NameAnnotation:
@@ -41,7 +55,7 @@ class DutchNameDetector:
 
         # Pre-compile regex patterns for better performance
         self.interfix_pattern = self._interfix_patterns()
-        self._compiled_patterns = None  # Will be compiled lazily
+        self._compiled_patterns: list[tuple[Pattern[str], dict[str, Any]]] | None = None  # Will be compiled lazily
 
     def _prefix_before_surname(self, text: str, match_start: int) -> bool:
         """Check if there is a valid name prefix before a potential surname."""
@@ -96,7 +110,7 @@ class DutchNameDetector:
 
         return '(?:' + '|'.join(escaped_interfixes) + ')'
 
-    def _get_compiled_patterns(self, max_characters: int) -> list[tuple]:
+    def _get_compiled_patterns(self, max_characters: int) -> list[tuple[Pattern[str], dict[str, Any]]]:
         """Get compiled regex patterns (cached for performance)."""
         if self._compiled_patterns is None:
             patterns = self._regex_patterns(max_characters)
@@ -104,7 +118,7 @@ class DutchNameDetector:
 
         return self._compiled_patterns
 
-    def _regex_patterns(self, max_characters: int) -> list[dict]:
+    def _regex_patterns(self, max_characters: int) -> list[dict[str, Any]]:
         """Regex patterns validation logic for name detection."""
         return [
             {
@@ -199,7 +213,7 @@ class DutchNameDetector:
 
         return annotations
 
-    def _detect_multi_words(self, text: str, annotations: list, _overlapping: callable) -> None:
+    def _detect_multi_words(self, text: str, annotations: list, _overlapping: Callable[[int, int], bool]) -> None:
         """Detect multi-word name combinations (2+ words) and add them to annotations."""
         separators = [',', ';', '&', ' en ', ' EN ', ' of ', ' OF ', ' met ', ' MET ']
         max_characters = 3
@@ -222,15 +236,21 @@ class DutchNameDetector:
 
             self._words_segment(clean_segment, segment_start, annotations, _overlapping)
 
-    def _words_segment(self, segment: str, segment_start: int, annotations: list, _overlapping: callable) -> None:
+    def _words_segment(
+        self,
+        segment: str,
+        segment_start: int,
+        annotations: list,
+        _overlapping: Callable[[int, int], bool],
+    ) -> None:
         """Detect multi-word names within a single segment."""
-        word_positions = [
-            {
-                'word': match.group().lower(),
-                'original': match.group(),
-                'start': segment_start + match.start(),
-                'end': segment_start + match.end(),
-            }
+        word_positions: list[WordPosition] = [
+            WordPosition(
+                word=match.group().lower(),
+                original=match.group(),
+                start=segment_start + match.start(),
+                end=segment_start + match.end(),
+            )
             for match in re.finditer(r'\b[A-Za-zÀ-ÖØ-öø-ÿ]+\b', segment)
         ]
 

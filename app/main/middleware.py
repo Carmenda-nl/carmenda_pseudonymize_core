@@ -5,17 +5,28 @@
 
 """Middleware to serve media files in a Django application."""
 
+from __future__ import annotations
+
 import mimetypes
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.http import FileResponse, HttpResponseNotFound
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from django.http import FileResponse as FileResponseType
+    from django.http import HttpRequest, HttpResponse
+
+    _HttpResponse = HttpResponse | FileResponseType
 
 
 class ServeMediaFilesMiddleware:
     """Specifically designed for use with PyInstaller-bundled applications."""
 
-    def __init__(self, get_response: object) -> None:
+    def __init__(self, get_response: Callable[[HttpRequest], _HttpResponse]) -> None:
         """Initialize the ServeMediaFilesMiddleware."""
         self.get_response = get_response
 
@@ -26,7 +37,7 @@ class ServeMediaFilesMiddleware:
         if not settings.MEDIA_URL.endswith('/'):
             settings.MEDIA_URL = f'{settings.MEDIA_URL}/'
 
-    def __call__(self, request: object) -> object:
+    def __call__(self, request: HttpRequest) -> _HttpResponse:
         """Handle incoming requests and serve media files."""
         if request.path.startswith(settings.MEDIA_URL):
             relative_path = request.path[len(settings.MEDIA_URL) :]

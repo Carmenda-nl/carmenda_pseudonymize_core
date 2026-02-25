@@ -1,20 +1,49 @@
+[project]
+name = "Carmenda Privacytool - Backend API"
+dynamic = ["version"]
+
+[tool.setuptools_scm]
+root = ".."
+version_file = "api/_version.py"
+
 [tool.ruff]
 line-length = 120
-select = ['ALL']
 exclude = ['migrations']
+
+[tool.ruff.lint]
+select = ['ALL']
 ignore = [
     'ARG002', # (`request` & `pk` are mandatory for DRF)
     'D106',   # (Meta classes don't need a docstring)
     'DTZ005', # (Timezones are managed by django)
     'SLF001', # (MEIPASS use for PyInstaller)
+    'S101',   # (False positives when using with pytest)
     'S301',   # (pickle file loading)
+    'EXE001', # (Shebang in manage.py is OK without executable bit in Git)
+    'COM812', # (May cause conflicts when used with the formatter)
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = 'single'
 
 [tool.ruff.format]
 quote-style = 'single'
 
-[tool.ruff.flake8-quotes]
-inline-quotes = 'single'
+[tool.mypy]
+plugins = [
+    'mypy_django_plugin.main',
+    'mypy_drf_plugin.main',
+]
+
+[[tool.mypy.overrides]]
+module = 'environ'
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = 'main.settings'
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = 'main.settings'
@@ -22,6 +51,8 @@ python_files = ['tests.py', 'test_*.py', '*_tests.py']
 addopts = [
     '--cov=.',
     '--cov-report=term:skip-covered',
+    '--cov-report=html',
+    '--cov-report=xml',
     '--cov-fail-under=25',
     '-p',
     'no:warnings'

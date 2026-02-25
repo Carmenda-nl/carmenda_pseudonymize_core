@@ -27,4 +27,3 @@ def setup_job_logging(job_id: str) -> logging.FileHandler:
     deidentify_logger.addHandler(job_handler)
 
     return job_handler
-

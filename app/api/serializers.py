@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -16,9 +15,8 @@ if TYPE_CHECKING:
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
-from api.utils.file_handling import get_file_path, get_metadata
+from api.utils.file_handling import get_metadata
 from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
-from core.utils.file_handling import check_file
 from core.utils.progress_tracker import tracker
 
 
@@ -86,20 +84,21 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
         if 'input_file' not in self.initial_data:
             return value
 
-        # Validate file without input_cols check.
-        validated_file, encoding, line_ending, separator = validate_file(value, input_cols=None)
+        # Validate file without input_cols check
+        result = validate_file(value, input_cols=None)
 
         if not hasattr(self, '_file_metadata'):
             self._file_metadata = {}
 
-        self._file_metadata['input_file'] = {
-            'encoding': encoding,
-            'line_ending': line_ending,
-            'separator': separator,
-            'uploaded_file': value,
-        }
+        metadata: dict = {'uploaded_file': value, 'file_type': result['file_type']}
+        if result.get('encoding'):
+            metadata['encoding'] = result['encoding']
+        if result.get('delimiter'):
+            metadata['delimiter'] = result['delimiter']
 
-        return validated_file
+        self._file_metadata['input_file'] = metadata
+
+        return result['file']
 
     def validate_datakey(self, value: UploadedFile) -> UploadedFile | None:
         """Validate the datakey if provided and valid.
@@ -120,17 +119,20 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
             return value
 
         if value:
-            validated_file, encoding, line_ending, separator = validate_file(value, datakey='datakey')
+            result = validate_file(value, datakey='datakey')
 
             if not hasattr(self, '_file_metadata'):
                 self._file_metadata = {}
-            self._file_metadata['datakey'] = {
-                'encoding': encoding,
-                'line_ending': line_ending,
-                'separator': separator,
-            }
 
-            return validated_file
+            metadata: dict = {'file_type': result['file_type']}
+            if result.get('encoding'):
+                metadata['encoding'] = result['encoding']
+            if result.get('delimiter'):
+                metadata['delimiter'] = result['delimiter']
+
+            self._file_metadata['datakey'] = metadata
+
+            return result['file']
         return None
 
     def validate(self, attrs: dict) -> dict:
@@ -143,23 +145,10 @@ class DeidentificationJobSerializer(serializers.ModelSerializer):
 
         if input_cols and input_file and not isinstance(input_file, str):
             metadata = getattr(self, '_file_metadata', {}).get('input_file', {})
-            uploaded_file = metadata.get('uploaded_file')
-            encoding = metadata.get('encoding')
-            separator = metadata.get('separator')
-
-            if uploaded_file and encoding and separator:
-                file_path, is_temp = get_file_path(uploaded_file)
-
-                try:
-                    validate_file_columns(file_path, encoding, separator, input_cols)
-                finally:
-                    if is_temp and file_path:
-                        Path(file_path).unlink(missing_ok=True)
+            validate_file_columns(input_cols, metadata.get('uploaded_file'))
 
         elif input_cols and self.instance and self.instance.input_file:
-            file_path = self.instance.input_file.path
-            encoding, _line_ending, separator = check_file(file_path)
-            validate_file_columns(file_path, encoding, separator, input_cols)
+            validate_file_columns(input_cols, self.instance.input_file.path)
 
         return attrs
 
@@ -186,9 +175,10 @@ class JobStatusSerializer(serializers.ModelSerializer):
         """Get the combined status and stage information."""
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
+            stage = progress_info['stage']
 
-            if progress_info['stage']:
-                return progress_info['stage']
+            if stage:
+                return str(stage)
 
         return obj.status
 
@@ -196,6 +186,9 @@ class JobStatusSerializer(serializers.ModelSerializer):
         """Get the current progress percentage from the tracker."""
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
-            return progress_info['percentage']
+            percentage = progress_info['percentage']
+            if percentage is None:
+                return 0
+            return int(percentage) if isinstance(percentage, str) else percentage
 
         return 100 if obj.status == 'completed' else 0

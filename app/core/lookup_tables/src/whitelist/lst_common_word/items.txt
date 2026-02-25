@@ -623,6 +623,7 @@ maanden
 maar
 maart
 maat
+mac
 machine
 maken
 makkelijk

@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import deduce
 import site
 import os
 import sys
@@ -38,32 +39,50 @@ datas += collect_data_files('daphne')
 datas += collect_data_files('autobahn')
 datas += collect_data_files('twisted')
 
-# Add the app directory and its contents
-datas.append((app_path, 'app'))
+# Add the app directory selectively
+excluded_items = {
+    '.mypy_cache',
+    '.venv',
+    '.vscode',
+    '__pycache__',
+    'tests',
+    'requirements.txt',
+    'requirements-dev.txt',
+    'core.py', 
+    'pyproject.toml'
+}
+
+for root, dirs, files in os.walk(app_path):
+    dirs[:] = [dir for dir in dirs if dir not in excluded_items and not dir.startswith('.')]
+    
+    for file in files:
+        if file not in excluded_items and (file == '.env' or not file.startswith('.')):
+            source_path = os.path.join(root, file)
+            rel_path = os.path.relpath(root, app_path)
+
+            if rel_path == '.':
+                dest_path = 'app'
+            else:
+                dest_path = os.path.join('app', rel_path)
+
+            datas.append((source_path, dest_path))
 
 # Filter out files and folders not needed for production
 datas = [(source, dest) for source, dest in datas if not (
-    isinstance(source, str) and (
-        source.endswith('requirements-dev.txt') or 
-        source.endswith('requirements.txt') or
-        '.vscode' in source or
-        '__pycache__' in source
-    )
+    isinstance(source, str) and ('__pycache__' in source or '.pyc' in source)
 )]
 
 # Bundle the lookup tables in the application
 lookup_tables_path = os.path.join(app_path, 'core', 'lookup_tables')
 if os.path.exists(lookup_tables_path):
     datas.append((lookup_tables_path, 'lookup_tables'))
-    pickle_file = os.path.join(lookup_tables_path, 'cache', 'lookup_structs.pickle')
+    cache_path = lookup_tables_path
+    pickle_file = os.path.join(cache_path, 'cache', 'lookup_structs.pickle')
 
     if os.path.exists(pickle_file):
         datas.append((pickle_file, os.path.join('lookup_tables', 'cache')))
-
-# Add the .env file if available
-env_file = os.path.join(app_path, '.env')
-if os.path.exists(env_file):
-    datas.append((env_file, '.'))
+    else:
+        deduce_instance = deduce.Deduce(lookup_data_path=lookup_tables_path, cache_path=cache_path)
 
 rest_framework_imports = collect_submodules('rest_framework') 
 drf_spectacular_imports = collect_submodules('drf_spectacular')
@@ -104,11 +123,11 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'pytest', 'unittest', 'test', 'tests', 
+        'pytest', 'test', 'tests', 
         'hypothesis',
         'IPython', 'jupyter', 'notebook',
         'tkinter', 'Tkinter',
-        'pdb', 'pydoc',
+        'pdb',
         'matplotlib', 'pylab',
     ],
     noarchive=False,
@@ -121,6 +140,7 @@ exe = EXE(
     pyz,
     a.scripts,
     [],
+    exclude_binaries=True,
     name='backend',
     debug=False,
     bootloader_ignore_signals=False,

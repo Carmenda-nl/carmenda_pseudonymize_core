@@ -3,6 +3,23 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-02-11
+
+### Added
+
+- Uploading basic excel files
+
+### Changed
+
+- Upgrade used py packages
+- CSV file handling
+
+### Fixed
+
+- Faulty CSV file rows are not collected in a seperate file
+- build.spec creates double cache folder
+- Solved all type errors with mypy
+
 ## [1.2.10] - 2026-01-06
 
 ### Changed

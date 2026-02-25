@@ -1,0 +1,100 @@
+# GitHub Actions workflow
+# This workflow builds a pre-release when a new beta tag is pushed.
+# The build artifact is uploaded to the created beta release.
+# Windows based build is currently supported.
+#
+# Triggered on:
+#   - PUSH of tags matching v*-beta
+
+name: Beta release
+
+on:
+  push:
+    tags:
+      - "v*-beta"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-beta-windows:
+    runs-on: windows-latest
+    outputs:
+      tag: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Create .env file for build
+        run: |
+          @"
+          DJANGO_RUNSERVER_HIDE_WARNING=true
+          DEBUG=False
+          LOG_LEVEL=INFO
+          SECRET_KEY=${{ github.sha }}
+          CSRF_TRUSTED_ORIGINS=http://127.0.0.1
+          JOB_LOG_ONLY=True
+          "@ | Out-File -FilePath "app\.env" -Encoding utf8
+        shell: pwsh
+
+      - name: Build windows executable
+        uses: sayyid5416/pyinstaller@v1.8.0
+        with:
+          python_ver: "3.13"
+          spec: "build.spec"
+          requirements: "app/requirements.txt"
+          upload_exe_with_name: "backend-windows"
+
+  create-beta-release:
+    needs: build-beta-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v7.0.0
+        with:
+          name: backend-windows
+
+      - name: Create zip archive
+        run: |
+          cd backend
+          zip -r ../Privacytool_backend_win_${{ github.ref_name }}.zip *
+          cd ..
+          ls -lh *.zip
+
+      - name: Get release notes
+        id: release_notes
+        run: |
+          DRAFT_BODY="**Tag:** ${{ github.ref_name }}
+          **Commit:** ${{ github.sha }}"
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$DRAFT_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create beta release
+        uses: softprops/action-gh-release@v2.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Beta release ${{ github.ref_name }}"
+          body: ${{ steps.release_notes.outputs.body }}
+          prerelease: true
+          draft: false
+          fail_on_unmatched_files: false
+          generate_release_notes: false
+          files: "*.zip"
+
+      - name: Trigger frontend build
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer ${{ secrets.FRONTEND_TRIGGER_TOKEN }}" \
+            https://api.github.com/repos/Carmenda-nl/carmenda_pseudonymize_frontend/dispatches \
+            -d '{"event_type":"backend-release"}'

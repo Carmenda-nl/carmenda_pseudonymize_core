@@ -3,32 +3,25 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API views for deidentification jobs logic."""
+"""ViewSet for managing deidentification jobs."""
 
 from __future__ import annotations
 
 import gc
-import json
-import logging
 import shutil
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.conf import settings
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.reverse import reverse
-from rest_framework.views import APIView
 
 from api.models import DeidentificationJob
 from api.schemas import (
-    API_ROOT_SCHEMA,
     CANCEL_JOB_GET_SCHEMA,
     CANCEL_JOB_POST_SCHEMA,
     CREATE_JOB_SCHEMA,
@@ -40,11 +33,11 @@ from api.serializers import (
     DeidentificationJobSerializer,
     JobStatusSerializer,
 )
-from api.utils.file_handling import collect_output_files, create_zipfile, generate_input_preview, match_output_cols
-from api.utils.logger import setup_job_logging
-from core.processor import process_data
+from api.utils.file_handling import generate_preview, match_output_cols
+from api.views.processing import run_processing, send_job_progress
+from api.views.root import ApiTags
 from core.utils.logger import setup_logging
-from core.utils.progress_control import JobCancelledError, job_control
+from core.utils.progress_control import job_control
 from core.utils.progress_tracker import tracker
 
 if TYPE_CHECKING:
@@ -54,163 +47,6 @@ if TYPE_CHECKING:
 logger = setup_logging()
 
 
-class ApiTags:
-    """API tag constants for Swagger/OpenAPI documentation grouping.
-
-    These tags are used to categorize endpoints in the API documentation
-    for better organization and discoverability.
-    """
-
-    API = 'API'
-    JOBS = 'Jobs'
-    PROCESSING = 'Processing'
-    CANCEL = 'Cancel'
-
-
-@extend_schema(tags=[ApiTags.API])
-@API_ROOT_SCHEMA
-class APIRootView(APIView):
-    """Custom API root view that includes documentation links."""
-
-    def get(self, request: Request, fmt: str | None = None) -> Response:
-        """Return links to all available endpoints."""
-        data = {
-            'v1/jobs': reverse('jobs-list', request=request, format=fmt),
-        }
-        if settings.DEBUG:
-            data['v1/docs'] = reverse('swagger-ui', request=request, format=fmt)
-            data['v1/schema'] = reverse('schema', request=request, format=fmt)
-
-        return Response(data)
-
-
-def _send_job_progress(job_id: str, percentage: int, stage: str, job_status: str = 'processing') -> None:
-    """Send job progress update via WebSocket."""
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f'job_progress_{job_id}',
-        {
-            'type': 'job_progress',
-            'percentage': percentage,
-            'stage': stage,
-            'status': job_status,
-        },
-    )
-
-
-def _handle_job_completion(
-    job_id: str,
-    current_job: DeidentificationJob,
-    processor_pipeline: str | None,
-    input_file: str,
-) -> None:
-    """Handle job completion: save preview, create zip, and send completion update."""
-    if processor_pipeline:
-        processed_data = json.loads(processor_pipeline)
-        current_job.processed_preview = processed_data
-        current_job.save()
-
-    files_to_zip, output_filename = collect_output_files(current_job, input_file)
-    create_zipfile(current_job, files_to_zip, output_filename)
-
-    current_job.status = 'completed'
-    current_job.save()
-
-    _send_job_progress(job_id, 100, 'Completed', 'completed')
-
-
-def _handle_job_cancellation(job_id: str) -> None:
-    """Handle job cancellation: update database and send cancellation update."""
-    logger.info('Job "%s" Cancelled by user', job_id)
-    cancelled_job = DeidentificationJob.objects.get(pk=job_id)
-    cancelled_job.error_message = 'Job cancelled by user'
-    cancelled_job.status = 'cancelled'
-    cancelled_job.save()
-
-    progress_percentage = tracker.get_progress().get('percentage', 0)
-    _send_job_progress(job_id, progress_percentage, 'Cancelled', 'cancelled')
-
-
-def _handle_job_error(job_id: str, error: Exception) -> None:
-    """Handle job processing error: update database and send error update."""
-    logger.exception('Job "%s" Processing failed', job_id)
-    error_job = DeidentificationJob.objects.get(pk=job_id)
-    error_job.error_message = f'Job error: {error}'
-    error_job.status = 'failed'
-    error_job.save()
-
-    _send_job_progress(job_id, 0, f'Error: {error}', 'failed')
-
-
-def run_processing(job_id: str, input_file: str, input_cols: dict, output_cols: dict, datakey: str | None) -> None:
-    """Run processing in background thread."""
-    current_job = DeidentificationJob.objects.get(pk=job_id)
-    job_handler = setup_job_logging(job_id)
-
-    try:
-        with job_control.run_job(job_id):
-            tracker.reset()
-
-            # Set up progress monitoring
-            stop_monitoring = threading.Event()
-            completion_percentage = 100
-
-            def monitor_progress() -> None:
-                """Monitor tracker progress and send updates via WebSocket."""
-                last_percentage = -1
-                while not stop_monitoring.is_set():
-                    progress_info = tracker.get_progress()
-                    current_percentage = progress_info['percentage']
-                    current_stage = progress_info['stage'] or 'Processing'
-
-                    if abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage:
-                        _send_job_progress(job_id, current_percentage, current_stage)
-                        last_percentage = current_percentage
-
-                    stop_monitoring.wait(0.1)
-
-            # Start progress monitoring in separate thread
-            monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
-            monitor_thread.start()
-
-            processor_pipeline = process_data(
-                input_file=input_file,
-                input_cols=input_cols,
-                output_cols=output_cols,
-                datakey=datakey,
-            )
-
-            stop_monitoring.set()
-            monitor_thread.join(timeout=1.0)
-
-            _handle_job_completion(job_id, current_job, processor_pipeline, input_file)
-
-    except JobCancelledError:
-        _handle_job_cancellation(job_id)
-
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
-        _handle_job_error(job_id, error)
-    finally:
-        deidentify_logger = logging.getLogger('deidentify')
-        deidentify_logger.removeHandler(job_handler)
-        job_handler.close()
-
-        # Stop and join the monitor thread if it exists
-        try:
-            if 'stop_monitoring' in locals():
-                stop_monitoring.set()
-            if 'monitor_thread' in locals():
-                monitor_thread.join(timeout=1.0)
-        except (AttributeError, RuntimeError) as error:
-            logger.debug('Failed to stop monitor thread for %s: %s', job_id, error)
-
-        try:
-            # Ensure the progress bar is finalized to avoid leftover UI/console output
-            tracker.finalize_progress(complete='no')
-        except (AttributeError, RuntimeError) as error:
-            logger.debug('Failed to finalize progress for %s: %s', job_id, error)
-
-
 @extend_schema(tags=[ApiTags.JOBS])
 @extend_schema_view(process=extend_schema(tags=[ApiTags.PROCESSING]))
 class DeidentificationJobViewSet(viewsets.ModelViewSet):
@@ -218,16 +54,15 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
     queryset = DeidentificationJob.objects.all()
     serializer_class = DeidentificationJobSerializer
-    http_method_names: ClassVar = ['get', 'post', 'put', 'delete']
+    http_method_names = ('get', 'post', 'put', 'delete')
 
     def _clean_file(self, file_field: object, job_id: str, file_type: str) -> None:
         """Delete old file from storage if it exists."""
-        if not file_field:
+        if not file_field or not hasattr(file_field, 'path'):
             return
 
         try:
             old_file_path = Path(file_field.path)
-
             if old_file_path.exists():
                 old_file_path.unlink()
         except (OSError, ValueError, PermissionError) as error:
@@ -257,12 +92,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     def _generate_preview(self, job: DeidentificationJob, serializer: object) -> None:
         """Generate input preview using cached metadata from serializer validation."""
         metadata = getattr(serializer, '_file_metadata', {}).get('input_file', {})
-        generate_input_preview(
-            job,
-            encoding=metadata.get('encoding'),
-            line_ending=metadata.get('line_ending'),
-            separator=metadata.get('separator'),
-        )
+        generate_preview(job, metadata)
 
     def _reset_output(self, job: DeidentificationJob, request: HttpRequest) -> None:
         """Reset output files and related fields when inputs change."""
@@ -293,7 +123,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         job.save()
 
-    def _prepare_data(self, request: HttpRequest, job: DeidentificationJob) -> dict:
+    def _prepare_data(self, request: Request, job: DeidentificationJob) -> dict:
         """Prepare data for update, handling file fields and input_cols reset."""
         data = request.data.copy()
 
@@ -317,7 +147,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         return data
 
-    def update(self, request: HttpRequest, *args: object, **kwargs: object) -> Response:
+    def update(self, request: Request, *args: object, **kwargs: object) -> Response:
         """Update a job with PUT request, deleting old files before adding new ones."""
         job = self.get_object()
         data = self._prepare_data(request, job)
@@ -348,7 +178,9 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def get_serializer_class(self) -> DeidentificationJobSerializer:
+    def get_serializer_class(
+        self,
+    ) -> type[DeidentificationJobSerializer | DeidentificationJobListSerializer | JobStatusSerializer]:
         """Return the appropriate serializer based on the action."""
         if self.action == 'list':
             return DeidentificationJobListSerializer
@@ -370,15 +202,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 instance.save()
 
                 # Send WebSocket notification
-                channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(
-                    f'job_progress_{instance.job_id}',
-                    {
-                        'type': 'job_progress',
-                        'percentage': tracker.get_progress().get('percentage', 0),
-                        'stage': 'Cancelled (deletion)',
-                        'status': 'cancelled',
-                    },
+                pct = tracker.get_progress().get('percentage')
+                send_job_progress(
+                    str(instance.job_id),
+                    pct if isinstance(pct, int) else 0,
+                    'Cancelled (deletion)',
+                    'cancelled',
                 )
 
                 # Give the process a moment to handle cancellation
@@ -412,7 +241,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         super().perform_destroy(instance)
 
     @CREATE_JOB_SCHEMA
-    def create(self, request: HttpRequest, *_args: object, **_kwargs: object) -> Response:
+    def create(self, request: Request, *_args: object, **_kwargs: object) -> Response:
         """Prepare a new job with an uploaded file and column mapping configuration."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -539,15 +368,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.error_message = 'Cancellation requested'
             job.save()
 
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f'job_progress_{job.job_id}',
-                {
-                    'type': 'job_progress',
-                    'percentage': tracker.get_progress().get('percentage', 0),
-                    'stage': 'Cancelling',
-                    'status': 'cancelling',
-                },
+            pct = tracker.get_progress().get('percentage')
+            send_job_progress(
+                str(job.job_id),
+                pct if isinstance(pct, int) else 0,
+                'Cancelling',
+                'cancelling',
             )
 
             return Response(
