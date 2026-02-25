@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import gc
+from django.db.models.fields.files import FieldFile
 import shutil
 import threading
 import time
@@ -29,11 +30,11 @@ from api.schemas import (
     PROCESS_JOB_POST_SCHEMA,
 )
 from api.serializers import (
-    DeidentificationJobListSerializer,
-    DeidentificationJobSerializer,
+    JobListSerializer,
+    JobSerializer,
     JobStatusSerializer,
 )
-from api.utils.file_handling import generate_preview, match_output_cols
+from api.utils.file_handling import generate_consent, generate_preview, match_output_cols
 from api.views.processing import run_processing, send_job_progress
 from api.views.root import ApiTags
 from core.utils.logger import setup_logging
@@ -53,141 +54,145 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     """ViewSet for managing deidentification jobs."""
 
     queryset = DeidentificationJob.objects.all()
-    serializer_class = DeidentificationJobSerializer
+    serializer_class = JobSerializer
     http_method_names = ('get', 'post', 'put', 'delete')
 
-    def _clean_file(self, file_field: object, job_id: str, file_type: str) -> None:
-        """Delete old file from storage if it exists."""
-        if not file_field or not hasattr(file_field, 'path'):
-            return
+    def get_serializer_class(self) -> type[JobSerializer | JobListSerializer | JobStatusSerializer]:
+        """Return a serializer based on the current action."""
+        if self.action == 'list':
+            return JobListSerializer
+        if self.action in ['process', 'cancel']:
+            return JobStatusSerializer
+        return JobSerializer
 
+    def _delete_file(self, file_field: FieldFile) -> None:
+        """Delete a file from disk if it exists."""
         try:
-            old_file_path = Path(file_field.path)
-            if old_file_path.exists():
-                old_file_path.unlink()
-        except (OSError, ValueError, PermissionError) as error:
-            logger.warning('Failed to delete old %s file for job %s: %s', file_type, job_id, error)
+            Path(file_field.path).unlink(missing_ok=True)
+        except (OSError, ValueError, PermissionError):
+            logger.warning('Failed to delete file: %s', file_field)
 
-    def _clean_input_files(self, job: DeidentificationJob, request: HttpRequest) -> None:
-        """Clean old input files when new ones are uploaded."""
-        if 'input_file' in request.FILES:
-            self._clean_file(job.input_file, str(job.job_id), 'input')
+    # def _clean_input_files(self, job: DeidentificationJob, request: HttpRequest) -> None:
+    #     """Clean old input files when new ones are uploaded."""
+    #     if 'input_file' in request.FILES:
+    #         self._clean_file(job.input_file, str(job.job_id), 'input')
 
-            # Clean output files
-            if job.zip_file:
-                job.zip_file.delete(save=False)
-            if job.log_file:
-                job.log_file.delete(save=False)
-            if job.error_rows_file:
-                job.error_rows_file.delete(save=False)
-            if job.output_file:
-                job.output_file.delete(save=False)
+    #         # Clean output files
+    #         if job.zip_file:
+    #             job.zip_file.delete(save=False)
+    #         if job.log_file:
+    #             job.log_file.delete(save=False)
+    #         if job.error_rows_file:
+    #             job.error_rows_file.delete(save=False)
+    #         if job.output_file:
+    #             job.output_file.delete(save=False)
 
-            if 'datakey' not in request.FILES and job.datakey:
-                job.datakey.delete(save=False)
+    #         if 'datakey' not in request.FILES and job.datakey:
+    #             job.datakey.delete(save=False)
 
-        if 'datakey' in request.FILES:
-            self._clean_file(job.datakey, str(job.job_id), 'datakey')
+    #     if 'datakey' in request.FILES:
+    #         self._clean_file(job.datakey, str(job.job_id), 'datakey')
 
-    def _generate_preview(self, job: DeidentificationJob, serializer: object) -> None:
-        """Generate input preview using cached metadata from serializer validation."""
-        metadata = getattr(serializer, '_file_metadata', {}).get('input_file', {})
-        generate_preview(job, metadata)
 
-    def _reset_output(self, job: DeidentificationJob, request: HttpRequest) -> None:
-        """Reset output files and related fields when inputs change."""
-        job.refresh_from_db()
 
-        # Delete existing output files
-        if job.zip_file:
-            job.zip_file.delete(save=False)
-        if job.log_file:
-            job.log_file.delete(save=False)
-        if job.error_rows_file:
-            job.error_rows_file.delete(save=False)
-        if job.output_file:
-            job.output_file.delete(save=False)
-        if job.output_datakey:
-            job.output_datakey.delete(save=False)
-
-        # Reset fields
-        job.zip_file = None
-        job.log_file = None
-        job.error_rows_file = None
-        job.output_file = None
-        job.output_datakey = None
-        job.zip_preview = None
-        job.data_permission = False
-        job.processed_preview = None
-        job.status = 'pending'
-        job.error_message = ''
-
-        job.save()
-
-    def _prepare_data(self, request: Request, job: DeidentificationJob) -> dict:
-        """Prepare data for update, handling file fields and input_cols reset."""
-        data = request.data.copy()
-
-        if 'input_file' in request.FILES:
-            # Reset input_cols if input_file is being replaced
-            input_cols_in_request = data.get('input_cols')
-            if input_cols_in_request is None or input_cols_in_request == job.input_cols:
-                data['input_cols'] = ''
-
-            data['processed_preview'] = None
-            data['status'] = 'pending'
-        else:
-            data.pop('input_file', None)
-
-        if 'datakey' in request.FILES:
-            pass
-        elif isinstance(request.data.get('datakey'), str) and request.data.get('datakey'):
-            data.pop('datakey', None)
-        else:
-            data.pop('datakey', None)
-
-        return data
 
     def update(self, request: Request, *args: object, **kwargs: object) -> Response:
         """Update a job with PUT request, deleting old files before adding new ones."""
         job = self.get_object()
-        data = self._prepare_data(request, job)
+        data = request.POST.copy()
+        data.update(request.FILES)
 
-        # Query parameter ?remove_datakey=true
-        remove_datakey = request.query_params.get('remove_datakey', '').lower() == 'true'
+        if 'input_file' in request.FILES:
+            new_columns = request.data.get('input_cols')
+            job.status = 'pending'
 
-        if remove_datakey and job.datakey:
-            self._clean_file(job.datakey, str(job.job_id), 'datakey')
-            job.datakey = None
-            job.save()
+            if not new_columns or new_columns == job.input_cols:
+                job.input_cols = ''
+                data.pop('input_cols', None)
+
+            if job.datakey:
+                self._delete_file(job.datakey)
+            if 'datakey' not in request.FILES:
+                job.datakey = None
+
+
+
+
+
+
+
+
+
+
+            job.save(update_fields=['status', 'processed_preview', 'input_cols', 'datakey'])
+            generate_preview(job)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if 'data_permission' not in data:
+            data['data_permission'] = 'false'
+
+
+
+
+
+
+
+
+
+
 
         serializer = self.get_serializer(job, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
+        job = serializer.save()
 
-        self._clean_input_files(job, request)
-        serializer.save()
+
+
+
+
+
+
+
+        old_permission = job.data_permission
+        # Manage consent file if data_permission changed
+        if 'data_permission' in serializer.validated_data and job.data_permission != old_permission:
+            print('Managing consent file...')
+            # generate_consent(job)
 
         # Reset output files if input_file, input_cols, or datakey are updated/removed
-        datakey_changed = 'datakey' in request.FILES or remove_datakey
+        datakey_changed = 'datakey' in request.FILES
         should_reset = 'input_file' in request.FILES or 'input_cols' in request.data or datakey_changed
 
-        if should_reset:
-            self._reset_output(job, request)
 
-        if 'input_file' in request.FILES:
-            self._generate_preview(job, serializer)
+        if should_reset:
+            job.reset_output()
+
+
+
+
+
+
+
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def get_serializer_class(
-        self,
-    ) -> type[DeidentificationJobSerializer | DeidentificationJobListSerializer | JobStatusSerializer]:
-        """Return the appropriate serializer based on the action."""
-        if self.action == 'list':
-            return DeidentificationJobListSerializer
-        if self.action in ['process', 'cancel']:
-            return JobStatusSerializer
-        return DeidentificationJobSerializer
+
 
     def perform_destroy(self, instance: DeidentificationJob) -> None:
         """Delete associated files from storage and remove job directory."""
@@ -197,16 +202,15 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             try:
                 job_control.cancel(str(instance.job_id))
 
-                # Update job status
                 instance.status = 'cancelled'
                 instance.error_message = 'Job cancelled before deletion'
                 instance.save()
 
                 # Send WebSocket notification
-                pct = tracker.get_progress().get('percentage')
+                percentage = tracker.get_progress().get('percentage')
                 send_job_progress(
                     str(instance.job_id),
-                    pct if isinstance(pct, int) else 0,
+                    percentage if isinstance(percentage, int) else 0,
                     'Cancelled (deletion)',
                     'cancelled',
                 )
@@ -220,19 +224,9 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         # Force garbage collection to release file handles
         gc.collect()
 
-        # Delete associated files
-        files = ['input_file', 'output_file', 'datakey', 'output_datakey', 'log_file', 'error_rows_file', 'zip_file']
-        for file in files:
-            file_field = getattr(instance, file, None)
-
-            if file_field and getattr(file_field, 'name', None):
-                file_field.delete(save=False)
-
-        media_root = settings.MEDIA_ROOT
-
         dirs = [
-            Path(media_root) / 'input' / str(instance.job_id),
-            Path(media_root) / 'output' / str(instance.job_id),
+            Path(settings.MEDIA_ROOT) / 'input' / str(instance.job_id),
+            Path(settings.MEDIA_ROOT) / 'output' / str(instance.job_id),
         ]
 
         for job_dir in dirs:
@@ -244,13 +238,22 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     @CREATE_JOB_SCHEMA
     def create(self, request: Request, *_args: object, **_kwargs: object) -> Response:
         """Prepare a new job with an uploaded file and column mapping configuration."""
+        if 'input_file' not in request.FILES:
+            return Response(
+                {
+                    'error': 'input file is required',
+                    'message': 'A POST request must include an input_file. Use PUT to update an existing job.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         job = serializer.save(status='pending')
-        self._generate_preview(job, serializer)
+        generate_preview(job)
 
-        detail_serializer = DeidentificationJobSerializer(job, context={'request': request})
+        detail_serializer = JobSerializer(job, context={'request': request})
         return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
     @PROCESS_JOB_POST_SCHEMA
@@ -290,6 +293,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_200_OK,
             )
+
         # Reset the status and error message on re-runs
         job.status = 'processing'
         job.error_message = ''
@@ -369,10 +373,10 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.error_message = 'Cancellation requested'
             job.save()
 
-            pct = tracker.get_progress().get('percentage')
+            percentage = tracker.get_progress().get('percentage')
             send_job_progress(
                 str(job.job_id),
-                pct if isinstance(pct, int) else 0,
+                percentage if isinstance(percentage, int) else 0,
                 'Cancelling',
                 'cancelling',
             )
@@ -382,5 +386,5 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_202_ACCEPTED,
             )
         except Exception as error:
-            logger.exception('Failed to request cancellation for job %s', job.job_id)
+            logger.exception('Failed to request cancellation for job: %s', job.job_id)
             return Response({'error': str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
