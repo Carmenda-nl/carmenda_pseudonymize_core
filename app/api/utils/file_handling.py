@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from api.models import DeidentificationJob
 
 from django.conf import settings
+from django.utils import timezone
 from fastexcel import read_excel
 
 from core.utils.csv_handler import detect_csv_properties, strip_bom
@@ -59,6 +60,20 @@ def match_output_cols(input_cols: str) -> str:
     return ', '.join(output_cols)
 
 
+def generate_consent(job: DeidentificationJob) -> None:
+    """Create or delete `consent.txt` based on the `data_permission` boolean state."""
+    consent_path = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id) / 'consent.txt'
+
+    if job.data_permission:
+        consent_path.parent.mkdir(parents=True, exist_ok=True)
+        consent_path.write_text(
+            f'Data permission granted.\nJob ID: {job.job_id}\nTimestamp: {timezone.now().isoformat()}\n',
+            encoding='utf-8',
+        )
+    elif consent_path.exists():
+        consent_path.unlink()
+
+
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
     """Collect paths of all `the output files that need to be zipped."""
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
@@ -72,6 +87,7 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
     output_datakey_path = job_output_dir / datakey_filename
     log_path = job_output_dir / f'{base_name}.log'
     error_path = job_output_dir / f'{base_name}_errors.csv'
+    consent_path = job_output_dir / f'{base_name}_consent.txt'
 
     files_to_zip: list[str] = []
 
@@ -95,6 +111,11 @@ def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[lis
         relative_path = error_path.relative_to(Path(settings.MEDIA_ROOT))
         job.error_rows_file.name = str(relative_path)
         files_to_zip.append(str(error_path))
+
+    if consent_path.exists():
+        relative_path = consent_path.relative_to(Path(settings.MEDIA_ROOT))
+        job.consent_file.name = str(relative_path)
+        files_to_zip.append(str(consent_path))
 
     return files_to_zip, output_filename
 
@@ -139,13 +160,14 @@ def _excel_preview(file_path: str) -> list[dict]:
     return preview_data
 
 
-def generate_preview(job: DeidentificationJob, metadata: dict) -> None:
+def generate_preview(job: DeidentificationJob) -> None:
     """Generate a preview from the first 3 rows of the input file (1 header + 2 data rows)."""
     file_path = job.input_file.path
+    file_extension = Path(file_path).suffix.lower()
 
-    if metadata.get('file_type') == 'csv':
+    if file_extension == '.csv':
         preview_data = _csv_preview(file_path)
-    elif metadata.get('file_type') == 'excel':
+    elif file_extension in {'.xlsx', '.xls'}:
         preview_data = _excel_preview(file_path)
 
     job.preview = preview_data
