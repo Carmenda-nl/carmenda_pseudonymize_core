@@ -61,3 +61,18 @@ class DeidentificationJob(models.Model):
     def __str__(self) -> str:
         """Return a string representation of the deidentification job."""
         return f'Job {self.job_id} - {self.status}'
+
+    OUTPUT_FILE_FIELDS = ('zip_file', 'log_file', 'error_rows_file', 'output_file', 'output_datakey')
+
+    def reset_output(self) -> None:
+        """Delete output files and clear related fields."""
+        for field_name in self.OUTPUT_FILE_FIELDS:
+            field = getattr(self, field_name)
+            if field:
+                field.delete(save=False)
+            setattr(self, field_name, None)
+
+        self.zip_preview = None
+        self.processed_preview = None
+        self.error_message = ''
+        self.save(update_fields=[*self.OUTPUT_FILE_FIELDS, 'zip_preview', 'processed_preview', 'error_message'])

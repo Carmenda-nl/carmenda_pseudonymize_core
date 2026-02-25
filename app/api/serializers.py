@@ -49,6 +49,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     input_cols = serializers.CharField(
         required=False,
+        allow_blank=True,
         help_text="Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required.",
     )
     input_file = serializers.FileField(required=False)
