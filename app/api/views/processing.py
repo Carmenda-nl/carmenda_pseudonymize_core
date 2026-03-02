@@ -131,7 +131,8 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
     except JobCancelledError:
         _handle_job_cancellation(job_id)
 
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+    except Exception as error:
+        logger.exception('Unexpected error during run process %s', job_id)
         _handle_job_error(job_id, error)
     finally:
         deidentify_logger = logging.getLogger('deidentify')
