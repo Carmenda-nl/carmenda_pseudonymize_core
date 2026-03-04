@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 
+if TYPE_CHECKING:
+    from api.models import DeidentificationJob
 
-def setup_job_logging(job_id: str, input_file: str) -> logging.FileHandler:
+
+def setup_job_logging(job_id: str, input_file: str, job: DeidentificationJob) -> logging.FileHandler:
     """Create a per-job FileHandler to the 'deidentify' logger."""
     deidentify_logger = logging.getLogger('deidentify')
     job_log_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job_id)
@@ -28,5 +32,8 @@ def setup_job_logging(job_id: str, input_file: str) -> logging.FileHandler:
     job_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     job_handler.setLevel(deidentify_logger.level)
     deidentify_logger.addHandler(job_handler)
+
+    job.log_file.name = str(Path('output') / str(job_id) / log_filename)
+    job.save(update_fields=['log_file'])
 
     return job_handler

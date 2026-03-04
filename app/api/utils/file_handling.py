@@ -60,15 +60,17 @@ def match_output_cols(input_cols: str) -> str:
     return ', '.join(output_cols)
 
 
-def generate_consent(job: DeidentificationJob) -> str | None:
-    """Create or delete `consent.txt` based on the `data_permission` boolean state."""
+def generate_consent(job: DeidentificationJob) -> None:
+    """Create consent.txt and store its path on the job when data_permission is set."""
     output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
 
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
 
     if not job.data_permission or not job.input_file:
-        return None
+        job.consent_file = None
+        job.save(update_fields=['consent_file'])
+        return
 
     base_name = Path(job.input_file.name).stem
     consent_filename = f'{base_name}_consent.txt'
@@ -80,51 +82,20 @@ def generate_consent(job: DeidentificationJob) -> str | None:
         encoding='utf-8',
     )
 
-    return str(Path('output') / str(job.job_id) / consent_filename)
+    job.consent_file.name = str(Path('output') / str(job.job_id) / consent_filename)
+    job.save(update_fields=['consent_file'])
 
 
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
-    """Collect paths of all `the output files that need to be zipped."""
+    """Collect all files in the job output directory, excluding the input file."""
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
-    input_path = Path(input_file)
-    base_name = input_path.stem
-    input_extension = input_path.suffix
+    input_filename = Path(input_file).name
 
-    output_filename = f'{base_name}_pseudonymised{input_extension}'
-    output_path = job_output_dir / output_filename
-    datakey_filename = Path(job.datakey.name).name if job.datakey and job.datakey.name else f'{base_name}_key.csv'
-    output_datakey_path = job_output_dir / datakey_filename
-    log_path = job_output_dir / f'{base_name}.log'
-    error_path = job_output_dir / f'{base_name}_errors.csv'
-    consent_path = job_output_dir / f'{base_name}_consent.txt'
+    files_to_zip = [
+        str(path) for path in sorted(job_output_dir.iterdir()) if path.is_file() and path.name != input_filename
+    ]
 
-    files_to_zip: list[str] = []
-
-    if output_path.exists():
-        relative_path = output_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.output_file.name = str(relative_path)
-        files_to_zip.append(str(output_path))
-        output_filename = output_path.name
-
-    if output_datakey_path.exists():
-        relative_path = output_datakey_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.output_datakey.name = str(relative_path)
-        files_to_zip.append(str(output_datakey_path))
-
-    if log_path.exists():
-        relative_path = log_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.log_file.name = str(relative_path)
-        files_to_zip.append(str(log_path))
-
-    if error_path.exists():
-        relative_path = error_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.error_rows_file.name = str(relative_path)
-        files_to_zip.append(str(error_path))
-
-    if consent_path.exists():
-        relative_path = consent_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.consent_file.name = str(relative_path)
-        files_to_zip.append(str(consent_path))
+    output_filename = Path(job.output_file.name).name if job.output_file and job.output_file.name else input_filename
 
     return files_to_zip, output_filename
 

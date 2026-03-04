@@ -10,9 +10,11 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from pathlib import Path
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
 
 from api.models import DeidentificationJob
 from api.utils.file_handling import collect_output_files, create_zipfile
@@ -46,6 +48,23 @@ def _handle_job_completion(job_id: str, current_job: DeidentificationJob, proces
         processed_data = json.loads(processor)
         current_job.processed_preview = processed_data
         current_job.save()
+
+    # Set job fields for files created by the core processor
+    job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(current_job.job_id)
+
+    core_files = [
+        ('output_file', job_output_dir / f'{Path(file).stem}_pseudonymised{Path(file).suffix}'),
+        ('output_datakey', next(job_output_dir.glob('*_key.csv'), None)),
+        ('error_rows_file', next(job_output_dir.glob('*_errors.csv'), None)),
+    ]
+
+    save_fields = []
+    for field_name, path in core_files:
+        if path is not None and path.exists():
+            getattr(current_job, field_name).name = str(path.relative_to(Path(settings.MEDIA_ROOT)))
+            save_fields.append(field_name)
+    if save_fields:
+        current_job.save(update_fields=save_fields)
 
     files_to_zip, output_filename = collect_output_files(current_job, file)
     create_zipfile(current_job, files_to_zip, output_filename)
@@ -84,7 +103,7 @@ def _handle_job_error(job_id: str, error: Exception) -> None:
 def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: str, datakey: str) -> None:
     """Run processing in background thread."""
     current_job = DeidentificationJob.objects.get(pk=job_id)
-    job_handler = setup_job_logging(job_id, input_file)
+    job_handler = setup_job_logging(job_id, input_file, current_job)
 
     try:
         with job_control.run_job(job_id):

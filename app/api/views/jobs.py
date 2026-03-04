@@ -107,12 +107,9 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         should_reset = 'input_file' in request.FILES or datakey_changed or columns_changed or permission_changed
         if should_reset:
-            generate_preview(job)
             job.reset_output()
-
-            consent_path = generate_consent(job)
-            job.consent_file.name = consent_path
-            job.save(update_fields=['consent_file'])
+            generate_preview(job)
+            generate_consent(job)
 
         return Response(JobSerializer(job, context={'request': request}).data, status=status.HTTP_200_OK)
 
