@@ -60,18 +60,27 @@ def match_output_cols(input_cols: str) -> str:
     return ', '.join(output_cols)
 
 
-def generate_consent(job: DeidentificationJob) -> None:
+def generate_consent(job: DeidentificationJob) -> str | None:
     """Create or delete `consent.txt` based on the `data_permission` boolean state."""
-    consent_path = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id) / 'consent.txt'
+    output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
 
-    if job.data_permission:
-        consent_path.parent.mkdir(parents=True, exist_ok=True)
-        consent_path.write_text(
-            f'Data permission granted.\nJob ID: {job.job_id}\nTimestamp: {timezone.now().isoformat()}\n',
-            encoding='utf-8',
-        )
-    elif consent_path.exists():
-        consent_path.unlink()
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not job.data_permission or not job.input_file:
+        return None
+
+    base_name = Path(job.input_file.name).stem
+    consent_filename = f'{base_name}_consent.txt'
+    consent_path = output_dir / consent_filename
+
+    timestamp = timezone.now().strftime('%d-%m-%Y %H:%M')
+    consent_path.write_text(
+        f'Data permission granted.\n\nFilename: {base_name}\nTimestamp: {timestamp}\n',
+        encoding='utf-8',
+    )
+
+    return str(Path('output') / str(job.job_id) / consent_filename)
 
 
 def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:

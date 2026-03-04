@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, ClassVar
 if TYPE_CHECKING:
     from django.core.files.uploadedfile import UploadedFile
 
+from django.db.models import FileField
 from rest_framework import serializers
 
 from api.models import DeidentificationJob
@@ -54,7 +55,7 @@ class JobSerializer(serializers.ModelSerializer):
     )
     input_file = serializers.FileField(required=False)
     datakey = serializers.FileField(required=False)
-    data_permission = serializers.BooleanField()
+    data_permission = serializers.BooleanField(required=False, default=False)
 
     class Meta:
         model = DeidentificationJob
@@ -62,6 +63,7 @@ class JobSerializer(serializers.ModelSerializer):
         read_only_fields: ClassVar = [
             'output_file',
             'output_datakey',
+            'consent_file',
             'log_file',
             'error_rows_file',
             'zip_file',
@@ -151,10 +153,9 @@ class JobSerializer(serializers.ModelSerializer):
             return attrs
 
         if input_cols and input_file and not isinstance(input_file, str):
-            metadata = getattr(self, '_file_metadata', {}).get('input_file', {})
-            validate_file_columns(input_cols, metadata.get('uploaded_file'))
+            validate_file_columns(input_cols, input_file)
 
-        elif input_cols and self.instance and self.instance.input_file:
+        elif input_cols and not input_file and self.instance and self.instance.input_file:
             validate_file_columns(input_cols, self.instance.input_file.path)
 
         return attrs
@@ -162,9 +163,13 @@ class JobSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the job including files metadata, as size & built dates."""
         representation = super().to_representation(instance)
-        fields = ['input_file', 'output_file', 'datakey', 'output_datakey', 'log_file', 'error_rows_file', 'zip_file']
 
-        return get_metadata(representation, instance, fields)
+        file_fields = [
+            file.name for file in instance._meta.get_fields()
+            if isinstance(file, FileField)
+        ]
+
+        return get_metadata(representation, instance, file_fields)
 
 
 class JobStatusSerializer(serializers.ModelSerializer):
