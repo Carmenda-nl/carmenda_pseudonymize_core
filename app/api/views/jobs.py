@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import gc
-from django.db.models.fields.files import FieldFile
 import shutil
 import threading
 import time
@@ -65,134 +64,57 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             return JobStatusSerializer
         return JobSerializer
 
-    def _delete_file(self, file_field: FieldFile) -> None:
-        """Delete a file from disk if it exists."""
-        try:
-            Path(file_field.path).unlink(missing_ok=True)
-        except (OSError, ValueError, PermissionError):
-            logger.warning('Failed to delete file: %s', file_field)
-
-    # def _clean_input_files(self, job: DeidentificationJob, request: HttpRequest) -> None:
-    #     """Clean old input files when new ones are uploaded."""
-    #     if 'input_file' in request.FILES:
-    #         self._clean_file(job.input_file, str(job.job_id), 'input')
-
-    #         # Clean output files
-    #         if job.zip_file:
-    #             job.zip_file.delete(save=False)
-    #         if job.log_file:
-    #             job.log_file.delete(save=False)
-    #         if job.error_rows_file:
-    #             job.error_rows_file.delete(save=False)
-    #         if job.output_file:
-    #             job.output_file.delete(save=False)
-
-    #         if 'datakey' not in request.FILES and job.datakey:
-    #             job.datakey.delete(save=False)
-
-    #     if 'datakey' in request.FILES:
-    #         self._clean_file(job.datakey, str(job.job_id), 'datakey')
-
-
-
-
     def update(self, request: Request, *args: object, **kwargs: object) -> Response:
-        """Update a job with PUT request, deleting old files before adding new ones."""
+        """Update a job with PUT request, deleting or overwrite old files after adding new ones."""
         job = self.get_object()
         data = request.POST.copy()
         data.update(request.FILES)
 
-        if 'input_file' in request.FILES:
-            new_columns = request.data.get('input_cols')
-            job.status = 'pending'
+        old_columns = job.input_cols
+        old_input = job.input_file.name if job.input_file else None
+        old_datakey = job.datakey.name if job.datakey else None
+        old_permission = job.data_permission
 
-            if not new_columns or new_columns == job.input_cols:
-                job.input_cols = ''
-                data.pop('input_cols', None)
+        new_columns = request.data.get('input_cols')
+        columns_changed = new_columns is not None and new_columns != old_columns
 
-            if job.datakey:
-                self._delete_file(job.datakey)
-            if 'datakey' not in request.FILES:
-                job.datakey = None
+        new_input = request.FILES.get('input_file')
+        input_changed = new_input is not None and (not old_input or Path(old_input).name != new_input.name)
 
+        new_datakey = request.FILES.get('datakey')
+        datakey_changed = new_datakey is not None
 
-
-
-
-
-
-
-
-
-            job.save(update_fields=['status', 'processed_preview', 'input_cols', 'datakey'])
-            generate_preview(job)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        if 'data_permission' not in data:
-            data['data_permission'] = 'false'
-
-
-
-
-
-
-
-
-
-
+        if new_columns == old_columns and input_changed:
+            job.input_cols = ''
+            data.pop('input_cols', None)
 
         serializer = self.get_serializer(job, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         job = serializer.save()
 
+        if input_changed and old_input and job.input_file.name != old_input:
+            job.input_file.storage.delete(old_input)
 
+        if (datakey_changed or input_changed) and old_datakey:
+            job.datakey.storage.delete(old_datakey)
+            job.datakey = new_datakey
+            job.save(update_fields=['datakey'])
 
+        permission_changed = serializer.validated_data.get('data_permission', False) != old_permission
+        if permission_changed:
+            job.data_permission = serializer.validated_data.get('data_permission', False)
+            job.save(update_fields=['data_permission'])
 
-
-
-
-
-        old_permission = job.data_permission
-        # Manage consent file if data_permission changed
-        if 'data_permission' in serializer.validated_data and job.data_permission != old_permission:
-            print('Managing consent file...')
-            # generate_consent(job)
-
-        # Reset output files if input_file, input_cols, or datakey are updated/removed
-        datakey_changed = 'datakey' in request.FILES
-        should_reset = 'input_file' in request.FILES or 'input_cols' in request.data or datakey_changed
-
-
+        should_reset = 'input_file' in request.FILES or datakey_changed or columns_changed or permission_changed
         if should_reset:
+            generate_preview(job)
             job.reset_output()
 
+            consent_path = generate_consent(job)
+            job.consent_file.name = consent_path
+            job.save(update_fields=['consent_file'])
 
-
-
-
-
-
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
+        return Response(JobSerializer(job, context={'request': request}).data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance: DeidentificationJob) -> None:
         """Delete associated files from storage and remove job directory."""
