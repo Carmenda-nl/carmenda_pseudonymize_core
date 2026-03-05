@@ -68,6 +68,7 @@ def generate_consent(job: DeidentificationJob) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
 
     if not job.data_permission or not job.input_file:
+        job.consent_file.delete(save=False)
         job.consent_file = None
         job.save(update_fields=['consent_file'])
         return
@@ -86,18 +87,19 @@ def generate_consent(job: DeidentificationJob) -> None:
     job.save(update_fields=['consent_file'])
 
 
-def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
+def collect_output_files(job: DeidentificationJob) -> list[str]:
     """Collect all files in the job output directory, excluding the input file."""
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
-    input_filename = Path(input_file).name
+    input_filename = Path(job.input_file.name).name
 
-    files_to_zip = [
-        str(path) for path in sorted(job_output_dir.iterdir()) if path.is_file() and path.name != input_filename
+    if not job_output_dir.exists():
+        return []
+
+    return [
+        str(path)
+        for path in sorted(job_output_dir.iterdir())
+        if path.is_file() and path.name != input_filename and path.suffix != '.zip'
     ]
-
-    output_filename = Path(job.output_file.name).name if job.output_file and job.output_file.name else input_filename
-
-    return files_to_zip, output_filename
 
 
 def _csv_preview(file_path: str) -> list[dict]:
@@ -154,8 +156,10 @@ def generate_preview(job: DeidentificationJob) -> None:
     job.save(update_fields=['preview'])
 
 
-def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:
+def create_zipfile(job: DeidentificationJob, files_to_zip: list[str]) -> None:
     """Create a zip file and store its information in the job model."""
+    output_filename = Path(job.output_file.name).name
+
     if not files_to_zip:
         error_message = f'No output files found to zip for job {job.pk}'
         logger.error(error_message)
@@ -188,6 +192,7 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
             'zip_file': zip_filename,
             'files': included_files,
         }
+        job.save(update_fields=['zip_file', 'zip_preview'])
 
     except OSError as error:
         error_message = f'Failed to create zip file: {error}'

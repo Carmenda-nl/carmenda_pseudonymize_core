@@ -67,6 +67,14 @@ class DeidentificationJob(models.Model):
         """Return a string representation of the deidentification job."""
         return f'Job {self.job_id} - {self.status}'
 
+    def reset_zip(self) -> None:
+        """Delete the zip file and clear related fields."""
+        if self.zip_file:
+            self.zip_file.delete(save=False)
+            self.zip_file = None
+
+        self.zip_preview = None
+
     def reset_output(self) -> None:
         """Delete output files and clear related fields."""
         update_fields = []
@@ -79,9 +87,10 @@ class DeidentificationJob(models.Model):
                 setattr(self, field.name, None)
                 update_fields.append(field.name)
 
+        self.reset_zip()
+
         # Reset addidtional non-file fields
         self.processed_preview = None
-        self.zip_preview = None
         self.error_message = ''
         self.status = 'pending'
 

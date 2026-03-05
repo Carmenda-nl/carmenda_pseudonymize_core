@@ -17,7 +17,6 @@ from channels.layers import get_channel_layer
 from django.conf import settings
 
 from api.models import DeidentificationJob
-from api.utils.file_handling import collect_output_files, create_zipfile
 from api.utils.logger import setup_job_logging
 from core.processor import process_data
 from core.utils.logger import setup_logging
@@ -27,8 +26,8 @@ from core.utils.progress_tracker import tracker
 logger = setup_logging()
 
 
-def send_job_progress(job_id: str, percentage: int, stage: str, job_status: str = 'processing') -> None:
-    """Send job progress update via WebSocket."""
+def send_process_progress(job_id: str, percentage: int, stage: str, job_status: str = 'processing') -> None:
+    """Send processing progress update via WebSocket."""
     channel_layer = get_channel_layer()
     if channel_layer:
         async_to_sync(channel_layer.group_send)(
@@ -42,8 +41,8 @@ def send_job_progress(job_id: str, percentage: int, stage: str, job_status: str 
         )
 
 
-def _handle_job_completion(job_id: str, current_job: DeidentificationJob, processor: str | None, file: str) -> None:
-    """Handle job completion: save preview, create zip, and send completion update."""
+def _handle_process_completion(job_id: str, current_job: DeidentificationJob, processor: str | None, file: str) -> None:
+    """Handle processing completion: save preview, create zip, and send completion update."""
     if processor:
         processed_data = json.loads(processor)
         current_job.processed_preview = processed_data
@@ -66,38 +65,35 @@ def _handle_job_completion(job_id: str, current_job: DeidentificationJob, proces
     if save_fields:
         current_job.save(update_fields=save_fields)
 
-    files_to_zip, output_filename = collect_output_files(current_job, file)
-    create_zipfile(current_job, files_to_zip, output_filename)
-
     current_job.status = 'completed'
     current_job.save()
 
-    send_job_progress(job_id, 100, 'Completed', 'completed')
+    send_process_progress(job_id, 100, 'Completed', 'completed')
 
 
-def _handle_job_cancellation(job_id: str) -> None:
-    """Handle job cancellation: update database and send cancellation update."""
-    logger.info('Job "%s" Cancelled by user', job_id)
+def _handle_process_cancellation(job_id: str) -> None:
+    """Handle processing cancellation: update database and send cancellation update."""
+    logger.info('Processing "%s" Cancelled by user', job_id)
     cancelled_job = DeidentificationJob.objects.get(pk=job_id)
-    cancelled_job.error_message = 'Job cancelled by user'
+    cancelled_job.error_message = 'Processing cancelled by user'
     cancelled_job.status = 'cancelled'
     cancelled_job.save()
 
     progress_info = tracker.get_progress()
     percentage = progress_info.get('percentage', 0)
     progress_percentage = int(percentage) if isinstance(percentage, str) else (percentage or 0)
-    send_job_progress(job_id, progress_percentage, 'Cancelled', 'cancelled')
+    send_process_progress(job_id, progress_percentage, 'Cancelled', 'cancelled')
 
 
-def _handle_job_error(job_id: str, error: Exception) -> None:
-    """Handle job processing error: update database and send error update."""
-    logger.exception('Job "%s" Processing failed', job_id)
+def _handle_process_error(job_id: str, error: Exception) -> None:
+    """Handle processing error: update database and send error update."""
+    logger.exception('Processing "%s" failed', job_id)
     error_job = DeidentificationJob.objects.get(pk=job_id)
-    error_job.error_message = f'Job error: {error}'
+    error_job.error_message = f'Processing error: {error}'
     error_job.status = 'failed'
     error_job.save()
 
-    send_job_progress(job_id, 0, f'Error: {error}', 'failed')
+    send_process_progress(job_id, 0, f'Error: {error}', 'failed')
 
 
 def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: str, datakey: str) -> None:
@@ -126,7 +122,7 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
                     current_stage = str(raw_stage) if raw_stage else 'Processing'
 
                     if abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage:
-                        send_job_progress(job_id, current_percentage, current_stage)
+                        send_process_progress(job_id, current_percentage, current_stage)
                         last_percentage = current_percentage
 
                     stop_monitoring.wait(0.1)
@@ -145,14 +141,14 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
             stop_monitoring.set()
             monitor_thread.join(timeout=1.0)
 
-            _handle_job_completion(job_id, current_job, processor, input_file)
+            _handle_process_completion(job_id, current_job, processor, input_file)
 
     except JobCancelledError:
-        _handle_job_cancellation(job_id)
+        _handle_process_cancellation(job_id)
 
     except Exception as error:
         logger.exception('Unexpected error during run process %s', job_id)
-        _handle_job_error(job_id, error)
+        _handle_process_error(job_id, error)
     finally:
         deidentify_logger = logging.getLogger('deidentify')
         deidentify_logger.removeHandler(job_handler)

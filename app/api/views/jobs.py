@@ -27,14 +27,22 @@ from api.schemas import (
     CREATE_JOB_SCHEMA,
     PROCESS_JOB_GET_SCHEMA,
     PROCESS_JOB_POST_SCHEMA,
+    ZIP_FILES_GET_SCHEMA,
+    ZIP_FILES_POST_SCHEMA,
 )
 from api.serializers import (
     JobListSerializer,
     JobSerializer,
     JobStatusSerializer,
 )
-from api.utils.file_handling import generate_consent, generate_preview, match_output_cols
-from api.views.processing import run_processing, send_job_progress
+from api.utils.file_handling import (
+    collect_output_files,
+    create_zipfile,
+    generate_consent,
+    generate_preview,
+    match_output_cols,
+)
+from api.views.processing import run_processing, send_process_progress
 from api.views.root import ApiTags
 from core.utils.logger import setup_logging
 from core.utils.progress_control import job_control
@@ -60,7 +68,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         """Return a serializer based on the current action."""
         if self.action == 'list':
             return JobListSerializer
-        if self.action in ['process', 'cancel']:
+        if self.action in ['process', 'cancel', 'zip_files']:
             return JobStatusSerializer
         return JobSerializer
 
@@ -104,12 +112,15 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         if permission_changed:
             job.data_permission = serializer.validated_data.get('data_permission', False)
             job.save(update_fields=['data_permission'])
+            generate_consent(job)
 
-        should_reset = 'input_file' in request.FILES or datakey_changed or columns_changed or permission_changed
+            job.reset_zip()
+            job.save(update_fields=['zip_file', 'zip_preview'])
+
+        should_reset = 'input_file' in request.FILES or datakey_changed or columns_changed
         if should_reset:
             job.reset_output()
             generate_preview(job)
-            generate_consent(job)
 
         return Response(JobSerializer(job, context={'request': request}).data, status=status.HTTP_200_OK)
 
@@ -127,7 +138,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
                 # Send WebSocket notification
                 percentage = tracker.get_progress().get('percentage')
-                send_job_progress(
+                send_process_progress(
                     str(instance.job_id),
                     percentage if isinstance(percentage, int) else 0,
                     'Cancelled (deletion)',
@@ -257,6 +268,38 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @ZIP_FILES_POST_SCHEMA
+    @ZIP_FILES_GET_SCHEMA
+    @action(detail=True, methods=['get', 'post'])
+    def zip_files(self, request: HttpRequest, pk: str | None = None) -> Response:
+        """Collect output files and create a ZIP archive for download."""
+        job = self.get_object()
+
+        if not job.output_file or job.status != 'completed':
+            return Response(
+                {
+                    'error': 'Job not ready for packaging',
+                    'message': 'The job must have an output file and a completed process status.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.method == 'GET':
+            files_to_zip = collect_output_files(job)
+            return Response(
+                {
+                    'job_id': str(job.job_id),
+                    'files': [Path(f).name for f in files_to_zip],
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        files_to_zip = collect_output_files(job)
+        create_zipfile(job, files_to_zip)
+
+        job_url = request.build_absolute_uri(f'/api/v1/jobs/{job.job_id}/')
+        return Response(status=status.HTTP_303_SEE_OTHER, headers={'Location': job_url})
+
     @extend_schema(tags=[ApiTags.CANCEL])
     @CANCEL_JOB_POST_SCHEMA
     @CANCEL_JOB_GET_SCHEMA
@@ -293,7 +336,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.save()
 
             percentage = tracker.get_progress().get('percentage')
-            send_job_progress(
+            send_process_progress(
                 str(job.job_id),
                 percentage if isinstance(percentage, int) else 0,
                 'Cancelling',

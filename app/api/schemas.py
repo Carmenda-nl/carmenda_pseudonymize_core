@@ -98,6 +98,20 @@ class JobProcessErrorSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class ZipFilesStatusSerializer(serializers.Serializer):
+    """Response serializer for packaging a job (GET)."""
+
+    job_id = serializers.CharField()
+    files = serializers.ListField(child=serializers.CharField())
+
+
+class ZipFilesNotReadySerializer(serializers.Serializer):
+    """Response serializer when the job is not ready for packaging."""
+
+    error = serializers.CharField(default='Job not ready for packaging')
+    message = serializers.CharField()
+
+
 # Schema definitions for endpoints
 API_ROOT_SCHEMA = extend_schema(
     responses={
@@ -140,5 +154,21 @@ CANCEL_JOB_GET_SCHEMA = extend_schema(
     methods=['get'],
     responses={
         200: JobCancellationStatusSerializer,
+    },
+)
+
+ZIP_FILES_POST_SCHEMA = extend_schema(
+    methods=['post'],
+    responses={
+        201: JobSerializer,
+        400: ZipFilesNotReadySerializer,
+    },
+)
+
+ZIP_FILES_GET_SCHEMA = extend_schema(
+    methods=['get'],
+    responses={
+        200: ZipFilesStatusSerializer,
+        400: ZipFilesNotReadySerializer,
     },
 )
