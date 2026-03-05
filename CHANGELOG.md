@@ -9,10 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Permission boolean
 - API consent file build logic
+- A zip files endpoint
 
 ### Changed
 
-- Moved all test ouytcome files to one folder
+- Moved all test outcome files to one folder
 - Overwrite storage, refactor reset_output
 - Remove hardcoded file paths in collect_output_files
 
