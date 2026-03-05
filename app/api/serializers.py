@@ -164,10 +164,7 @@ class JobSerializer(serializers.ModelSerializer):
         """Return the job including files metadata, as size & built dates."""
         representation = super().to_representation(instance)
 
-        file_fields = [
-            file.name for file in instance._meta.get_fields()
-            if isinstance(file, FileField)
-        ]
+        file_fields = [file.name for file in instance._meta.get_fields() if isinstance(file, FileField)]
 
         return get_metadata(representation, instance, file_fields)
 
