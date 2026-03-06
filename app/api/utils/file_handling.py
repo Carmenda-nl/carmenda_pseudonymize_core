@@ -60,48 +60,6 @@ def match_output_cols(input_cols: str) -> str:
     return ', '.join(output_cols)
 
 
-def generate_consent(job: DeidentificationJob) -> None:
-    """Create consent.txt and store its path on the job when data_permission is set."""
-    output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
-
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-    if not job.data_permission or not job.input_file:
-        job.consent_file.delete(save=False)
-        job.consent_file = None
-        job.save(update_fields=['consent_file'])
-        return
-
-    base_name = Path(job.input_file.name).stem
-    consent_filename = f'{base_name}_consent.txt'
-    consent_path = output_dir / consent_filename
-
-    timestamp = timezone.now().strftime('%d-%m-%Y %H:%M')
-    consent_path.write_text(
-        f'Data permission granted.\n\nFilename: {base_name}\nTimestamp: {timestamp}\n',
-        encoding='utf-8',
-    )
-
-    job.consent_file.name = str(Path('output') / str(job.job_id) / consent_filename)
-    job.save(update_fields=['consent_file'])
-
-
-def collect_output_files(job: DeidentificationJob) -> list[str]:
-    """Collect all files in the job output directory, excluding the input file."""
-    job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
-    input_filename = Path(job.input_file.name).name
-
-    if not job_output_dir.exists():
-        return []
-
-    return [
-        str(path)
-        for path in sorted(job_output_dir.iterdir())
-        if path.is_file() and path.name != input_filename and path.suffix != '.zip'
-    ]
-
-
 def _csv_preview(file_path: str) -> list[dict]:
     """Read the first 2 data rows from a CSV file."""
     properties = detect_csv_properties(Path(file_path))
@@ -154,6 +112,48 @@ def generate_preview(job: DeidentificationJob) -> None:
 
     job.preview = preview_data
     job.save(update_fields=['preview'])
+
+
+def generate_consent(job: DeidentificationJob) -> None:
+    """Create consent.txt and store its path on the job when data_permission is set."""
+    output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
+
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not job.data_permission or not job.input_file:
+        job.consent_file.delete(save=False)
+        job.consent_file = None
+        job.save(update_fields=['consent_file'])
+        return
+
+    base_name = Path(job.input_file.name).stem
+    consent_filename = f'{base_name}_consent.txt'
+    consent_path = output_dir / consent_filename
+
+    timestamp = timezone.now().strftime('%d-%m-%Y %H:%M')
+    consent_path.write_text(
+        f'Data permission granted.\n\nFilename: {base_name}\nTimestamp: {timestamp}\n',
+        encoding='utf-8',
+    )
+
+    job.consent_file.name = str(Path('output') / str(job.job_id) / consent_filename)
+    job.save(update_fields=['consent_file'])
+
+
+def collect_output_files(job: DeidentificationJob) -> list[str]:
+    """Collect all files in the job output directory, excluding the input file."""
+    job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
+    input_filename = Path(job.input_file.name).name
+
+    if not job_output_dir.exists():
+        return []
+
+    return [
+        str(path)
+        for path in sorted(job_output_dir.iterdir())
+        if path.is_file() and path.name != input_filename and path.suffix != '.zip'
+    ]
 
 
 def create_zipfile(job: DeidentificationJob, files_to_zip: list[str]) -> None:
