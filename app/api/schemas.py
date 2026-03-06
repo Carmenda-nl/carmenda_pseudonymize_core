@@ -8,7 +8,7 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
 
-from api.serializers import DeidentificationJobSerializer
+from api.serializers import JobSerializer
 
 
 class APIRootResponseSerializer(serializers.Serializer):
@@ -98,6 +98,28 @@ class JobProcessErrorSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class ZipFileMetaSerializer(serializers.Serializer):
+    """Metadata for a single output file."""
+
+    url = serializers.CharField()
+    filesize = serializers.IntegerField()
+    build_date = serializers.DateTimeField()
+
+
+class ZipFilesStatusSerializer(serializers.Serializer):
+    """Response serializer for packaging a job (GET)."""
+
+    zip_file = serializers.CharField()
+    files = serializers.DictField(child=ZipFileMetaSerializer())
+
+
+class ZipFilesNotReadySerializer(serializers.Serializer):
+    """Response serializer when the job is not ready for packaging."""
+
+    error = serializers.CharField(default='Job not ready for packaging')
+    message = serializers.CharField()
+
+
 # Schema definitions for endpoints
 API_ROOT_SCHEMA = extend_schema(
     responses={
@@ -107,7 +129,7 @@ API_ROOT_SCHEMA = extend_schema(
 
 CREATE_JOB_SCHEMA = extend_schema(
     responses={
-        201: DeidentificationJobSerializer,
+        201: JobSerializer,
     },
 )
 
@@ -140,5 +162,21 @@ CANCEL_JOB_GET_SCHEMA = extend_schema(
     methods=['get'],
     responses={
         200: JobCancellationStatusSerializer,
+    },
+)
+
+ZIP_FILES_POST_SCHEMA = extend_schema(
+    methods=['post'],
+    responses={
+        201: JobSerializer,
+        400: ZipFilesNotReadySerializer,
+    },
+)
+
+ZIP_FILES_GET_SCHEMA = extend_schema(
+    methods=['get'],
+    responses={
+        200: ZipFilesStatusSerializer,
+        400: ZipFilesNotReadySerializer,
     },
 )

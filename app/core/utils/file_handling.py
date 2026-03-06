@@ -82,7 +82,7 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
         target_dir.mkdir(parents=True, exist_ok=True)
 
         input_extension = filepath.suffix
-        filepath = target_dir / f'{stem}_deidentified{input_extension}'
+        filepath = target_dir / f'{stem}_pseudonymised{input_extension}'
         if input_extension.lower() == '.csv':
             df.write_csv(str(filepath))
         elif input_extension.lower() in ('.xls', '.xlsx'):
@@ -113,7 +113,7 @@ def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datak
     filepath = Path(filename)
     parent = filepath.parent
 
-    output_filename = datakey_name or 'datakey.csv'
+    output_filename = datakey_name or f'{filepath.stem}_key.csv'
 
     # If filename included a parent (like job_id), write into that subfolder under output.
     target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)

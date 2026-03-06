@@ -136,13 +136,13 @@ class TestSaveDatafile:
     """Tests for save_datafile function."""
 
     def test_saves_with_deidentified_suffix(self, tmp_path: Path) -> None:
-        """Output file is created with _deidentified suffix."""
+        """Output file is created with _pseudonymised suffix."""
         df = pl.DataFrame({'name': ['Alice', 'Bob'], 'age': [30, 25]})
         output_folder = tmp_path / 'output'
 
         save_datafile(df, 'test.csv', str(output_folder))
 
-        saved = output_folder / 'test_deidentified.csv'
+        saved = output_folder / 'test_pseudonymised.csv'
         assert saved.exists()
 
         result = pl.read_csv(saved)
@@ -156,7 +156,7 @@ class TestSaveDatafile:
         assert not output_folder.exists()
         save_datafile(df, 'test.csv', str(output_folder))
 
-        assert (output_folder / 'test_deidentified.csv').exists()
+        assert (output_folder / 'test_pseudonymised.csv').exists()
 
     def test_with_parent_creates_subfolder(self, tmp_path: Path) -> None:
         """Filename with parent path creates subfolder in output."""
@@ -164,7 +164,7 @@ class TestSaveDatafile:
 
         save_datafile(df, 'job123/data.csv', str(tmp_path / 'output'))
 
-        assert (tmp_path / 'output' / 'job123' / 'data_deidentified.csv').exists()
+        assert (tmp_path / 'output' / 'job123' / 'data_pseudonymised.csv').exists()
 
     def test_oserror_logs_warning(
         self,
@@ -268,7 +268,7 @@ class TestSaveDatakey:
 
         save_datakey(df, 'test.csv', str(tmp_path))
 
-        content = (tmp_path / 'datakey.csv').read_text(encoding='utf-8')
+        content = (tmp_path / 'test_key.csv').read_text(encoding='utf-8')
         assert 'Clientnaam,Synoniemen,Code' in content
         assert 'Jan,J,C001' in content
 
@@ -279,7 +279,7 @@ class TestSaveDatakey:
         save_datakey(df, 'test.csv', str(tmp_path), datakey_name='custom.csv')
 
         assert (tmp_path / 'custom.csv').exists()
-        assert not (tmp_path / 'datakey.csv').exists()
+        assert not (tmp_path / 'test_key.csv').exists()
 
     def test_oserror_logs_warning(
         self,

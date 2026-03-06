@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from api.models import DeidentificationJob
 
 from django.conf import settings
+from django.utils import timezone
 from fastexcel import read_excel
 
 from core.utils.csv_handler import detect_csv_properties, strip_bom
@@ -57,46 +58,6 @@ def match_output_cols(input_cols: str) -> str:
             output_cols.append(column_name)
 
     return ', '.join(output_cols)
-
-
-def collect_output_files(job: DeidentificationJob, input_file: str) -> tuple[list[str], str]:
-    """Collect paths of all `the output files that need to be zipped."""
-    job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
-    input_path = Path(input_file)
-    base_name = input_path.stem
-    input_extension = input_path.suffix
-
-    output_filename = f'{base_name}_deidentified{input_extension}'
-    output_path = job_output_dir / output_filename
-    datakey_filename = Path(job.datakey.name).name if job.datakey and job.datakey.name else 'datakey.csv'
-    output_datakey_path = job_output_dir / datakey_filename
-    log_path = job_output_dir / 'deidentification.log'
-    error_path = job_output_dir / f'{base_name}_errors.csv'
-
-    files_to_zip: list[str] = []
-
-    if output_path.exists():
-        relative_path = output_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.output_file.name = str(relative_path)
-        files_to_zip.append(str(output_path))
-        output_filename = output_path.name
-
-    if output_datakey_path.exists():
-        relative_path = output_datakey_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.output_datakey.name = str(relative_path)
-        files_to_zip.append(str(output_datakey_path))
-
-    if log_path.exists():
-        relative_path = log_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.log_file.name = str(relative_path)
-        files_to_zip.append(str(log_path))
-
-    if error_path.exists():
-        relative_path = error_path.relative_to(Path(settings.MEDIA_ROOT))
-        job.error_rows_file.name = str(relative_path)
-        files_to_zip.append(str(error_path))
-
-    return files_to_zip, output_filename
 
 
 def _csv_preview(file_path: str) -> list[dict]:
@@ -139,21 +100,66 @@ def _excel_preview(file_path: str) -> list[dict]:
     return preview_data
 
 
-def generate_preview(job: DeidentificationJob, metadata: dict) -> None:
+def generate_preview(job: DeidentificationJob) -> None:
     """Generate a preview from the first 3 rows of the input file (1 header + 2 data rows)."""
     file_path = job.input_file.path
+    file_extension = Path(file_path).suffix.lower()
 
-    if metadata.get('file_type') == 'csv':
+    if file_extension == '.csv':
         preview_data = _csv_preview(file_path)
-    elif metadata.get('file_type') == 'excel':
+    elif file_extension in {'.xlsx', '.xls'}:
         preview_data = _excel_preview(file_path)
 
     job.preview = preview_data
     job.save(update_fields=['preview'])
 
 
-def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_filename: str) -> None:
+def generate_consent(job: DeidentificationJob) -> None:
+    """Create consent.txt and store its path on the job when data_permission is set."""
+    output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
+
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not job.data_permission or not job.input_file:
+        job.consent_file.delete(save=False)
+        job.consent_file = None
+        job.save(update_fields=['consent_file'])
+        return
+
+    base_name = Path(job.input_file.name).stem
+    consent_filename = f'{base_name}_consent.txt'
+    consent_path = output_dir / consent_filename
+
+    timestamp = timezone.now().strftime('%d-%m-%Y %H:%M')
+    consent_path.write_text(
+        f'Data permission granted.\n\nFilename: {base_name}\nTimestamp: {timestamp}\n',
+        encoding='utf-8',
+    )
+
+    job.consent_file.name = str(Path('output') / str(job.job_id) / consent_filename)
+    job.save(update_fields=['consent_file'])
+
+
+def collect_output_files(job: DeidentificationJob) -> list[str]:
+    """Collect all files in the job output directory, excluding the input file."""
+    job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
+    input_filename = Path(job.input_file.name).name
+
+    if not job_output_dir.exists():
+        return []
+
+    return [
+        str(path)
+        for path in sorted(job_output_dir.iterdir())
+        if path.is_file() and path.name != input_filename and path.suffix != '.zip'
+    ]
+
+
+def create_zipfile(job: DeidentificationJob, files_to_zip: list[str]) -> None:
     """Create a zip file and store its information in the job model."""
+    output_filename = Path(job.output_file.name).name
+
     if not files_to_zip:
         error_message = f'No output files found to zip for job {job.pk}'
         logger.error(error_message)
@@ -186,6 +192,7 @@ def create_zipfile(job: DeidentificationJob, files_to_zip: list[str], output_fil
             'zip_file': zip_filename,
             'files': included_files,
         }
+        job.save(update_fields=['zip_file', 'zip_preview'])
 
     except OSError as error:
         error_message = f'Failed to create zip file: {error}'
