@@ -34,6 +34,7 @@ from api.serializers import (
     JobListSerializer,
     JobSerializer,
     JobStatusSerializer,
+    ZipSerializer,
 )
 from api.utils.file_handling import (
     collect_output_files,
@@ -64,12 +65,14 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     serializer_class = JobSerializer
     http_method_names = ('get', 'post', 'put', 'delete')
 
-    def get_serializer_class(self) -> type[JobSerializer | JobListSerializer | JobStatusSerializer]:
+    def get_serializer_class(self) -> type[JobSerializer | JobListSerializer | JobStatusSerializer | ZipSerializer]:
         """Return a serializer based on the current action."""
         if self.action == 'list':
             return JobListSerializer
-        if self.action in ['process', 'cancel', 'zip_files']:
+        if self.action in ['process', 'cancel']:
             return JobStatusSerializer
+        if self.action == 'zip_files':
+            return ZipSerializer
         return JobSerializer
 
     def update(self, request: Request, *args: object, **kwargs: object) -> Response:
@@ -121,6 +124,11 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         if should_reset:
             job.reset_output()
             generate_preview(job)
+            if input_changed or datakey_changed:
+                job.data_permission = False
+                job.save(update_fields=['data_permission'])
+            elif job.data_permission:
+                generate_consent(job)
 
         return Response(JobSerializer(job, context={'request': request}).data, status=status.HTTP_200_OK)
 
@@ -182,6 +190,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         job = serializer.save(status='pending')
         generate_preview(job)
+        if job.data_permission:
+            generate_consent(job)
 
         detail_serializer = JobSerializer(job, context={'request': request})
         return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
@@ -285,14 +295,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             )
 
         if request.method == 'GET':
-            files_to_zip = collect_output_files(job)
-            return Response(
-                {
-                    'job_id': str(job.job_id),
-                    'files': [Path(f).name for f in files_to_zip],
-                },
-                status=status.HTTP_200_OK,
-            )
+            return Response(self.get_serializer(job).data, status=status.HTTP_200_OK)
 
         files_to_zip = collect_output_files(job)
         create_zipfile(job, files_to_zip)

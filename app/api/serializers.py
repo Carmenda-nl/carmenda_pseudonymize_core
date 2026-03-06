@@ -12,10 +12,12 @@ from typing import TYPE_CHECKING, ClassVar
 if TYPE_CHECKING:
     from django.core.files.uploadedfile import UploadedFile
 
+from pathlib import Path
+
 from django.db.models import FileField
 from rest_framework import serializers
 
-from api.models import DeidentificationJob
+from api.models import DeidentificationJob, output_path
 from api.utils.file_handling import get_metadata
 from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
 from core.utils.progress_tracker import tracker
@@ -59,7 +61,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DeidentificationJob
-        fields = '__all__'
+        exclude: ClassVar = ['zip_preview']
         read_only_fields: ClassVar = [
             'output_file',
             'output_datakey',
@@ -67,7 +69,6 @@ class JobSerializer(serializers.ModelSerializer):
             'log_file',
             'error_rows_file',
             'zip_file',
-            'zip_preview',
             'preview',
             'processed_preview',
             'status',
@@ -201,3 +202,43 @@ class JobStatusSerializer(serializers.ModelSerializer):
             return int(percentage) if isinstance(percentage, str) else percentage
 
         return 100 if obj.status == 'completed' else 0
+
+
+class ZipSerializer(serializers.ModelSerializer):
+    """Package the output files of a completed job into a zipfile."""
+
+    output_fields: ClassVar[list[str]] = [
+        field.name
+        for field in DeidentificationJob._meta.get_fields()
+        if isinstance(field, FileField) and field.upload_to is output_path and field.name != 'zip_file'
+    ]
+
+    zipfile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DeidentificationJob
+        fields: ClassVar = ['job_id', 'zipfile']
+        read_only_fields: ClassVar = ['job_id', 'zipfile']
+
+    def get_fields(self) -> dict:
+        """Add output FileFields to generates their URLs."""
+        fields = super().get_fields()
+        for name in self.output_fields:
+            fields[name] = serializers.FileField(read_only=True, use_url=True)
+        return fields
+
+    def get_zipfile(self, obj: DeidentificationJob) -> str:
+        """Return the expected zip filename based on the output file name."""
+        return f'{Path(obj.output_file.name).stem}.zip'
+
+    def to_representation(self, instance: DeidentificationJob) -> dict:
+        """Return the zip including files metadata, as size & built dates."""
+        representation = super().to_representation(instance)
+        representation = get_metadata(representation, instance, self.output_fields)
+
+        files = {}
+        for field in self.output_fields:
+            if isinstance(meta := representation.pop(field, None), dict):
+                files[Path(meta['url']).name] = meta
+
+        return {'zip_file': representation['zipfile'], 'files': files}

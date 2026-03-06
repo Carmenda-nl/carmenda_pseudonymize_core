@@ -98,11 +98,19 @@ class JobProcessErrorSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class ZipFileMetaSerializer(serializers.Serializer):
+    """Metadata for a single output file."""
+
+    url = serializers.CharField()
+    filesize = serializers.IntegerField()
+    build_date = serializers.DateTimeField()
+
+
 class ZipFilesStatusSerializer(serializers.Serializer):
     """Response serializer for packaging a job (GET)."""
 
-    job_id = serializers.CharField()
-    files = serializers.ListField(child=serializers.CharField())
+    zip_file = serializers.CharField()
+    files = serializers.DictField(child=ZipFileMetaSerializer())
 
 
 class ZipFilesNotReadySerializer(serializers.Serializer):
