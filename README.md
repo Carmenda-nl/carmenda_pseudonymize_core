@@ -102,7 +102,7 @@ If you encounter issues:
 
 ### Step 1: Preparations
 
-Ensure Python is installed (minimum version 3.13) and Git.
+Ensure [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git are installed.
 Clone this repository to your local machine:
 
 ```bash
@@ -115,38 +115,12 @@ Open a terminal and navigate to the `app` folder of this project:
 cd carmenda_pseudonymize_core/app
 ```
 
-Create a virtual environment, as all dependencies need to be loaded into it:
-
-```bash
-python virtualenv .venv
-```
-
-Activate the virtual environment:
-
-**Windows (Command Prompt):**
-
-```bash
-.venv\Scripts\activate
-```
-
-**Windows (PowerShell):**
-
-```bash
-.venv\Scripts\Activate.ps1
-```
-
-**Linux/macOS:**
-
-```bash
-source .venv/bin/activate
-```
-
 ### Step 2: Install dependencies
 
-Install the project dependencies:
+Install the project dependencies (uv will automatically create and manage the virtual environment):
 
 ```bash
-pip install -r requirements-dev.txt
+uv sync --group dev
 ```
 
 ### Step 3: Configuration
