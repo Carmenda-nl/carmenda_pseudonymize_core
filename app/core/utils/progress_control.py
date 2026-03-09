@@ -36,7 +36,7 @@ class JobControl:
         self._local = threading.local()
 
     @contextmanager
-    def run_job(self, job_id: str) -> Generator[None, None, None]:
+    def run_job(self, job_id: str) -> Generator[None]:
         """Context manager to run a job with automatic lifecycle management."""
         if getattr(self._local, 'job_id', None) is not None:
             message = f'Thread already has an active job: {self._local.job_id}'
