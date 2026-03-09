@@ -4,6 +4,7 @@
 [![API](https://img.shields.io/badge/api-REST-orange)](https://www.django-rest-framework.org/)
 [![Django](https://img.shields.io/badge/django-5.2-green)](https://docs.djangoproject.com/en/5.2/)
 [![Polars](https://img.shields.io/badge/polars-1.38-9cf)](https://pola.rs/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Tests](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/actions/workflows/test-develop.yml/badge.svg?branch=develop)](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/actions/workflows/test-develop.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
