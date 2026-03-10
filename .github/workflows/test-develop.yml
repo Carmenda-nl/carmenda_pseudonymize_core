@@ -85,5 +85,5 @@ jobs:
         with:
           name: coverage-reports
           path: |
-            app/htmlcov/
-            app/coverage.xml
+            app/pytest/html/
+            app/pytest/coverage.xml
