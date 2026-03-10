@@ -23,6 +23,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
       - name: Determine beta tag to promote
         id: determine_tag
         env:
@@ -61,6 +66,25 @@ jobs:
           echo "stable_tag=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "New version will be: $NEW_VERSION"
 
+      - name: Set stable tag
+        id: set_tag
+        run: |
+          if [ "${{ steps.determine_tag.outputs.has_beta }}" == "true" ]; then
+            echo "tag=${{ steps.determine_tag.outputs.stable_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ steps.version_from_releases.outputs.stable_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get release notes
+        id: release_notes
+        uses: orhun/git-cliff-action@v4.7.1
+        with:
+          config: cliff.toml
+          args: --tag ${{ steps.set_tag.outputs.tag }} --unreleased --ignore-tags ".*-beta" --strip header
+        env:
+          GITHUB_REPO: ${{ github.repository }}
+          OUTPUT: release_notes.md
+
       - name: Download beta release assets
         if: steps.determine_tag.outputs.has_beta == 'true'
         env:
@@ -80,21 +104,6 @@ jobs:
 
           ls -lh
 
-      - name: Get beta release notes
-        if: steps.determine_tag.outputs.has_beta == 'true'
-        id: notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          BODY=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.determine_tag.outputs.beta_tag }} --jq '.body')
-          BODY="${BODY//${{ steps.determine_tag.outputs.beta_tag }}/${{ steps.determine_tag.outputs.stable_tag }}}"
-          {
-            echo "body<<EOFMARKER"
-            echo ""
-            echo "$BODY"
-            echo "EOFMARKER"
-          } >> $GITHUB_OUTPUT
-
       - name: Create stable release from beta
         if: steps.determine_tag.outputs.has_beta == 'true'
         id: create_stable_from_beta
@@ -104,7 +113,7 @@ jobs:
           cd assets
           gh release create "${{ steps.determine_tag.outputs.stable_tag }}" \
             --title "Release ${{ steps.determine_tag.outputs.stable_tag }}" \
-            --notes "${{ steps.notes.outputs.body }}" \
+            --notes-file ../release_notes.md \
             --repo ${{ github.repository }} \
             *.zip
           echo "Created stable release from beta"
@@ -118,7 +127,7 @@ jobs:
         run: |
           gh release create "${{ steps.version_from_releases.outputs.stable_tag }}" \
             --title "Release ${{ steps.version_from_releases.outputs.stable_tag }}" \
-            --generate-notes \
+            --notes-file release_notes.md \
             --target develop \
             --repo ${{ github.repository }}
           echo "Created stable release from develop"
@@ -136,6 +145,24 @@ jobs:
           echo "Deleted beta tag"
 
           echo "Promotion complete: ${{ steps.determine_tag.outputs.beta_tag }} → ${{ steps.determine_tag.outputs.stable_tag }}"
+
+      - name: Update CHANGELOG.md
+        if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --ignore-tags ".*-beta" --prepend CHANGELOG.md
+        env:
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Commit CHANGELOG.md
+        if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --cached --quiet || git commit -m "chore(release): update CHANGELOG.md for ${{ steps.set_tag.outputs.tag }}"
+          git push origin HEAD:main
 
       - name: Trigger frontend build
         if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'

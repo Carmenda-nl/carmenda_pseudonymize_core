@@ -1,0 +1,39 @@
+[changelog]
+header = """
+# Changelog
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}\
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}\
+- {{ commit.message | upper_first }}\
+{% endfor %}
+{% endfor %}\n"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_preprocessors = [
+  { pattern = '\(#(\d+)\)', replace = "([#$1](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/issues/$1))" },
+]
+commit_parsers = [
+  { message = "^feat|^add", group = "Added" },
+  { message = "^fix|^bug", group = "Fixed" },
+  { message = "^chore\\(release\\):", skip = true },
+  { message = ".*", group = "Changed" },
+]
+filter_commits = false
+tag_pattern = "v[0-9].*"
+topo_order = false
+sort_commits = "oldest"
