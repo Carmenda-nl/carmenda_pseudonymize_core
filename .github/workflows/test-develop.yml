@@ -28,6 +28,7 @@ jobs:
         uses: astral-sh/setup-uv@v7.3.1
         with:
           python-version: "3.13"
+          working-directory: app
 
       - name: Install dependencies
         working-directory: app
@@ -58,6 +59,7 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: true
+          working-directory: app
 
       - name: Install dependencies
         working-directory: app

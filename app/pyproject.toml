@@ -41,6 +41,7 @@ dev = [
 
 [tool.uv]
 package = false
+required-version = ">=0.10.9"
 
 [tool.setuptools]
 packages = []
