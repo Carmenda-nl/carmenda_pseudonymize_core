@@ -19,7 +19,7 @@ rest_framework_path = os.path.join(site_packages, 'rest_framework')
 drf_spectacular_path = os.path.join(site_packages, 'drf_spectacular')
 
 # Update paths to match current project structure
-app_path = 'app'
+app_path = os.path.join(SPECPATH, 'app')
 
 datas = [] 
 datas += copy_metadata('deduce') 
@@ -115,7 +115,7 @@ tmp_ret = collect_all('twisted')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 a = Analysis(
-    [os.path.join('app', 'manage.py')],
+    [os.path.join(app_path, 'manage.py')],
     pathex=[],
     binaries=binaries,
     datas=datas,
