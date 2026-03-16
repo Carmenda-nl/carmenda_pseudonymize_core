@@ -105,7 +105,10 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
-    performance_metrics(start_time, df.height)
+    metrics = performance_metrics(start_time, df.height)
     save_datafile(df, input_file, output_folder)
 
-    return json.dumps({'data': df.head(2).to_dicts()}, default=str)
+    tail_start = max(2, df.height - 2)
+    preview_rows = df.head(2).to_dicts() + df.slice(tail_start).to_dicts()
+
+    return json.dumps({'data': preview_rows, 'metrics': metrics}, default=str)
