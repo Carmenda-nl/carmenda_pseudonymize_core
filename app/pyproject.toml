@@ -45,9 +45,19 @@ ignore_missing_imports = true
 [tool.django-stubs]
 django_settings_module = 'main.settings'
 
+[tool.coverage.run]
+data_file = 'pytest/.coverage'
+
+[tool.coverage.html]
+directory = 'pytest/html'
+
+[tool.coverage.xml]
+output = 'pytest/coverage.xml'
+
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = 'main.settings'
 python_files = ['tests.py', 'test_*.py', '*_tests.py']
+cache_dir = 'pytest/.pytest_cache'
 addopts = [
     '--cov=.',
     '--cov-report=term:skip-covered',

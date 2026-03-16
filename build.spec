@@ -46,6 +46,7 @@ excluded_items = {
     '.vscode',
     '__pycache__',
     'tests',
+    'pytest',
     'requirements.txt',
     'requirements-dev.txt',
     'core.py', 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import html
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -18,6 +19,24 @@ from charset_normalizer import from_bytes
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
+
+
+def _html_unescape(text: str) -> str:
+    """Unescape HTML entities, replacing double-quote entities with a typographic quote.
+
+    This prevents any HTML-encoded double quote (e.g. &quot; &#34; &#x22;) from
+    introducing a literal " that would break the CSV structure.
+    """
+    html_entity = re.compile(r'&(#[0-9]+;?|#[xX][0-9a-fA-F]+;?|[^\t\n\f <&#;]{1,32};?)')
+
+    if '&' not in text:
+        return text
+
+    def replace(match: re.Match) -> str:
+        unescaped = html.unescape(match.group(0))
+        return '\u201c' if unescaped == '"' else unescaped
+
+    return html_entity.sub(replace, text)
 
 
 def strip_bom(text: str) -> str:
@@ -106,9 +125,8 @@ def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> Non
 def sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: str) -> str:
     """Convert CSV to UTF-8 and sanitize content.
 
-    When the delimiter is `;` replace &quot; with space and convert HTML character entities
-    or Polars gets confused and treats it as delimiters,
-    which can lead to parsing errors.
+    When the delimiter is `;`, unescape HTML character entities while replacing
+    double-quote entities with a typographic quote to preserve CSV structure.
     """
     header, encoding, delimiter = properties['header'], properties['encoding'], properties['delimiter']
     replace_html = delimiter == ';'
@@ -145,8 +163,7 @@ def sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: str
                         continue
 
                     if replace_html:
-                        line = line.replace('&quot;', ' ')
-                        line = html.unescape(line)
+                        line = _html_unescape(line)
                     temp_file.write(line + '\n')
                 buffer = b''
                 continue
@@ -155,8 +172,7 @@ def sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: str
             quote_count = text.count('"') - text.count('\\"')
             if not chunk or quote_count % 2 == 0:
                 if replace_html:
-                    text = text.replace('&quot;', ' ')
-                    text = html.unescape(text)
+                    text = _html_unescape(text)
                 temp_file.write(text)
                 buffer = b''
 
@@ -179,7 +195,9 @@ def normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
 
         for row in reader:
             if any(field.strip() for field in row):
-                writer.writerow(row)
+                # Replace newlines within fields with spaces to prevent multiline CSV rows,
+                sanitized_row = [field.replace('\n', ' ').replace('\r', ' ') for field in row]
+                writer.writerow(sanitized_row)
             else:
                 empty_rows += 1
 

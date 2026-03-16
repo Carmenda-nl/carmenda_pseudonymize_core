@@ -8,7 +8,7 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
 
-from api.serializers import DeidentificationJobSerializer
+from api.serializers import JobSerializer
 
 
 class APIRootResponseSerializer(serializers.Serializer):
@@ -107,7 +107,7 @@ API_ROOT_SCHEMA = extend_schema(
 
 CREATE_JOB_SCHEMA = extend_schema(
     responses={
-        201: DeidentificationJobSerializer,
+        201: JobSerializer,
     },
 )
 

@@ -84,7 +84,7 @@ def _handle_job_error(job_id: str, error: Exception) -> None:
 def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: str, datakey: str) -> None:
     """Run processing in background thread."""
     current_job = DeidentificationJob.objects.get(pk=job_id)
-    job_handler = setup_job_logging(job_id)
+    job_handler = setup_job_logging(job_id, input_file)
 
     try:
         with job_control.run_job(job_id):
@@ -131,7 +131,8 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
     except JobCancelledError:
         _handle_job_cancellation(job_id)
 
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+    except Exception as error:
+        logger.exception('Unexpected error during run process %s', job_id)
         _handle_job_error(job_id, error)
     finally:
         deidentify_logger = logging.getLogger('deidentify')
