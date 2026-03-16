@@ -38952,7 +38952,6 @@ Benso
 Benson
 Ben-Stian
 Bensu
-Bent
 Benta
 Bentany
 Bentarek
@@ -66887,7 +66886,6 @@ Dabwiso
 Dabyan
 Dabyenne
 Dabyon
-Dac
 Dăc
 Daca
 Dacaïa
@@ -113630,7 +113628,6 @@ Fijs-Jan
 Fijske
 Fijss
 Fijssal
-Fijt
 Fijtina
 Fijtje
 Fijtjen
@@ -114680,7 +114677,6 @@ Fleury-Anne
 Fleurycke
 Fleviano
 Flevinus
-Flex
 Flexy
 Flief
 Flien
@@ -114695,7 +114691,6 @@ Flin
 Flinck
 Flinder
 Flinja
-Flink
 Flinn
 Flinne
 Flinq
@@ -151549,7 +151544,6 @@ Inçinaz
 Incinur
 Inck
 Incke
-Inco
 Incomio
 Incoronata
 Incy
@@ -187752,7 +187746,6 @@ Kalén
 Kalēn
 Kalena
 Kalenda
-Kalender
 Kalene
 Kalenga
 Kalengai
@@ -191926,7 +191919,6 @@ Kemuell
 Kemy
 Kèmy
 Ken
-ken
 Kena
 Ke'na
 Kenaan
@@ -198963,7 +198955,6 @@ Kwakusekyi
 Kwaky
 Kwakye
 Kwakyewa
-Kwam
 Kwama
 Kwamba
 Kwambena
@@ -204532,7 +204523,6 @@ Legeinem
 Legeisha
 Legeman
 Legemin
-Legen
 Legencio
 Legend
 Legenda
@@ -216876,7 +216866,6 @@ Maahir
 Maahira
 Maahtab
 Maahzebeen
-Maai
 Maäi
 Maaia
 Maaicke
@@ -232864,7 +232853,6 @@ Meddina
 Meddo
 Meddox
 Meddy
-Mede
 Medea
 Medéa
 Médea
@@ -249912,7 +249900,6 @@ Nalysha
 Nà-Lyshia
 Nalyssa
 Nalyzhia
-Nam
 Namachkani
 Namae
 Namagembe
@@ -267318,7 +267305,6 @@ Orell
 Orely
 Orély
 Oremelienda
-Oren
 Orén
 Orena
 Orencio
@@ -363214,7 +363200,6 @@ Vedde
 Vedder
 Vede
 Vedeh
-Veder
 Vedeshvar
 Vedh
 Vedha

@@ -276,9 +276,11 @@ feit
 fel
 fietsen
 fijn
+fijt
 film
 fit
 fles
+flex
 foto
 fout
 franklin
@@ -325,11 +327,13 @@ geven
 gevolg
 gewicht
 gewoon
+gezellige
 gezicht
 gezond
 gif
 gift
 gilbert
+gillend
 gingen
 gisteren
 glad
@@ -460,6 +464,7 @@ kaak
 kaars
 kaart
 kaas
+kalender
 kam
 kamer
 kamp
@@ -476,6 +481,7 @@ kat
 kauw
 kei
 keizer
+ken
 kennen
 kennis
 kent
@@ -543,6 +549,7 @@ kuil
 kuip
 kunnen
 kunst
+kwam
 laag
 laan
 laat
@@ -680,7 +687,6 @@ mol
 moment
 mond
 mop
-mooi
 mooi
 mooie
 moord
@@ -1021,6 +1027,7 @@ timmerman
 tin
 tip
 titel
+toe
 toekomst
 toen
 toename
