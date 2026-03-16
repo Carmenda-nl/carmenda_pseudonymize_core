@@ -1,4 +1,4 @@
-Aabadlkrim
+﻿Aabadlkrim
 Aaban
 Aabana
 Aabdelaziz
@@ -6174,7 +6174,6 @@ Aftabali
 Aftalie
 Aftar
 Aftegar
-Afternoon
 Afthon
 Aftob
 Afton
@@ -6232,7 +6231,6 @@ Agâh
 Agahcemal
 Agahta
 Agaiby
-Again
 Agajanian
 Agajunwa
 Agale
@@ -34999,7 +34997,6 @@ Ballal
 Ballard
 Ballay
 Ballèn
-Ballerina
 Ballestero
 Balley
 Balli
@@ -37957,7 +37954,6 @@ Belgacem
 Belgarion
 Belgasem
 Belger
-Belgie
 Belgihan
 Belgin
 Belğin
@@ -44277,7 +44273,6 @@ Borna
 Borná
 Bornardo
 Borne
-Borneo
 Borneô
 Boro
 Bòro
@@ -45201,7 +45196,6 @@ Branci
 Brancie
 Branclene
 Branco
-Brand
 Bränd
 Branda
 Brandaan
@@ -46691,7 +46685,6 @@ Brusinus
 Brusk
 Brûsk
 Brüsk
-Brussel
 Brussly
 Brusten
 Brustijn
@@ -48917,7 +48910,6 @@ Cara-May
 Carambeau
 Caramea
 Carameja
-Caramel
 Caramella
 Caramia
 Caran
@@ -51899,7 +51891,6 @@ Celsi
 Celsia
 Celsie
 Celsio
-Celsius
 Celso
 Celsus
 Celsyano
@@ -88880,7 +88871,6 @@ Douau
 Doubas
 Doubé
 Doubet
-Double
 Doucas
 Douce
 Douceline
@@ -117825,7 +117815,6 @@ Frien
 Friena
 Frienka
 Friensia
-Fries
 Friesina
 Friesje
 Frieske
@@ -145619,7 +145608,6 @@ Hoodeh
 Hoodo
 Hoogwerf
 Hoogwerff
-Hooi
 Hooite
 Hooi-Ying
 Hookmani
@@ -151623,7 +151611,6 @@ Indhira
 Indhiya
 Indhy
 Indi
-India
 Indía
 India-Catalina
 India-Chloë
@@ -168903,7 +168890,6 @@ Jeenke
 Jeens
 Jeentina
 Jeentje
-Jeep
 Jeepé
 Jeepina
 Jeepje
@@ -196530,7 +196516,6 @@ Knollin
 Knowell
 Knowely
 Knowle
-Knowledge
 Knox
 Knoxville
 Knoxx
@@ -197097,7 +197082,6 @@ Koobanaf
 Koobs
 Koogje
 Kooichiroo
-Kook
 Kookai
 Kookaï
 Kookay
@@ -197112,7 +197096,6 @@ Kooni
 Koopalbert
 Koopjen
 Koopke
-Koopman
 Kooppien
 Koop-Pieter
 Koops
@@ -197207,7 +197190,6 @@ Korhan
 Korhan-Tansu
 Kori
 Korian
-Koriander
 Korianne
 Korie
 Korien
@@ -204525,7 +204507,6 @@ Legeman
 Legemin
 Legencio
 Legend
-Legenda
 Legendaiyro
 Legendary
 Legendrick
@@ -212201,7 +212182,6 @@ Lonceny
 Lonchimar
 Lonciada
 Londa
-Londen
 Londhen
 Londisha
 Londoño
@@ -212219,7 +212199,6 @@ Lonella
 Lonet
 Lonetta
 Lonette
-Long
 Lóng
 Longendjo
 Longeno
@@ -235592,7 +235571,6 @@ Menrieke
 Menrik
 Menrike
 Menro
-Mens
 Mensa
 Menşa
 Mensah
@@ -238540,7 +238518,6 @@ Mids
 Midun
 Midunan
 Midushy
-Midwinter
 Midy
 Midya
 Mie
@@ -244042,7 +244019,6 @@ Monnica
 Monnie
 Mónnie
 Monniek
-Monnik
 Monnika
 Monnique
 Monnix
@@ -244140,7 +244116,6 @@ Montel
 Montèl
 Montell
 Montella
-Montenegro
 Monteno
 Monteqim
 Monteque
@@ -270149,7 +270124,6 @@ Papangkon
 Papatia
 Papatya
 Papaver
-Papaya
 Papazed
 Pape
 Paphatsara
@@ -270164,7 +270138,6 @@ Papito
 Papken
 Papoela
 Papoeroeriemye
-Papríka
 Papuana
 Papuchca
 Papula
@@ -279382,7 +279355,6 @@ Quinntino
 Quinnty
 Quinny
 Quino
-Quinoa
 Quin-Odin
 Quinona
 Quinora
@@ -308415,7 +308387,6 @@ Salomons
 Salomoon
 Salomy
 Salómy
-Salon
 Salona
 Salongo
 Saloni
@@ -344976,7 +344947,6 @@ Talem
 Talena
 Talencia
 Taleni
-Talent
 Talentu
 Talenus
 Talet
@@ -357161,7 +357131,6 @@ Triepti
 Tries
 Triesila
 Triesna
-Triest
 Triestan
 Triet
 Trieu
