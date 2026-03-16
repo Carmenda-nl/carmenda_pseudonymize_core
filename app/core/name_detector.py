@@ -322,10 +322,15 @@ class DutchNameDetector:
                 else:
                     return False
 
+            # Require the first word to be a known name so we don't extend
+            first_word = sequence[0]['word']
+            first_is_known = self._first_name(first_word) or self._surname(first_word)
+
             total_valid = known_names + unknown_but_valid
-            return known_names >= two_words or (
+            valid_sequence = known_names >= two_words or (
                 known_names >= 1 and unknown_but_valid >= known_names and total_valid == length
             )
+            return valid_sequence and (unknown_but_valid == 0 or first_is_known)
 
         return False
 
