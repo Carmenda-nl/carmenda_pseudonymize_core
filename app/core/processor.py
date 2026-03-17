@@ -108,7 +108,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     metrics = performance_metrics(start_time, df.height)
     save_datafile(df, input_file, output_folder)
 
-    tail_start = max(2, df.height - 2)
-    preview_rows = df.head(2).to_dicts() + df.slice(tail_start).to_dicts()
+    minimum_rows = 5
+    preview_rows = df.head(3).to_dicts() if df.height < minimum_rows else df.head(2).to_dicts() + df.tail(3).to_dicts()
 
     return json.dumps({'data': preview_rows, 'metrics': metrics}, default=str)

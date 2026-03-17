@@ -168,7 +168,7 @@ class ProgressTracker:
 tracker = ProgressTracker()
 
 
-def performance_metrics(start_time: float, df_rowcount: int) -> dict[str, float | str]:
+def performance_metrics(start_time: float, df_rowcount: int) -> dict[str, float]:
     """Log performance metrics in time needed for processing."""
     end_time = time.time()
     total_time = end_time - start_time
@@ -185,4 +185,4 @@ def performance_metrics(start_time: float, df_rowcount: int) -> dict[str, float 
     logger.info('Time passed with a total of %d rows', df_rowcount)
     logger.info('Total time: %s (%.6f seconds per row)', time_str, time_per_row)
 
-    return {'total_time': time_str, 'time_per_row': time_per_row}
+    return {'total_time': total_time, 'time_per_row': time_per_row}
