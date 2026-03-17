@@ -1,28 +1,43 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import deduce
-import site
 import os
+import site
+import subprocess
 import sys
-from PyInstaller.utils.hooks import copy_metadata, collect_data_files, collect_submodules, collect_all
+from pathlib import Path
 
+import deduce
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
+
+# Write the latest git tag to a version file
+version_file = Path(SPECPATH) / 'app' / '_version.txt'
+version = (
+    subprocess.check_output(
+        ['git', 'describe', '--tags', '--abbrev=0'],
+        cwd=SPECPATH,
+        stderr=subprocess.DEVNULL,
+    )
+    .decode('utf-8')
+    .strip()
+)
+
+with version_file.open('w', encoding='utf-8') as file:
+    file.write(version)
+
+print(f'\nCore build version: {version}\n')
 
 # Check build OS
 windows = sys.platform == 'win32'
+site_packages = site.getsitepackages()[1] if windows else site.getsitepackages()[0]
 
-if windows:
-    site_packages = site.getsitepackages()[1]
-else:
-    site_packages = site.getsitepackages()[0]
-
-rest_framework_path = os.path.join(site_packages, 'rest_framework') 
-drf_spectacular_path = os.path.join(site_packages, 'drf_spectacular')
+rest_framework_path = Path(site_packages) / 'rest_framework'
+drf_spectacular_path = Path(site_packages) / 'drf_spectacular'
 
 # Update paths to match current project structure
-app_path = os.path.join(SPECPATH, 'app')
+app_path = Path(SPECPATH) / 'app'
 
-datas = [] 
-datas += copy_metadata('deduce') 
+datas = []
+datas += copy_metadata('deduce')
 datas += copy_metadata('drf-spectacular')
 datas += copy_metadata('polars')
 
@@ -31,8 +46,8 @@ datas += copy_metadata('daphne')
 datas += copy_metadata('autobahn')
 datas += copy_metadata('twisted')
 
-datas += collect_data_files('deduce') 
-datas += collect_data_files('rest_framework') 
+datas += collect_data_files('deduce')
+datas += collect_data_files('rest_framework')
 datas += collect_data_files('drf_spectacular')
 datas += collect_data_files('polars')
 datas += collect_data_files('daphne')
@@ -41,71 +56,68 @@ datas += collect_data_files('twisted')
 
 # Add the app directory selectively
 excluded_items = {
-    '.mypy_cache',
-    '.venv',
     '.vscode',
+    'uv.lock',
+    '.mypy_cache',
     '__pycache__',
+    'data',
     'tests',
     'pytest',
-    'requirements.txt',
-    'requirements-dev.txt',
-    'core.py', 
-    'pyproject.toml'
+    'core.py',
+    'pyproject.toml',
 }
 
 for root, dirs, files in os.walk(app_path):
-    dirs[:] = [dir for dir in dirs if dir not in excluded_items and not dir.startswith('.')]
-    
-    for file in files:
-        if file not in excluded_items and (file == '.env' or not file.startswith('.')):
-            source_path = os.path.join(root, file)
+    dirs[:] = [directory for directory in dirs if directory not in excluded_items and not directory.startswith('.')]
+
+    for filename in files:
+        if isinstance(filename, str) and filename not in excluded_items and not filename.startswith('.'):
+            source_path = str(Path(root) / filename)
             rel_path = os.path.relpath(root, app_path)
 
-            if rel_path == '.':
-                dest_path = 'app'
-            else:
-                dest_path = os.path.join('app', rel_path)
-
+            dest_path = str(Path('app') / rel_path) if rel_path != '.' else 'app'
             datas.append((source_path, dest_path))
 
 # Filter out files and folders not needed for production
-datas = [(source, dest) for source, dest in datas if not (
-    isinstance(source, str) and ('__pycache__' in source or '.pyc' in source)
-)]
+datas = [
+    (source, dest)
+    for source, dest in datas
+    if not (isinstance(source, str) and ('__pycache__' in source or '.pyc' in source))
+]
 
 # Bundle the lookup tables in the application
-lookup_tables_path = os.path.join(app_path, 'core', 'lookup_tables')
-if os.path.exists(lookup_tables_path):
+lookup_tables_path = app_path / 'core' / 'lookup_tables'
+if lookup_tables_path.exists():
     datas.append((lookup_tables_path, 'lookup_tables'))
     cache_path = lookup_tables_path
-    pickle_file = os.path.join(cache_path, 'cache', 'lookup_structs.pickle')
+    pickle_file = cache_path / 'cache' / 'lookup_structs.pickle'
 
-    if os.path.exists(pickle_file):
-        datas.append((pickle_file, os.path.join('lookup_tables', 'cache')))
+    if pickle_file.exists():
+        datas.append((pickle_file, Path('lookup_tables') / 'cache'))
     else:
         deduce_instance = deduce.Deduce(lookup_data_path=lookup_tables_path, cache_path=cache_path)
 
-rest_framework_imports = collect_submodules('rest_framework') 
+rest_framework_imports = collect_submodules('rest_framework')
 drf_spectacular_imports = collect_submodules('drf_spectacular')
 
-datas.append((rest_framework_path, 'rest_framework')) 
-datas.append((drf_spectacular_path, 'drf_spectacular'))
+datas.append((str(rest_framework_path), 'rest_framework'))
+datas.append((str(drf_spectacular_path), 'drf_spectacular'))
 
-binaries = [] 
-hiddenimports = [] 
+binaries = []
+hiddenimports = []
 hiddenimports += collect_submodules('deduce')
 hiddenimports += collect_submodules('polars')
 hiddenimports += collect_submodules('daphne')
 hiddenimports += collect_submodules('autobahn')
 hiddenimports += collect_submodules('twisted')
 
-tmp_ret = collect_all('deduce') 
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
-tmp_ret = collect_all('rest_framework') 
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2] 
-tmp_ret = collect_all('drf_spectacular') 
+tmp_ret = collect_all('deduce')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('polars') 
+tmp_ret = collect_all('rest_framework')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('drf_spectacular')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('polars')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('daphne')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
@@ -115,7 +127,7 @@ tmp_ret = collect_all('twisted')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 a = Analysis(
-    [os.path.join(app_path, 'manage.py')],
+    [str(app_path / 'manage.py')],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -124,12 +136,18 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'pytest', 'test', 'tests', 
+        'pytest',
+        'test',
+        'tests',
         'hypothesis',
-        'IPython', 'jupyter', 'notebook',
-        'tkinter', 'Tkinter',
+        'IPython',
+        'jupyter',
+        'notebook',
+        'tkinter',
+        'Tkinter',
         'pdb',
-        'matplotlib', 'pylab',
+        'matplotlib',
+        'pylab',
     ],
     noarchive=False,
     optimize=1,
@@ -157,13 +175,4 @@ exe = EXE(
     entitlements_file=None,
 )
 
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    a.scripts,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='backend'
-)
+coll = COLLECT(exe, a.binaries, a.datas, a.scripts, strip=False, upx=True, upx_exclude=[], name='backend')
