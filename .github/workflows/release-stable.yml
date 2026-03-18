@@ -148,7 +148,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@v4.7.1
         with:
           config: cliff.toml
           args: --latest --ignore-tags ".*-beta" --prepend CHANGELOG.md
