@@ -47,10 +47,6 @@ required-version = ">=0.10.9"
 [tool.setuptools]
 packages = []
 
-[tool.setuptools_scm]
-root = ".."
-version_file = "api/_version.py"
-
 [tool.ruff]
 line-length = 120
 exclude = ['migrations']

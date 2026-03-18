@@ -132,7 +132,7 @@ if DEBUG:
     SPECTACULAR_SETTINGS = {
         'TITLE': 'Deidentification API',
         'DESCRIPTION': 'API for file-based deidentification',
-        'VERSION': '1.2.0',
+        'VERSION': '1.4.0',
         'SERVE_INCLUDE_SCHEMA': False,
         'TAGS': [
             {'name': 'API', 'description': 'base endpoints and documentation'},

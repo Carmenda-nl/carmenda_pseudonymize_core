@@ -24,3 +24,12 @@ def get_version() -> str:
         return VERSION_FILE.read_text(encoding='utf-8').strip()
     except FileNotFoundError:
         return 'unknown'
+
+
+def write_version(target: Path | None = None) -> str:
+    """Write the current version to a file."""
+    version = get_version()
+    path = target or VERSION_FILE
+    path.write_text(version, encoding='utf-8')
+
+    return version

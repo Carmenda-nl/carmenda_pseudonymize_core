@@ -2,29 +2,19 @@
 
 import os
 import site
-import subprocess
 import sys
 from pathlib import Path
 
 import deduce
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
 
-# Write the latest git tag to a version file
-version_file = Path(SPECPATH) / 'app' / '_version.txt'
-version = (
-    subprocess.check_output(
-        ['git', 'describe', '--tags', '--abbrev=0'],
-        cwd=SPECPATH,
-        stderr=subprocess.DEVNULL,
-    )
-    .decode('utf-8')
-    .strip()
-)
+sys.path.insert(0, str(Path(SPECPATH) / 'app'))
+from main.version import write_version
 
-with version_file.open('w', encoding='utf-8') as file:
-    file.write(version)
+# Write the latest git tag to version.txt
+version_file = write_version(Path(SPECPATH) / 'app' / 'version.txt')
 
-print(f'\nCore build version: {version}\n')
+print(f'\nCore build: {version_file}\n')
 
 # Check build OS
 windows = sys.platform == 'win32'
