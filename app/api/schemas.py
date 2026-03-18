@@ -120,7 +120,18 @@ class ZipFilesNotReadySerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-# Schema definitions for endpoints
+class VersionResponseSerializer(serializers.Serializer):
+    """Response serializer for the version endpoint."""
+
+    version = serializers.CharField(help_text='Application version')
+
+
+VERSION_SCHEMA = extend_schema(
+    responses={
+        200: VersionResponseSerializer,
+    },
+)
+
 API_ROOT_SCHEMA = extend_schema(
     responses={
         200: APIRootResponseSerializer,

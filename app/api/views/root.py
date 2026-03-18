@@ -15,7 +15,8 @@ from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
-from api.schemas import API_ROOT_SCHEMA
+from api.schemas import API_ROOT_SCHEMA, VERSION_SCHEMA
+from main.version import get_version
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
@@ -43,9 +44,20 @@ class APIRootView(APIView):
         """Return links to all available endpoints."""
         data = {
             'v1/jobs': reverse('jobs-list', request=request, format=format_suffix),
+            'v1/version': reverse('version', request=request, format=format_suffix),
         }
         if settings.DEBUG:
             data['v1/docs'] = reverse('swagger-ui', request=request, format=format_suffix)
             data['v1/schema'] = reverse('schema', request=request, format=format_suffix)
 
         return Response(data)
+
+
+@extend_schema(tags=[ApiTags.API])
+@VERSION_SCHEMA
+class VersionView(APIView):
+    """Returns the current application version."""
+
+    def get(self, request: Request) -> Response:
+        """Return the application version."""
+        return Response({'version': get_version()})
