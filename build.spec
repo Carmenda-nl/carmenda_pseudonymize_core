@@ -57,6 +57,10 @@ excluded_items = {
     'pyproject.toml',
 }
 
+env_file = app_path / '.env'
+if env_file.exists():
+    datas.append((str(env_file), 'app'))
+
 for root, dirs, files in os.walk(app_path):
     dirs[:] = [directory for directory in dirs if directory not in excluded_items and not directory.startswith('.')]
 
