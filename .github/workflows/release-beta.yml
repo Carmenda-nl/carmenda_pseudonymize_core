@@ -49,12 +49,6 @@ jobs:
         working-directory: app
         run: uv sync --group build
 
-      - name: Write version file
-        run: |
-          "${{ github.ref_name }}" | Out-File -FilePath "app\_version.txt" -Encoding utf8 -NoNewline
-          Write-Host "Version written: ${{ github.ref_name }}"
-        shell: pwsh
-
       - name: Build windows executable
         working-directory: app
         run: uv run pyinstaller ../build.spec
