@@ -58,6 +58,7 @@ jobs:
         with:
           name: backend-windows
           path: app/dist/backend/
+          include-hidden-files: true
 
   create-beta-release:
     needs: build-beta-windows
