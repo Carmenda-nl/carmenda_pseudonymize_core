@@ -11,12 +11,15 @@ from pathlib import Path
 import git
 
 FILE_DIR = Path(__file__).parent
-VERSION_FILE = FILE_DIR.parent / 'version.txt'
+
+VERSION_FILE = (
+    Path(sys._MEIPASS) / 'app' / 'version.txt' if hasattr(sys, '_MEIPASS') else FILE_DIR.parent / 'version.txt'
+)
 
 
 def get_version() -> str:
     """When frozen git is unavailable, so create version.txt as fallback."""
-    if not hasattr(sys, 'frozen'):
+    if not hasattr(sys, '_MEIPASS'):
         repo = git.Repo(FILE_DIR, search_parent_directories=True)
         return repo.git.describe('--tags', '--abbrev=0')
 
