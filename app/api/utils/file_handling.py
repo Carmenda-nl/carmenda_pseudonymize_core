@@ -12,6 +12,7 @@ import html
 import os
 import tempfile
 import zipfile
+from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 
     from api.models import DeidentificationJob
 
+import polars as pl
 from django.conf import settings
 from django.utils import timezone
 from fastexcel import read_excel
@@ -28,6 +30,9 @@ from core.utils.csv_handler import detect_csv_properties, strip_bom
 from core.utils.logger import setup_logging
 
 logger = setup_logging()
+
+MAX_FIRST_PREVIEW_ROWS = 2
+MAX_LAST_PREVIEW_ROWS = 3
 
 
 def get_file_path(uploaded_file: UploadedFile) -> tuple[str, bool]:
@@ -61,7 +66,7 @@ def match_output_cols(input_cols: str) -> str:
 
 
 def _csv_preview(file_path: str) -> list[dict]:
-    """Read the first 2 data rows from a CSV file."""
+    """Read the first & last rows from a CSV file."""
     properties = detect_csv_properties(Path(file_path))
     encoding, delimiter = properties['encoding'], properties['delimiter']
 
@@ -72,36 +77,57 @@ def _csv_preview(file_path: str) -> list[dict]:
         header_row[0] = strip_bom(header_row[0])
         header = [col.strip() for col in header_row]
 
-        preview_data = []
-        for _ in range(2):
-            row = next(csv_reader)
+        first_rows: list[list[str]] = []
+        tail: deque = deque(maxlen=MAX_LAST_PREVIEW_ROWS)
 
-            # Decode HTML entities in each field
-            decoded_row = [html.unescape(val) if val else val for val in row]
-            preview_data.append(dict(zip(header, decoded_row, strict=False)))
+        for row in csv_reader:
+            if not any(row):
+                continue
+            if len(first_rows) < MAX_FIRST_PREVIEW_ROWS:
+                first_rows.append(row)
+            else:
+                tail.append(row)
 
-    return preview_data
+    # If fewer than max data rows, only return the first rows.
+    selected = first_rows + list(tail) if len(tail) >= MAX_LAST_PREVIEW_ROWS else first_rows
+
+    preview = []
+    for row in selected:
+        decoded_values = [html.unescape(value) if value else value for value in row]
+        preview.append(dict(zip(header, decoded_values, strict=False)))
+
+    return preview
 
 
 def _excel_preview(file_path: str) -> list[dict]:
-    """Read the first 2 data rows from an Excel file."""
+    """Read the first & last rows from an Excel file."""
     excel_reader = read_excel(file_path)
-    df = excel_reader.load_sheet(0, n_rows=2).to_polars()
+    sheet = excel_reader.load_sheet(0)
+    total_rows = sheet.total_height
 
-    header = [str(col) for col in df.columns]
-    preview_data = []
+    def to_dicts(df: pl.DataFrame) -> list[dict]:
+        df = df.filter(~pl.all_horizontal(pl.all().is_null()))
+        return [{col: html.unescape(str(val)) for col, val in row.items()} for row in df.to_dicts()]
 
-    for row in df.iter_rows():
-        row_dict = {
-            col: html.unescape(str(val)) if val is not None else '' for col, val in zip(header, row, strict=False)
-        }
-        preview_data.append(row_dict)
+    # Buffer extra rows to compensate for empty rows being filtered out
+    head_buffer = MAX_FIRST_PREVIEW_ROWS * 5
 
-    return preview_data
+    head_df = excel_reader.load_sheet(0, n_rows=min(head_buffer, total_rows)).to_polars()
+    first_rows = to_dicts(head_df)[:MAX_FIRST_PREVIEW_ROWS]
+
+    if total_rows < MAX_FIRST_PREVIEW_ROWS + MAX_LAST_PREVIEW_ROWS:
+        return first_rows
+
+    tail_buffer = MAX_LAST_PREVIEW_ROWS * 5
+    skip = max(0, total_rows - tail_buffer)
+    tail_df = excel_reader.load_sheet(0, skip_rows=skip).to_polars()
+    tail = to_dicts(tail_df)[-MAX_LAST_PREVIEW_ROWS:]
+
+    return first_rows + tail
 
 
 def generate_preview(job: DeidentificationJob) -> None:
-    """Generate a preview from the first 3 rows of the input file (1 header + 2 data rows)."""
+    """Generate a preview from the input file (1 header + data rows)."""
     file_path = job.input_file.path
     file_extension = Path(file_path).suffix.lower()
 
