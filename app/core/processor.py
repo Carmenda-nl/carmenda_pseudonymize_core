@@ -28,6 +28,10 @@ from core.utils.progress_tracker import performance_metrics
 
 logger = setup_logging()
 
+MAX_FIRST_PREVIEW_ROWS = 2
+MAX_LAST_PREVIEW_ROWS = 3
+MINIMUM_ROWS = 5
+
 
 def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
     """Process and pseudonymize data from input file and return the first 10 rows in Json."""
@@ -108,7 +112,10 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     metrics = performance_metrics(start_time, df.height)
     save_datafile(df, input_file, output_folder)
 
-    minimum_rows = 5
-    preview_rows = df.head(3).to_dicts() if df.height < minimum_rows else df.head(2).to_dicts() + df.tail(3).to_dicts()
+    preview_rows = (
+        df.head(MAX_FIRST_PREVIEW_ROWS).to_dicts()
+        if df.height < MINIMUM_ROWS
+        else df.head(MAX_FIRST_PREVIEW_ROWS).to_dicts() + df.tail(MAX_LAST_PREVIEW_ROWS).to_dicts()
+    )
 
     return json.dumps({'data': preview_rows, 'metrics': metrics}, default=str)
