@@ -31,7 +31,7 @@ from core.utils.logger import setup_logging
 
 logger = setup_logging()
 
-MAX_FIRST_PREVIEW_ROWS = 2
+MAX_FIRST_PREVIEW_ROWS = 3
 MAX_LAST_PREVIEW_ROWS = 3
 
 

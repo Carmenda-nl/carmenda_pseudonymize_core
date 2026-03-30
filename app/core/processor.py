@@ -28,9 +28,9 @@ from core.utils.progress_tracker import performance_metrics
 
 logger = setup_logging()
 
-MAX_FIRST_PREVIEW_ROWS = 2
+MAX_FIRST_PREVIEW_ROWS = 3
 MAX_LAST_PREVIEW_ROWS = 3
-MINIMUM_ROWS = 5
+MINIMUM_ROWS = 6
 
 
 def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
