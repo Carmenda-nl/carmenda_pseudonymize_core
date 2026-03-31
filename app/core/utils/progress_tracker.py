@@ -14,6 +14,7 @@ from __future__ import annotations
 import io
 import sys
 import time
+from datetime import timedelta
 
 from rich.console import Console
 from rich.progress import (
@@ -168,19 +169,35 @@ class ProgressTracker:
 tracker = ProgressTracker()
 
 
+def _time_plural(value: int, unit: str) -> str:
+    """Helper function to format time units with correct pluralization."""
+    suffix = '' if value == 1 else 's'
+    return f'{value} {unit}{suffix}'
+
+
 def performance_metrics(start_time: float, df_rowcount: int) -> dict[str, float]:
     """Log performance metrics in time needed for processing."""
     end_time = time.time()
     total_time = end_time - start_time
     time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
-    minute = 60
+    elapsed = timedelta(seconds=total_time)
 
-    if total_time >= minute:
-        minutes = int(total_time // minute)
-        seconds = total_time % minute
-        time_str = f'{minutes} minutes and {seconds:.2f} seconds'
+    if elapsed >= timedelta(hours=1):
+        total_seconds = int(elapsed.total_seconds())
+        hours = total_seconds // 3600
+        remainder = total_seconds % 3600
+        minutes = remainder // 60
+        seconds = remainder % 60
+        time_str = (
+            f'{_time_plural(hours, "hour")}, {_time_plural(minutes, "minute")} and {_time_plural(seconds, "second")}'
+        )
+    elif elapsed >= timedelta(minutes=1):
+        total_seconds = int(elapsed.total_seconds())
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        time_str = f'{_time_plural(minutes, "minute")} and {_time_plural(seconds, "second")}'
     else:
-        time_str = f'{total_time:.2f} seconds'
+        time_str = f'{_time_plural(int(elapsed.total_seconds()), "second")}'
 
     logger.info('Time passed with a total of %d rows', df_rowcount)
     logger.info('Total time: %s (%.6f seconds per row)', time_str, time_per_row)
