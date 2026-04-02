@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Persistent config values model for the Django project."""
+"""Settings model for the Django project."""
 
 from django.core.exceptions import ValidationError
 from django.db import models

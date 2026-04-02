@@ -3,13 +3,8 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Config app for the Django project."""
+"""Settings package for Django backend.
 
-from django.apps import AppConfig
-
-
-class ConfigConfig(AppConfig):
-    """Base configuration for the current app."""
-
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'config'
+This package contains the persistent config values for the Django backend.
+The config values are designed to be used with the Django API framework.
+"""
