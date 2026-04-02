@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'main',
-    'settings',
+    'config',
     'api',
 ]
 
