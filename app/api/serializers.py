@@ -21,6 +21,15 @@ from api.models import DeidentificationJob, output_path
 from api.utils.file_handling import get_metadata
 from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
 from core.utils.progress_tracker import tracker
+from settings.models import ConfigValues
+
+
+class ConfigValuesSerializer(serializers.ModelSerializer):
+    """Serializer for the config persistent values."""
+
+    class Meta:
+        model = ConfigValues
+        fields = ('language',)
 
 
 class JobListSerializer(serializers.ModelSerializer):

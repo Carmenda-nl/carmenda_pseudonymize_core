@@ -12,6 +12,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from api.views import APIRootView, DeidentificationJobViewSet, VersionView
+from api.views.root import ConfigValuesView
 
 router = DefaultRouter()
 router.register('v1/jobs', DeidentificationJobViewSet, basename='jobs')
@@ -20,6 +21,7 @@ urlpatterns = [
     path('', APIRootView.as_view(), name='api-root'),
     path('', include(router.urls)),
     path('v1/version/', VersionView.as_view(), name='version'),
+    path('v2/settings/', ConfigValuesView.as_view(), name='settings'),
 ]
 
 if settings.DEBUG:

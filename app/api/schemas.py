@@ -15,6 +15,8 @@ class APIRootResponseSerializer(serializers.Serializer):
     """Response serializer for API root view."""
 
     v1_jobs = serializers.URLField(source='v1/jobs', help_text='URL to the jobs list endpoint')
+    v1_version = serializers.URLField(source='v1/version', help_text='URL to the version endpoint')
+    v2_settings = serializers.URLField(source='v2/settings', help_text='URL to the settings endpoint')
     v1_docs = serializers.URLField(
         source='v1/docs',
         required=False,
