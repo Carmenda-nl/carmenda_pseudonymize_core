@@ -1,0 +1,37 @@
+# Privacytool Dutch translation.
+# Copyright (C) 2026 Carmenda
+# This file is distributed under the same license as the package.
+# Django Heimgartner django.heimgartner@radboudumc.nl, 2026.
+
+msgid ""
+msgstr ""
+
+"Project-Id-Version: v2.0.0\n"
+"Report-Msgid-Bugs-To: django.heimgartner@radboudumc.nl\n"
+"POT-Creation-Date: 2026-04-02 11:51+0200\n"
+"PO-Revision-Date: 2026-04-02 11:51+0200\n"
+"Last-Translator: Django Heimgartner django.heimgartner@radboudumc.nl\n"
+"Language-Team: LANGUAGE django.heimgartner@radboudumc.nl\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: .\main\middleware.py:66
+#, python-brace-format
+msgid "Can not open the file: {path}"
+msgstr "Kan het bestand niet openen: {path}"
+
+#: .\main\middleware.py:70
+#, python-brace-format
+msgid "File {path} not found."
+msgstr "Bestand {path} niet gevonden."
+
+#: .\main\settings.py:172
+msgid "English"
+msgstr "Engels"
+
+#: .\main\settings.py:173
+msgid "Dutch"
+msgstr "Nederlands"
