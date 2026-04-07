@@ -54,7 +54,7 @@ def _handle_process_completion(job_id: str, current_job: DeidentificationJob, pr
     core_files = [
         ('output_file', job_output_dir / f'{Path(file).stem}_pseudonymised{Path(file).suffix}'),
         ('output_datakey', next(job_output_dir.glob('*_key.csv'), None)),
-        ('error_rows_file', next(job_output_dir.glob('*_errors.csv'), None)),
+        ('skipped_lines', next(job_output_dir.glob('*_skipped_lines.csv'), None)),
     ]
 
     save_fields = []

@@ -55,7 +55,7 @@ class DeidentificationJob(models.Model):
     data_permission = models.BooleanField(default=False)
     consent_file = models.FileField(upload_to=output_path, null=True, blank=True, max_length=255)
     log_file = models.FileField(upload_to=output_path, null=True, blank=True, max_length=255)
-    error_rows_file = models.FileField(upload_to=output_path, null=True, blank=True, max_length=255)
+    skipped_lines = models.FileField(upload_to=output_path, null=True, blank=True, max_length=255)
     zip_file = models.FileField(upload_to=output_path, null=True, blank=True, max_length=255)
     zip_preview = models.JSONField(null=True, blank=True)
     preview = models.JSONField(null=True, blank=True)

@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 ('data_permission', models.BooleanField(default=False)),
                 ('consent_file', models.FileField(blank=True, max_length=255, null=True, upload_to=api.models.output_path)),
                 ('log_file', models.FileField(blank=True, max_length=255, null=True, upload_to=api.models.output_path)),
-                ('error_rows_file', models.FileField(blank=True, max_length=255, null=True, upload_to=api.models.output_path)),
+                ('skipped_lines', models.FileField(blank=True, max_length=255, null=True, upload_to=api.models.output_path)),
                 ('zip_file', models.FileField(blank=True, max_length=255, null=True, upload_to=api.models.output_path)),
                 ('zip_preview', models.JSONField(blank=True, null=True)),
                 ('preview', models.JSONField(blank=True, null=True)),

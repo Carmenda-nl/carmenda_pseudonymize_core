@@ -114,7 +114,7 @@ def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> Non
             target_dir = Path(output_folder)
 
         target_dir.mkdir(parents=True, exist_ok=True)
-        error_csv = target_dir / f'{file_path.stem}_errors.csv'
+        error_csv = target_dir / f'{file_path.stem}_skipped_lines.csv'
         shutil.move(error_temp, error_csv)
         logger.warning('%d errors in rows found.', error_count)
     else:
