@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 from pathlib import Path
 
 from django.db.models import FileField
+from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from api.models import DeidentificationJob, output_path
@@ -29,7 +30,7 @@ class ConfigValuesSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ConfigValues
-        fields = ('language',)
+        fields = '__all__'
 
 
 class JobListSerializer(serializers.ModelSerializer):
@@ -62,7 +63,7 @@ class JobSerializer(serializers.ModelSerializer):
     input_cols = serializers.CharField(
         required=False,
         allow_blank=True,
-        help_text="Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required.",
+        help_text=_("Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required."),
     )
     input_file = serializers.FileField(required=False)
     datakey = serializers.FileField(required=False)
@@ -76,7 +77,7 @@ class JobSerializer(serializers.ModelSerializer):
             'output_datakey',
             'consent_file',
             'log_file',
-            'error_rows_file',
+            'skipped_lines',
             'zip_file',
             'preview',
             'processed_preview',

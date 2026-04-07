@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 import polars as pl
 from django.conf import settings
-from django.utils import timezone
+from django.utils.translation import gettext as _
 from fastexcel import read_excel
 
 from core.utils.csv_handler import detect_csv_properties, strip_bom
@@ -157,9 +157,11 @@ def generate_consent(job: DeidentificationJob) -> None:
     consent_filename = f'{base_name}_consent.txt'
     consent_path = output_dir / consent_filename
 
-    timestamp = timezone.now().strftime('%d-%m-%Y %H:%M')
     consent_path.write_text(
-        f'Data permission granted.\n\nFilename: {base_name}\nTimestamp: {timestamp}\n',
+        _(
+            'Yes, Carmenda may contact me with questions about improving the Privacytool.\n'
+            'Confirmed during pseudonimisation of the file: {filename}'
+        ).format(filename=base_name),
         encoding='utf-8',
     )
 

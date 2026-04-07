@@ -18,6 +18,15 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: .\api\serializers.py:66
+msgid "Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required."
+msgstr "Formaat:: sleutel=waarde (bijvoorbeeld 'report=Rapport, clientname=Patient'). De 'rapport' sleutel is verplicht."
+
+#: .\api\utils\file_handling.py:162
+#, python-brace-format
+msgid "Yes, Carmenda may contact me with questions about improving the Privacytool.\nConfirmed during pseudonimisation of the file: {filename}"
+msgstr "Ja, Carmenda mag mij benaderen met vragen over het verbeteren van de Privacytool.\nBevestigd tijdens de pseudonimisering van het bestand: {filename}"
+
 #: .\main\middleware.py:66
 #, python-brace-format
 msgid "Can not open the file: {path}"
@@ -28,10 +37,10 @@ msgstr "Kan het bestand niet openen: {path}"
 msgid "File {path} not found."
 msgstr "Bestand {path} niet gevonden."
 
-#: .\main\settings.py:172
+#: .\main\settings.py:173
 msgid "English"
 msgstr "Engels"
 
-#: .\main\settings.py:173
+#: .\main\settings.py:174
 msgid "Dutch"
 msgstr "Nederlands"
