@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 from pathlib import Path
 
 from django.db.models import FileField
-from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from api.models import DeidentificationJob, output_path
@@ -26,7 +25,7 @@ from settings.models import ConfigValues
 
 
 class ConfigValuesSerializer(serializers.ModelSerializer):
-    """Serializer for the config persistent values."""
+    """Serializer for the app settings persistent values."""
 
     class Meta:
         model = ConfigValues
@@ -63,7 +62,7 @@ class JobSerializer(serializers.ModelSerializer):
     input_cols = serializers.CharField(
         required=False,
         allow_blank=True,
-        help_text=_("Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required."),
+        help_text="Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required.",
     )
     input_file = serializers.FileField(required=False)
     datakey = serializers.FileField(required=False)
@@ -207,6 +206,7 @@ class JobStatusSerializer(serializers.ModelSerializer):
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
             percentage = progress_info['percentage']
+
             if percentage is None:
                 return 0
             return int(percentage) if isinstance(percentage, str) else percentage
