@@ -17,7 +17,8 @@ from pathlib import Path
 import polars as pl
 from charset_normalizer import from_bytes
 
-from core.utils.logger import setup_logging
+from .logger import setup_logging
+from .progress_tracker import tracker
 
 logger = setup_logging()
 
@@ -211,7 +212,11 @@ def _normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
 def load_csv(file_path: Path, output_folder: str) -> pl.DataFrame:
     """Load a CSV file, sanitize and normalize it, and return as a DataFrame."""
     properties = detect_csv_properties(file_path)
+
+    tracker.set_progress('sanitize_csv')
     sanitized_csv = _sanitize_csv(file_path, properties, output_folder)
+
+    tracker.set_progress('normalize_csv')
     input_file = _normalize_csv(Path(sanitized_csv), properties)
 
     df = pl.read_csv(source=input_file, encoding='utf-8', separator=',')

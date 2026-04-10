@@ -36,7 +36,7 @@ MINIMUM_ROWS = 6
 def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
     """Process and pseudonymize data from input file and return the first 10 rows in Json."""
     start_time = time.time()
-    tracker.set_progress('start processing data...', 0)
+    tracker.set_progress('start')
 
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
@@ -112,7 +112,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     metrics = performance_metrics(start_time, df.height)
     save_datafile(df, input_file, output_folder)
-    tracker.set_progress('completed', 100)
+    tracker.set_progress('done')
 
     preview_rows = (
         df.head(MAX_FIRST_PREVIEW_ROWS).to_dicts()

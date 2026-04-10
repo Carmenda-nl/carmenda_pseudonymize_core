@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------------------------------ #
+﻿# ------------------------------------------------------------------------------------------------ #
 # Copyright (c) 2026 Carmenda. All rights reserved.                                                #
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
@@ -38,19 +38,27 @@ class ProgressTracker:
     """Track progress for data transformation using Rich."""
 
     def __init__(self) -> None:
-        """Initialize the ProgressTracker."""
+        """Initialize the progress tracker."""
         self._default_state()
 
     def _default_state(self) -> None:
-        """Set all state variables to default values."""
-        self.current_stage: str | None = None
-        self.current_step: str | None = None
-        self.start_time: float | None = None
-        self.total_rows = 0
-        self.rows_processed = 0
-        self.progress = 0
+        """Set/reset the default progress tracking state values.
+
+        Collects row progress & stage for the terminal pseudonymization progress bar
+        and overall progress & stage for the WebSocket updates to the frontend.
+        """
+        self.rich_progress: Progress | None = None
         self.task_id: TaskID | None = None
-        self.rich_progress: Progress | None = self._progress_bar()
+
+        self.progress = 0
+        self.stage: str | None = None
+
+        self.total_rows = 0
+        self.row_description: str | None = None
+        self.rows_processed = 0
+
+        self.overall_progress: int = 0
+        self.overall_stage: str | None = None
 
     def _progress_bar(self) -> Progress:
         """Create a Rich progress bar with spinner."""
@@ -77,15 +85,25 @@ class ProgressTracker:
                 console=disable_console,
                 disable=False,
             )
+
         return Progress(spinner, text, bar, task_progress, mofn, time_elapsed, time_remaining)
 
-    def _parse_row_progress(self, step_name: str) -> None:
-        """Parse row progress from step_name format: 'Processed X/Y rows'."""
-        if not step_name or '/' not in step_name:
+    def clean_progress_bar(self) -> None:
+        """Stop the Rich progress bar and clean up resources."""
+        if self.rich_progress is not None:
+            self.rich_progress.stop()
+            sys.stdout.write('\n')
+
+        self.rich_progress = None
+        self.task_id = None
+
+    def _parse_row_progress(self, row_description: str) -> None:
+        """Parse row progress from row_description format: 'Processed X/Y rows'."""
+        if not row_description or '/' not in row_description:
             return
 
         try:
-            parts = step_name.split()
+            parts = row_description.split()
             min_parts_required = 2
 
             if len(parts) < min_parts_required:
@@ -104,65 +122,70 @@ class ProgressTracker:
             self.rows_processed = current_rows
 
         except (ValueError, IndexError) as error:
-            logger.debug("Failed to parse row progress from '%s': %s", step_name, error)
+            logger.debug("Failed to parse row progress from '%s': %s", row_description, error)
 
-    def update_progress(self, stage_name: str, step_name: str, step_progress: int) -> int:
-        """Update step and row progress to rich progress bar."""
-        self._parse_row_progress(step_name)
+    def update_progress(
+        self, stage: str, row_description: str, progress: int, overall: tuple[int, int] | None = None
+    ) -> int:
+        """Update row progress to rich progress bar."""
+        if self.rich_progress is None:
+            self.progress = 0
+            self.total_rows = 0
+            self.rows_processed = 0
+            self.stage = None
+            self.row_description = None
+            self.rich_progress = self._progress_bar()
 
-        # Calculate percentage (use step_progress as overall progress)
-        progress_percentage = max(self.progress, min(int(step_progress), 100))
+        self._parse_row_progress(row_description)
+
+        # Calculate percentage (use progress as overall progress)
+        progress_percentage = max(self.progress, min(int(progress), 100))
 
         self.progress = progress_percentage
-        self.current_stage = stage_name
-        self.current_step = step_name
+        self.stage = stage
+        self.row_description = row_description
 
-        if self.rich_progress is not None:
-            self.rich_progress.start()
-            self.start_time = time.time()
+        self.rich_progress.start()
 
-            if self.task_id is None:
-                self.task_id = self.rich_progress.add_task(f'{stage_name}', total=self.total_rows, completed=0)
+        if self.task_id is None:
+            self.task_id = self.rich_progress.add_task(stage, total=self.total_rows, completed=0)
 
-            self.rich_progress.update(
-                self.task_id,
-                completed=self.rows_processed,
-                description=f'{stage_name} ({progress_percentage}%)',
-            )
+        self.rich_progress.update(
+            self.task_id,
+            completed=self.rows_processed,
+            description=f'{stage} ({progress_percentage}%)',
+        )
+
+        if overall is not None:
+            start, end = overall
+            self.overall_progress = start + int(progress_percentage / 100 * (end - start))
+            self.overall_stage = stage
         return progress_percentage
 
+    def set_progress(self, key: str) -> None:
+        """Set overall progress using predefined stages with fixed percentages."""
+        progress_stages: dict[str, tuple] = {
+            'start': ('Gestart', 0),
+            'sanitize_csv': ('Laden (verwerken)', 3),
+            'normalize_csv': ('Laden (normaliseren)', 6),
+            'file_loaded': ('Laden', 8),
+            'init_deduce': ('Initialiseren (Deduce)', 10),
+            'init_tables': ('Initialiseren (lookup tables)', 15),
+            'init_names': ('Initialiseren (naamdetectie)', 18),
+            'done': ('Gereed', 100),
+        }
+
+        entry = progress_stages[key]
+        self.overall_progress = max(0, min(entry[1], 100))
+        self.overall_stage = entry[0]
+        logger.debug('Overall progress: %s (%d%%)', entry[0], self.overall_progress)
+
     def get_progress(self) -> dict[str, int | str | None]:
-        """Retrieve the current progress and stage information."""
-        combined_stage = None
-
-        if self.current_stage and self.current_step:
-            combined_stage = f'{self.current_stage} - {self.current_step}'
-        elif self.current_stage:
-            combined_stage = self.current_stage
-
-        return {'percentage': self.progress, 'stage': combined_stage, 'step': self.current_step}
-
-    def finalize_progress(self, complete: str = 'yes') -> None:
-        """Finalize progress and stop the Rich progress bar."""
-        complete_flag = complete.strip().lower() in ('yes', 'true', '1')
-
-        if complete_flag and self.task_id is not None and self.rich_progress is not None:
-            final_value = self.total_rows if self.total_rows > 0 else 100
-            self.rich_progress.update(self.task_id, completed=final_value)
-            self.progress = 100
-
-        if self.rich_progress is not None:
-            self.rich_progress.stop()
-            sys.stdout.write('\n')  # <-- whitespace under progressbar
-
-        self.rich_progress = None
-        self.task_id = None
-
-    def reset(self) -> None:
-        """Reset the tracker for a new processing run."""
-        if self.rich_progress is not None:
-            self.rich_progress.stop()
-        self._default_state()
+        """Retrieve the overall progress percentage and stage description for websocket reporting."""
+        label = self.overall_stage
+        if label and self.row_description:
+            label = f'{label} - {self.row_description}'
+        return {'percentage': self.overall_progress, 'stage': label}
 
 
 # Singleton instance (only one instance needed)
