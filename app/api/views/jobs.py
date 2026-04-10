@@ -219,7 +219,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 current_progress = progress_info['percentage']
                 current_stage = progress_info['stage'] or job.status
             else:
-                current_progress = 100 if job.status == 'completed' else 0
+                current_progress = tracker.get_progress()['percentage']
                 current_stage = job.status
 
             return Response(
@@ -234,7 +234,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        # Reset the status and error message on re-runs
+        if job.status == 'processing':
+            return Response(
+                {'message': 'Job is already processing'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
         job.status = 'processing'
         job.error_message = ''
         job.save()
