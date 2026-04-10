@@ -103,14 +103,12 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
 
     try:
         with job_control.run_job(job_id):
-            tracker.reset()
-
             # Set up progress monitoring
             stop_monitoring = threading.Event()
             completion_percentage = 100
 
             def monitor_progress() -> None:
-                """Monitor tracker progress and send updates via WebSocket."""
+                """Progress monitoring and send updates via WebSocket."""
                 last_percentage = -1
                 while not stop_monitoring.is_set():
                     progress_info = tracker.get_progress()
@@ -165,6 +163,6 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
 
         try:
             # Ensure the progress bar is finalized to avoid leftover UI/console output
-            tracker.finalize_progress(complete='no')
+            tracker.clean_progress_bar()
         except (AttributeError, RuntimeError) as error:
             logger.debug('Failed to finalize progress for %s: %s', job_id, error)
