@@ -35,6 +35,8 @@ MINIMUM_ROWS = 6
 
 def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
     """Process and pseudonymize data from input file and return the first 10 rows in Json."""
+    start_time = time.time()
+
     params = dict(locals().items())
     params_str = '\n'.join(f' |-- {key}={value}' for key, value in params.items())
     logger.debug('Parsed arguments:\n%s\n', params_str)
@@ -54,8 +56,6 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
         has_clientname = clientname_col in df.columns
         report_col = input_cols_dict.get('report')
         has_report = report_col in df.columns
-
-        start_time = time.time()
     else:
         message = f'Input file "{input_file_path}" could not be loaded.'
         logger.error(message)
