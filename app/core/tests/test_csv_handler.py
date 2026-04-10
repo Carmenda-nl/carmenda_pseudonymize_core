@@ -16,9 +16,9 @@ import pytest
 from core.utils.csv_handler import (
     _detect_delimiter,
     _detect_encoding,
+    _normalize_csv,
+    _sanitize_csv,
     detect_csv_properties,
-    normalize_csv,
-    sanitize_csv,
     strip_bom,
 )
 
@@ -190,7 +190,7 @@ class TestDetectProperties:
 
 
 class TestSanitizeCsv:
-    """Tests for sanitize_csv function."""
+    """Tests for _sanitize_csv function."""
 
     def test_converts_to_utf8(self, tmp_path: Path) -> None:
         """CSV is converted to UTF-8."""
@@ -206,7 +206,7 @@ class TestSanitizeCsv:
         output_folder = tmp_path / 'output'
         output_folder.mkdir()
 
-        sanitized_path = sanitize_csv(file, properties, str(output_folder))
+        sanitized_path = _sanitize_csv(file, properties, str(output_folder))
         sanitized_file = Path(sanitized_path)
 
         assert sanitized_file.exists()
@@ -227,7 +227,7 @@ class TestSanitizeCsv:
         output_folder = tmp_path / 'output'
         output_folder.mkdir()
 
-        sanitized_path = sanitize_csv(file, properties, str(output_folder))
+        sanitized_path = _sanitize_csv(file, properties, str(output_folder))
         content = Path(sanitized_path).read_text(encoding='utf-8')
 
         assert 'fish & chips' in content
@@ -247,7 +247,7 @@ class TestSanitizeCsv:
         output_folder = tmp_path / 'output'
         output_folder.mkdir()
 
-        sanitized_path = sanitize_csv(file, properties, str(output_folder))
+        sanitized_path = _sanitize_csv(file, properties, str(output_folder))
         content = Path(sanitized_path).read_text(encoding='utf-8')
 
         # With comma delimiter, HTML should NOT be unescaped
@@ -258,7 +258,7 @@ class TestSanitizeCsv:
 
 
 class TestNormalizeCsv:
-    """Tests for normalize_csv function."""
+    """Tests for _normalize_csv function."""
 
     def test_converts_delimiter_to_comma(self, tmp_path: Path) -> None:
         """Semicolon delimiter is converted to comma."""
@@ -271,7 +271,7 @@ class TestNormalizeCsv:
             'header': 'name;age',
         }
 
-        normalized_path = normalize_csv(file, properties)
+        normalized_path = _normalize_csv(file, properties)
         content = Path(normalized_path).read_text(encoding='utf-8')
 
         assert 'name,age' in content
@@ -290,7 +290,7 @@ class TestNormalizeCsv:
         }
 
         with caplog.at_level(logging.WARNING):
-            normalized_path = normalize_csv(file, properties)
+            normalized_path = _normalize_csv(file, properties)
 
         content = Path(normalized_path).read_text(encoding='utf-8')
         lines = [line for line in content.split('\n') if line.strip()]
@@ -310,7 +310,7 @@ class TestNormalizeCsv:
             'header': 'name,age,city',
         }
 
-        normalized_path = normalize_csv(file, properties)
+        normalized_path = _normalize_csv(file, properties)
         content = Path(normalized_path).read_text(encoding='utf-8')
 
         assert 'Alice,30,Amsterdam' in content

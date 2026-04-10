@@ -108,8 +108,8 @@ class TestLoadDatafile:
             return str(csv_file)
 
         monkeypatch.setattr(csv_handler, 'detect_csv_properties', mock_csv_properties)
-        monkeypatch.setattr(csv_handler, 'sanitize_csv', mock_sanitize)
-        monkeypatch.setattr(csv_handler, 'normalize_csv', mock_normalize)
+        monkeypatch.setattr(csv_handler, '_sanitize_csv', mock_sanitize)
+        monkeypatch.setattr(csv_handler, '_normalize_csv', mock_normalize)
 
         result = load_datafile(str(csv_file), str(output_dir))
 
