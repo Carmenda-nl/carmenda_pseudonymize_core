@@ -191,7 +191,7 @@ class JobStatusSerializer(serializers.ModelSerializer):
         read_only_fields: ClassVar = ['job_id', 'status', 'progress', 'error_message']
 
     def get_status(self, obj: DeidentificationJob) -> str:
-        """Get the combined status and stage information."""
+        """Get the stage information."""
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
             stage = progress_info['stage']

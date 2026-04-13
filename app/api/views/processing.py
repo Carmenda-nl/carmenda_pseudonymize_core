@@ -82,7 +82,8 @@ def _handle_process_cancellation(job_id: str) -> None:
     progress_info = tracker.get_progress()
     percentage = progress_info.get('percentage', 0)
     progress_percentage = int(percentage) if isinstance(percentage, str) else (percentage or 0)
-    send_process_progress(job_id, progress_percentage, 'Cancelled', 'cancelled')
+    last_stage = str(progress_info.get('stage') or 'Cancelled')
+    send_process_progress(job_id, progress_percentage, last_stage, 'cancelled')
 
 
 def _handle_process_error(job_id: str, error: Exception) -> None:
