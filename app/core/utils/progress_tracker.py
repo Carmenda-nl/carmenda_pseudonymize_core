@@ -29,6 +29,12 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+try:
+    from django.utils.translation import gettext_lazy as _
+except ImportError:
+    def _(s: str) -> str:  # type: ignore[misc]
+        return s
+
 from .logger import setup_logging
 
 logger = setup_logging()
@@ -51,11 +57,7 @@ class ProgressTracker:
         self.task_id: TaskID | None = None
 
         self.progress = 0
-        self.stage: str | None = None
-
-        self.total_rows = 0
         self.row_description: str | None = None
-        self.rows_processed = 0
 
         self.overall_progress: int = 0
         self.overall_stage: str | None = None
@@ -97,62 +99,27 @@ class ProgressTracker:
         self.rich_progress = None
         self.task_id = None
 
-    def _parse_row_progress(self, row_description: str) -> None:
-        """Parse row progress from row_description format: 'Processed X/Y rows'."""
-        if not row_description or '/' not in row_description:
-            return
-
-        try:
-            parts = row_description.split()
-            min_parts_required = 2
-
-            if len(parts) < min_parts_required:
-                return
-
-            # Find the part containing the fraction (X/Y)
-            fraction_part = next((part for part in parts if '/' in part), None)
-            if not fraction_part:
-                return
-
-            current_str, total_str = fraction_part.split('/', 1)
-            current_rows = int(current_str.replace(',', ''))
-            total_rows = int(total_str.replace(',', ''))
-
-            self.total_rows = total_rows
-            self.rows_processed = current_rows
-
-        except (ValueError, IndexError) as error:
-            logger.debug("Failed to parse row progress from '%s': %s", row_description, error)
-
-    def update_progress(
-        self, stage: str, row_description: str, progress: int, overall: tuple[int, int] | None = None
-    ) -> int:
-        """Update row progress to rich progress bar."""
+    def set_row_progress(self, stage: str, processed: int, total: int, progress: int, overall: tuple[int, int]) -> int:
+        """Update row based progress to rich progress bar."""
         if self.rich_progress is None:
             self.progress = 0
-            self.total_rows = 0
-            self.rows_processed = 0
-            self.stage = None
-            self.row_description = None
             self.rich_progress = self._progress_bar()
 
-        self._parse_row_progress(row_description)
+        self.row_description = f'Processed {processed}/{total} rows'
 
         # Calculate percentage (use progress as overall progress)
         progress_percentage = max(self.progress, min(int(progress), 100))
 
         self.progress = progress_percentage
-        self.stage = stage
-        self.row_description = row_description
 
         self.rich_progress.start()
 
         if self.task_id is None:
-            self.task_id = self.rich_progress.add_task(stage, total=self.total_rows, completed=0)
+            self.task_id = self.rich_progress.add_task(stage, total=total, completed=0)
 
         self.rich_progress.update(
             self.task_id,
-            completed=self.rows_processed,
+            completed=processed,
             description=f'{stage} ({progress_percentage}%)',
         )
 
@@ -162,30 +129,30 @@ class ProgressTracker:
             self.overall_stage = stage
         return progress_percentage
 
-    def set_progress(self, key: str) -> None:
+    def set_progress(self, stage: str) -> None:
         """Set overall progress using predefined stages with fixed percentages."""
         progress_stages: dict[str, tuple] = {
-            'start': ('Gestart', 0),
-            'sanitize_csv': ('Laden (verwerken)', 3),
-            'normalize_csv': ('Laden (normaliseren)', 6),
-            'file_loaded': ('Laden', 8),
-            'init_deduce': ('Initialiseren (Deduce)', 10),
-            'init_tables': ('Initialiseren (lookup tables)', 15),
-            'init_names': ('Initialiseren (naamdetectie)', 18),
-            'done': ('Gereed', 100),
+            'start': (_('Start'), 0),
+            'sanitize_csv': (_('Processing CSV'), 3),
+            'normalize_csv': (_('Normalizing CSV'), 6),
+            'file_loaded': (_('File Loaded'), 8),
+            'init_deduce': (_('Initializing Deduce'), 10),
+            'init_tables': (_('Initializing Tables'), 15),
+            'init_names': (_('Initializing name detection'), 18),
+            'done': (_('Done'), 100),
         }
 
-        entry = progress_stages[key]
-        self.overall_progress = max(0, min(entry[1], 100))
-        self.overall_stage = entry[0]
-        logger.debug('Overall progress: %s (%d%%)', entry[0], self.overall_progress)
+        current_stage = progress_stages[stage]
+        self.overall_progress = max(0, min(current_stage[1], 100))
+        self.overall_stage = current_stage[0]
+        logger.debug('Overall progress: %s (%d%%)', current_stage[0], self.overall_progress)
 
     def get_progress(self) -> dict[str, int | str | None]:
         """Retrieve the overall progress percentage and stage description for websocket reporting."""
-        label = self.overall_stage
-        if label and self.row_description:
-            label = f'{label} - {self.row_description}'
-        return {'percentage': self.overall_progress, 'stage': label}
+        stage = self.overall_stage
+        if stage and self.row_description:
+            stage = f'{stage} - {self.row_description}'
+        return {'percentage': self.overall_progress, 'stage': stage}
 
 
 # Singleton instance (only one instance needed)

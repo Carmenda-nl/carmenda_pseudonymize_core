@@ -188,9 +188,10 @@ class DeidentifyHandler:
 
             if self.processed_count - self.last_update >= max_percentage:
                 step_progress = (self.processed_count / self.total_count) * 100
-                tracker.update_progress(
+                tracker.set_row_progress(
                     'Pseudonymize',
-                    f'Processed {self.processed_count}/{self.total_count} rows',
+                    self.processed_count,
+                    self.total_count,
                     int(step_progress),
                     overall=(20, 85),
                 )
@@ -246,14 +247,6 @@ class DeidentifyHandler:
         )
 
         df_result = df.with_columns(processed_reports)
-
-        # Final progress update to ensure it reaches 100% at the end
-        tracker.update_progress(
-            'Pseudonymize',
-            f'Processed {self.total_count}/{self.total_count} rows',
-            100,
-            overall=(20, 85),
-        )
         tracker.clean_progress_bar()
 
         return df_result
