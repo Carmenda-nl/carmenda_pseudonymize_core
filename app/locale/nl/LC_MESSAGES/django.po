@@ -33,6 +33,38 @@ msgstr "Kan het bestand niet openen: {path}"
 msgid "File {path} not found."
 msgstr "Bestand {path} niet gevonden."
 
+#: core/utils/progress_tracker.py:135
+msgid "Start"
+msgstr "Starten"
+
+#: core/utils/progress_tracker.py:136
+msgid "Processing CSV"
+msgstr "CSV verwerken"
+
+#: core/utils/progress_tracker.py:137
+msgid "Normalizing CSV"
+msgstr "CSV normaliseren"
+
+#: core/utils/progress_tracker.py:138
+msgid "File Loaded"
+msgstr "Bestand ingeladen"
+
+#: core/utils/progress_tracker.py:139
+msgid "Initializing Deduce"
+msgstr "Deduce initialiseren"
+
+#: core/utils/progress_tracker.py:140
+msgid "Initializing Tables"
+msgstr "Tabellen initialiseren"
+
+#: core/utils/progress_tracker.py:141
+msgid "Initializing name detection"
+msgstr "Naamdetectie initialiseren"
+
+#: core/utils/progress_tracker.py:142
+msgid "Done"
+msgstr "Gereed"
+
 #: .\main\settings.py:173
 msgid "English"
 msgstr "Engels"
