@@ -29,12 +29,6 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-try:
-    from django.utils.translation import gettext_lazy as _
-except ImportError:
-    def _(s: str) -> str:  # type: ignore[misc]
-        return s
-
 from .logger import setup_logging
 
 logger = setup_logging()
@@ -53,12 +47,11 @@ class ProgressTracker:
         Collects row progress & stage for the terminal pseudonymization progress bar
         and overall progress & stage for the WebSocket updates to the frontend.
         """
-        self.rich_progress: Progress | None = None
         self.task_id: TaskID | None = None
-
-        self.progress = 0
-        self.row_description: str | None = None
-
+        self.rich_progress: Progress | None = None
+        self.rows_progress = 0
+        self.rows_processed: int | None = None
+        self.rows_total: int | None = None
         self.overall_progress: int = 0
         self.overall_stage: str | None = None
 
@@ -102,16 +95,15 @@ class ProgressTracker:
     def set_row_progress(self, stage: str, processed: int, total: int, progress: int, overall: tuple[int, int]) -> int:
         """Update row based progress to rich progress bar."""
         if self.rich_progress is None:
-            self.progress = 0
+            self.rows_progress = 0
             self.rich_progress = self._progress_bar()
 
-        self.row_description = f'Processed {processed}/{total} rows'
+        self.rows_processed = processed
+        self.rows_total = total
 
-        # Calculate percentage (use progress as overall progress)
-        progress_percentage = max(self.progress, min(int(progress), 100))
+        progress_percentage = max(self.rows_progress, min(int(progress), 100))
 
-        self.progress = progress_percentage
-
+        self.rows_progress = progress_percentage
         self.rich_progress.start()
 
         if self.task_id is None:
@@ -132,27 +124,29 @@ class ProgressTracker:
     def set_progress(self, stage: str) -> None:
         """Set overall progress using predefined stages with fixed percentages."""
         progress_stages: dict[str, tuple] = {
-            'start': (_('Start'), 0),
-            'sanitize_csv': (_('Processing CSV'), 3),
-            'normalize_csv': (_('Normalizing CSV'), 6),
-            'file_loaded': (_('File Loaded'), 8),
-            'init_deduce': (_('Initializing Deduce'), 10),
-            'init_tables': (_('Initializing Tables'), 15),
-            'init_names': (_('Initializing name detection'), 18),
-            'done': (_('Done'), 100),
+            'start': ('start', 0),
+            'sanitize_csv': ('processing csv', 3),
+            'normalize_csv': ('normalizing csv', 6),
+            'file_loaded': ('file loaded', 8),
+            'init_deduce': ('initializing deduce', 10),
+            'init_tables': ('initializing tables', 15),
+            'init_names': ('initializing name detection', 18),
+            'done': ('done', 100),
         }
 
         current_stage = progress_stages[stage]
         self.overall_progress = max(0, min(current_stage[1], 100))
         self.overall_stage = current_stage[0]
-        logger.debug('Overall progress: %s (%d%%)', current_stage[0], self.overall_progress)
+        logger.debug('Overall progress: %s (%d%%)\n', current_stage[0], self.overall_progress)
 
     def get_progress(self) -> dict[str, int | str | None]:
         """Retrieve the overall progress percentage and stage description for websocket reporting."""
-        stage = self.overall_stage
-        if stage and self.row_description:
-            stage = f'{stage} - {self.row_description}'
-        return {'percentage': self.overall_progress, 'stage': stage}
+        return {
+            'stage': self.overall_stage,
+            'percentage': self.overall_progress,
+            'rows_total': self.rows_total,
+            'rows_processed': self.rows_processed,
+        }
 
 
 # Singleton instance (only one instance needed)
