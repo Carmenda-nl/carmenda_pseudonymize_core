@@ -16,12 +16,10 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 
-from api.websocket import routing
-
 if TYPE_CHECKING:
     from channels.routing import _ExtendedURLPattern
 
-# Make asyncio and related loggers less noisy in the logs
+# Make asyncio and related loggers less noisy
 logging.getLogger('asyncio').setLevel(logging.WARNING)
 logging.getLogger('autobahn').setLevel(logging.WARNING)
 logging.getLogger('daphne').setLevel(logging.WARNING)
@@ -31,13 +29,18 @@ logging.getLogger('daphne.ws_protocol').setLevel(logging.WARNING)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'main.settings')
 
+django_asgi = get_asgi_application()
+
+# Import routing after Django is initialized
+from api.websocket import routing  # noqa: E402
+
 application: ProtocolTypeRouter = ProtocolTypeRouter(
     {
-        'http': get_asgi_application(),
+        'http': django_asgi,
         'websocket': AllowedHostsOriginValidator(
             AuthMiddlewareStack(
                 URLRouter(cast('list[_ExtendedURLPattern | URLRouter]', routing.websocket_urlpatterns)),
-            )
+            ),
         ),
     },
 )
