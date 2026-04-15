@@ -72,6 +72,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'django.channels.server': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
         'api': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
