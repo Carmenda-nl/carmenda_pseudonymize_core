@@ -239,7 +239,20 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 progress_info = tracker.get_progress()
                 current_progress = progress_info['percentage']
                 stage = progress_info.get('stage')
-                current_stage = _(stage) if isinstance(stage, str) else job.status
+                rows_processed = progress_info.get('rows_processed')
+                rows_total = progress_info.get('rows_total')
+                if isinstance(stage, str):
+                    translated = _(stage)
+                    if rows_processed is not None and rows_total:
+                        row_str = _('processed %(processed)s/%(total)s rows') % {
+                            'processed': rows_processed,
+                            'total': rows_total,
+                        }
+                        current_stage = f'{translated} - {row_str}'
+                    else:
+                        current_stage = translated
+                else:
+                    current_stage = job.status
 
             return Response(
                 {
