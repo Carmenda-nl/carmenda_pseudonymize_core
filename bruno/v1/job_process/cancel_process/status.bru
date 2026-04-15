@@ -1,0 +1,15 @@
+meta {
+  name: status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/cancel/
+  body: none
+  auth: none
+}
+
+docs {
+  Returns the current cancellation status and progress.
+}

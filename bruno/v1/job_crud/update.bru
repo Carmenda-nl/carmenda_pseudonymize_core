@@ -1,0 +1,31 @@
+meta {
+  name: update
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/
+  body: multipartForm
+  auth: none
+}
+
+headers {
+  Accept-Language: {{language}}
+}
+
+body:multipart-form {
+  input_cols: report=relefant_field
+}
+
+docs {
+  Updates an existing job via a full PUT request.
+
+  Updatable fields:
+  - `input_file`: replace the input file
+  - `input_cols`: update the column mapping (format: `report=Column1, clientname=Name`)
+  - `datakey`: replace or remove the datakey file
+  - `data_permission`: boolean
+
+  Existing output files are deleted when the input file or column mapping changes.
+}

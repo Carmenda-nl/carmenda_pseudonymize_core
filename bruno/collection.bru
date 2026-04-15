@@ -1,0 +1,25 @@
+docs {
+  # Privacytool API
+  
+  REST API for pseudonymizing files using the Carmenda deidentification pipeline.
+  
+  ## Base URL
+  `http://127.0.0.1:8000`
+  
+  ## Environment variables
+  | Variable   | Description                                              |
+  |------------|----------------------------------------------------------|
+  | `baseUrl`  | Base URL of the running server                           |
+  | `jobId`    | UUID of the active job — set automatically after create  |
+  | `language` | Accept-Language header value (e.g. `nl`, `en`)           |
+  
+  ## Typical workflow
+  1. **init/root** — verify the API is reachable or get current version
+  2. **job_crud/create** — upload an input file and optionally a datakey; `jobId` is saved automatically
+  3. **job_crud/update** — set or update `input_cols` if not provided at creation
+  4. **job_process/start_process** — start the deidentification process
+  5. **job_process/status** — get current job process status
+  6. **job_zip/create_zip** — package all output files into a ZIP archive
+  7. **job_zip/status** — retrieve the ZIP's included files 
+  8. **job_crud/delete** — clean up the job when done
+}

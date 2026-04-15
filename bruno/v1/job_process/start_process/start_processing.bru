@@ -1,0 +1,25 @@
+meta {
+  name: start_processing
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/process/
+  body: none
+  auth: none
+}
+
+headers {
+  Accept-Language: {{language}}
+}
+
+docs {
+  Starts the pseudonymization process for a job.
+
+  Requirements:
+  - The job must have `input_cols` set
+  - The job must not already be processing
+
+  Status changes to `processing` and can be polled via GET on the same endpoint.
+}

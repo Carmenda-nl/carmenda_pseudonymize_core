@@ -1,0 +1,15 @@
+meta {
+  name: jobs_list
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/jobs/
+  body: none
+  auth: none
+}
+
+docs {
+  Returns a list of all existing jobs with basic information (job_id, status, details_url, has_datakey).
+}

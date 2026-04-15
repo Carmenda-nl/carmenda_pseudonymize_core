@@ -1,0 +1,19 @@
+meta {
+  name: read
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/
+  body: none
+  auth: none
+}
+
+headers {
+  Accept-Language: {{language}}
+}
+
+docs {
+  Returns the full details of a job, including file links, preview data, and processing status.
+}

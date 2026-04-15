@@ -1,0 +1,15 @@
+meta {
+  name: delete
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/
+  body: none
+  auth: none
+}
+
+docs {
+  Permanently deletes a job and all associated files.
+}

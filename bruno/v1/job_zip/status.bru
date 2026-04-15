@@ -1,0 +1,15 @@
+meta {
+  name: status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/zip_files/
+  body: none
+  auth: none
+}
+
+docs {
+  Returns the current ZIP status: whether a ZIP file has been created and which files it contains.
+}

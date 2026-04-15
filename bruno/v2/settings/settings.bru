@@ -1,0 +1,15 @@
+meta {
+  name: settings
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v2/settings/
+  body: none
+  auth: none
+}
+
+docs {
+  Returns the current application settings (e.g. language).
+}

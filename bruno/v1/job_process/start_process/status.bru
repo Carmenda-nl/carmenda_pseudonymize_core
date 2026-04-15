@@ -1,0 +1,19 @@
+meta {
+  name: status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/process/
+  body: none
+  auth: none
+}
+
+headers {
+  Accept-Language: {{language}}
+}
+
+docs {
+  Returns the current processing status and progress (percentage, current stage, processed rows).
+}
