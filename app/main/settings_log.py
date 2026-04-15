@@ -74,7 +74,22 @@ LOGGING = {
         },
         'django.channels.server': {
             'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.utils.autoreload': {
+            'handlers': ['console'],
             'level': 'WARNING',
+            'propagate': False,
+        },
+        'asyncio': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'git': {
+            'handlers': ['console'],
+            'level': 'ERROR',
             'propagate': False,
         },
         'api': {
@@ -95,21 +110,6 @@ LOGGING = {
         'utils': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
-            'propagate': False,
-        },
-        'git': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'asyncio': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'django.utils.autoreload': {
-            'handlers': ['console'],
-            'level': 'WARNING',
             'propagate': False,
         },
     },
