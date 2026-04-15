@@ -91,12 +91,13 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         columns_changed = new_columns is not None and new_columns != old_columns
 
         new_input = request.FILES.get('input_file')
-        input_changed = new_input is not None and (not old_input or Path(old_input).name != new_input.name)
+        input_uploaded = new_input is not None
+        input_changed = input_uploaded and (not old_input or Path(old_input).name != new_input.name)
 
         new_datakey = request.FILES.get('datakey')
         datakey_changed = new_datakey is not None
 
-        if new_columns == old_columns and input_changed:
+        if new_columns == old_columns and input_uploaded:
             job.input_cols = ''
             data.pop('input_cols', None)
 
@@ -107,7 +108,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         if input_changed and old_input and job.input_file.name != old_input:
             job.input_file.storage.delete(old_input)
 
-        if (datakey_changed or input_changed) and old_datakey:
+        if (datakey_changed or input_uploaded) and old_datakey:
             job.datakey.storage.delete(old_datakey)
             job.datakey = new_datakey
             job.save(update_fields=['datakey'])
@@ -121,12 +122,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.reset_zip()
             job.save(update_fields=['zip_file', 'zip_preview'])
 
-        should_reset = 'input_file' in request.FILES or datakey_changed or columns_changed
+        should_reset = input_uploaded or datakey_changed or columns_changed
         if should_reset:
             job.reset_output()
-            if input_changed:
+            if input_uploaded:
                 generate_preview(job)
-            if input_changed or datakey_changed:
+            if input_uploaded or datakey_changed:
                 job.data_permission = False
                 job.save(update_fields=['data_permission'])
             elif job.data_permission:
