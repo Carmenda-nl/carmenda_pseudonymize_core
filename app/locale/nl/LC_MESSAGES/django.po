@@ -65,6 +65,28 @@ msgstr "naamdetectie initialiseren"
 msgid "done"
 msgstr "gereed"
 
+#: api/views/processing.py
+msgid "%(count)d hour"
+msgid_plural "%(count)d hours"
+msgstr[0] "%(count)d uur"
+msgstr[1] "%(count)d uur"
+
+#: api/views/processing.py
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minuut"
+msgstr[1] "%(count)d minuten"
+
+#: api/views/processing.py
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d seconde"
+msgstr[1] "%(count)d seconden"
+
+#: api/views/processing.py
+msgid "and"
+msgstr "en"
+
 #: core/deidentify.py
 msgid "pseudonymize"
 msgstr "pseudonimiseren"
