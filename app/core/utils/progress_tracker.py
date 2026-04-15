@@ -153,37 +153,24 @@ class ProgressTracker:
 tracker = ProgressTracker()
 
 
-def _time_plural(value: int, unit: str) -> str:
-    """Helper function to format time units with correct pluralization."""
-    suffix = '' if value == 1 else 's'
-    return f'{value} {unit}{suffix}'
-
-
-def performance_metrics(start_time: float, df_rowcount: int) -> dict[str, float]:
+def performance_metrics(start_time: float, df_rowcount: int) -> dict[str, int | float]:
     """Log performance metrics in time needed for processing."""
     end_time = time.time()
     total_time = end_time - start_time
-    time_per_row = total_time / df_rowcount if df_rowcount > 0 else 0
-    elapsed = timedelta(seconds=total_time)
+    time_per_row = (total_time / df_rowcount * 1000) if df_rowcount > 0 else 0
+    total_seconds = int(timedelta(seconds=total_time).total_seconds())
 
-    if elapsed >= timedelta(hours=1):
-        total_seconds = int(elapsed.total_seconds())
-        hours = total_seconds // 3600
-        remainder = total_seconds % 3600
-        minutes = remainder // 60
-        seconds = remainder % 60
-        time_str = (
-            f'{_time_plural(hours, "hour")}, {_time_plural(minutes, "minute")} and {_time_plural(seconds, "second")}'
-        )
-    elif elapsed >= timedelta(minutes=1):
-        total_seconds = int(elapsed.total_seconds())
-        minutes = total_seconds // 60
-        seconds = total_seconds % 60
-        time_str = f'{_time_plural(minutes, "minute")} and {_time_plural(seconds, "second")}'
-    else:
-        time_str = f'{_time_plural(int(elapsed.total_seconds()), "second")}'
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
 
     logger.info('Time passed with a total of %d rows', df_rowcount)
-    logger.info('Total time: %s (%.6f seconds per row)', time_str, time_per_row)
+    logger.info('Total time: %dh %dm %ds (%.3f ms per row)', hours, minutes, seconds, time_per_row)
 
-    return {'total_rows': df_rowcount, 'total_time': total_time, 'time_per_row': time_per_row}
+    return {
+        'total_rows': df_rowcount,
+        'hours': hours,
+        'minutes': minutes,
+        'seconds': seconds,
+        'time_per_row': round(time_per_row, 3),
+    }
