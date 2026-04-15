@@ -181,7 +181,7 @@ CANCEL_JOB_GET_SCHEMA = extend_schema(
 ZIP_FILES_POST_SCHEMA = extend_schema(
     methods=['post'],
     responses={
-        201: JobSerializer,
+        200: JobSerializer,
         400: ZipFilesNotReadySerializer,
     },
 )
