@@ -24,7 +24,7 @@ from core.utils.logger import setup_logging
 logger = setup_logging()
 
 
-def _validate_required_columns(columns: list[str], input_cols: str) -> None:
+def validate_required_columns(columns: list[str], input_cols: str) -> None:
     """Validate that all specified input columns exist in the given columns."""
     required = dict(column.strip().split('=') for column in input_cols.split(','))
 
@@ -88,7 +88,7 @@ def _validate_csv(file_path: str, input_cols: str | None, datakey: str) -> FileV
         message = 'This appears to be a datakey file (columns: Clientnaam, Synoniemen, Code)'
         raise serializers.ValidationError(message)
     if input_cols and not datakey:
-        _validate_required_columns(columns, input_cols)
+        validate_required_columns(columns, input_cols)
     if datakey:
         _validate_datakey_columns(columns)
 
@@ -109,7 +109,7 @@ def _validate_excel(file_path: str, input_cols: str | None) -> FileValidationRes
 
     columns = [str(col) for col in df.columns]
     if input_cols:
-        _validate_required_columns(columns, input_cols)
+        validate_required_columns(columns, input_cols)
 
     return {'file_type': 'excel'}
 
@@ -173,7 +173,7 @@ def validate_file_columns(input_cols: str, file: UploadedFile | str) -> None:
             message = 'Unsupported file extension.'
             raise serializers.ValidationError(message)
 
-        _validate_required_columns(columns, input_cols)
+        validate_required_columns(columns, input_cols)
     finally:
         if is_temp and resolved_path:
             Path(resolved_path).unlink(missing_ok=True)

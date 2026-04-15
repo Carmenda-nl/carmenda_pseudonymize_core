@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from django.conf import settings
+from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -123,7 +124,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         should_reset = 'input_file' in request.FILES or datakey_changed or columns_changed
         if should_reset:
             job.reset_output()
-            generate_preview(job)
+            if input_changed:
+                generate_preview(job)
             if input_changed or datakey_changed:
                 job.data_permission = False
                 job.save(update_fields=['data_permission'])
@@ -217,10 +219,26 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             if job.status == 'processing':
                 progress_info = tracker.get_progress()
                 current_progress = progress_info['percentage']
-                current_stage = progress_info['stage'] or job.status
+                stage = progress_info['stage']
+                rows_processed = progress_info['rows_processed']
+                rows_total = progress_info['rows_total']
+                if isinstance(stage, str):
+                    translated = _(stage)
+                    if rows_processed is not None and rows_total:
+                        row_str = _('processed %(processed)s/%(total)s rows') % {
+                            'processed': rows_processed,
+                            'total': rows_total,
+                        }
+                        current_stage = f'{translated} - {row_str}'
+                    else:
+                        current_stage = translated
+                else:
+                    current_stage = job.status
             else:
-                current_progress = tracker.get_progress()['percentage']
-                current_stage = job.status
+                progress_info = tracker.get_progress()
+                current_progress = progress_info['percentage']
+                stage = progress_info.get('stage')
+                current_stage = _(stage) if isinstance(stage, str) else job.status
 
             return Response(
                 {
@@ -305,8 +323,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         files_to_zip = collect_output_files(job)
         create_zipfile(job, files_to_zip)
 
-        job_url = request.build_absolute_uri(f'/api/v1/jobs/{job.job_id}/')
-        return Response(status=status.HTTP_303_SEE_OTHER, headers={'Location': job_url})
+        job.refresh_from_db()
+        return Response(self.get_serializer(job).data, status=status.HTTP_200_OK)
 
     @extend_schema(tags=[ApiTags.CANCEL])
     @CANCEL_JOB_POST_SCHEMA
@@ -320,7 +338,21 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         if request.method == 'GET':
             progress_info = tracker.get_progress()
             current_progress = progress_info.get('percentage', 0)
-            current_stage = progress_info.get('stage') or job.status
+            stage = progress_info.get('stage')
+            rows_processed = progress_info.get('rows_processed')
+            rows_total = progress_info.get('rows_total')
+            if isinstance(stage, str):
+                translated = _(stage)
+                if rows_processed is not None and rows_total:
+                    row_str = _('processed %(processed)s/%(total)s rows') % {
+                        'processed': rows_processed,
+                        'total': rows_total,
+                    }
+                    current_stage = f'{translated} - {row_str}'
+                else:
+                    current_stage = translated
+            else:
+                current_stage = job.status
 
             return Response(
                 {

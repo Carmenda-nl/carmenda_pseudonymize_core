@@ -15,11 +15,12 @@ if TYPE_CHECKING:
 from pathlib import Path
 
 from django.db.models import FileField
+from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from api.models import DeidentificationJob, output_path
 from api.utils.file_handling import get_metadata
-from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
+from api.utils.validators import validate_file, validate_file_columns, validate_input_cols, validate_required_columns
 from core.utils.progress_tracker import tracker
 from settings.models import ConfigValues
 
@@ -166,7 +167,11 @@ class JobSerializer(serializers.ModelSerializer):
             validate_file_columns(input_cols, input_file)
 
         elif input_cols and not input_file and self.instance and self.instance.input_file:
-            validate_file_columns(input_cols, self.instance.input_file.path)
+            if self.instance.preview:
+                columns = list(self.instance.preview[0].keys())
+                validate_required_columns(columns, input_cols)
+            else:
+                validate_file_columns(input_cols, self.instance.input_file.path)
 
         return attrs
 
@@ -195,9 +200,17 @@ class JobStatusSerializer(serializers.ModelSerializer):
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
             stage = progress_info['stage']
+            processed = progress_info['rows_processed']
+            total = progress_info['rows_total']
 
-            if stage:
-                return str(stage)
+            if not isinstance(stage, str):
+                return obj.status
+
+            translated = _(stage)
+            if processed is not None and total:
+                row_str = _('processed %(processed)s/%(total)s rows') % {'processed': processed, 'total': total}
+                return f'{translated} - {row_str}'
+            return translated
 
         return obj.status
 
