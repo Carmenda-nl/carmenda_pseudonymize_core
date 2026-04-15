@@ -72,7 +72,7 @@ msgstr "pseudonimiseren"
 #: api/serializers.py
 #, python-format
 msgid "processed %(processed)s/%(total)s rows"
-msgstr "%(processed)s/%(total)s rijen verwerkt"
+msgstr "%(processed)s/%(total)s regels verwerkt"
 
 #: .\main\settings.py:173
 msgid "English"
