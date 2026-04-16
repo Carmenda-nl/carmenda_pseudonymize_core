@@ -37,6 +37,7 @@ from api.serializers import (
     JobStatusSerializer,
     ZipSerializer,
 )
+from api.services.job_runner import run_processing, send_process_progress
 from api.utils.file_handling import (
     collect_output_files,
     create_zipfile,
@@ -44,7 +45,6 @@ from api.utils.file_handling import (
     generate_preview,
     match_output_cols,
 )
-from api.services.job_runner import run_processing, send_process_progress
 from api.views.root_views import ApiTags
 from core.utils.logger import setup_logging
 from core.utils.progress_control import job_control
@@ -75,6 +75,29 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         if self.action == 'zip_files':
             return ZipSerializer
         return JobSerializer
+
+    @CREATE_JOB_SCHEMA
+    def create(self, request: Request, *_args: object, **_kwargs: object) -> Response:
+        """Prepare a new job with an uploaded file and column mapping configuration."""
+        if 'input_file' not in request.FILES:
+            return Response(
+                {
+                    'error': 'input file is required',
+                    'message': 'A POST request must include an input_file. Use PUT to update an existing job.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        job = serializer.save(status='pending')
+        generate_preview(job)
+        if job.data_permission:
+            generate_consent(job)
+
+        detail_serializer = JobSerializer(job, context={'request': request})
+        return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request: Request, *args: object, **kwargs: object) -> Response:
         """Update a job with PUT request, deleting or overwrite old files after adding new ones."""
@@ -176,28 +199,71 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         super().perform_destroy(instance)
 
-    @CREATE_JOB_SCHEMA
-    def create(self, request: Request, *_args: object, **_kwargs: object) -> Response:
-        """Prepare a new job with an uploaded file and column mapping configuration."""
-        if 'input_file' not in request.FILES:
+    @extend_schema(tags=[ApiTags.CANCEL])
+    @CANCEL_JOB_POST_SCHEMA
+    @CANCEL_JOB_GET_SCHEMA
+    @action(detail=True, methods=['get', 'post'])
+    def cancel(self, request: HttpRequest, pk: str | None = None) -> Response:
+        """Request cancellation of a running job."""
+        job = self.get_object()
+
+        # GET: return status and last seen progress
+        if request.method == 'GET':
+            progress_info = tracker.get_progress()
             return Response(
                 {
-                    'error': 'input file is required',
-                    'message': 'A POST request must include an input_file. Use PUT to update an existing job.',
+                    'job_id': str(job.job_id),
+                    'status': job.status,
+                    'progress': progress_info.get('percentage', 0),
+                    'stage': self._get_stage_label(progress_info, job.status),
+                    'error_message': job.error_message,
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_200_OK,
             )
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        # POST: request cancellation
+        if job.status != 'processing':
+            return Response({'message': 'Job not running', 'status': job.status}, status=status.HTTP_200_OK)
 
-        job = serializer.save(status='pending')
-        generate_preview(job)
-        if job.data_permission:
-            generate_consent(job)
+        try:
+            job_control.cancel(str(job.job_id))
+            job.status = 'cancelled'
+            job.error_message = 'Cancellation requested'
+            job.save()
 
-        detail_serializer = JobSerializer(job, context={'request': request})
-        return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
+            percentage = tracker.get_progress().get('percentage')
+            send_process_progress(
+                str(job.job_id),
+                percentage if isinstance(percentage, int) else 0,
+                'Cancelling',
+                'cancelling',
+            )
+
+            return Response(
+                {'message': 'Cancellation requested', 'job_id': str(job.job_id)},
+                status=status.HTTP_202_ACCEPTED,
+            )
+        except Exception as error:
+            logger.exception('Failed to request cancellation for job: %s', job.job_id)
+            return Response({'error': str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _get_stage_label(self, progress_info: dict, job_status: str) -> str:
+        """Build a human-readable stage label from tracker progress info."""
+        stage = progress_info.get('stage')
+        rows_processed = progress_info.get('rows_processed')
+        rows_total = progress_info.get('rows_total')
+
+        if not isinstance(stage, str):
+            return job_status
+
+        stage = _(stage)
+
+        if rows_processed is not None and rows_total:
+            row_str = _('processed %(processed)s/%(total)s rows') % {'processed': rows_processed, 'total': rows_total}
+            return f'{stage} - {row_str}'
+
+        # translate stage only if no row info is available
+        return stage
 
     @PROCESS_JOB_POST_SCHEMA
     @PROCESS_JOB_GET_SCHEMA
@@ -217,50 +283,14 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         # Get current progress from tracker if processing
         if request.method == 'GET':
-            if job.status == 'processing':
-                progress_info = tracker.get_progress()
-                current_progress = progress_info['percentage']
-                stage = progress_info['stage']
-                rows_processed = progress_info['rows_processed']
-                rows_total = progress_info['rows_total']
-                if isinstance(stage, str):
-                    translated = _(stage)
-                    if rows_processed is not None and rows_total:
-                        row_str = _('processed %(processed)s/%(total)s rows') % {
-                            'processed': rows_processed,
-                            'total': rows_total,
-                        }
-                        current_stage = f'{translated} - {row_str}'
-                    else:
-                        current_stage = translated
-                else:
-                    current_stage = job.status
-            else:
-                progress_info = tracker.get_progress()
-                current_progress = progress_info['percentage']
-                stage = progress_info.get('stage')
-                rows_processed = progress_info.get('rows_processed')
-                rows_total = progress_info.get('rows_total')
-                if isinstance(stage, str):
-                    translated = _(stage)
-                    if rows_processed is not None and rows_total:
-                        row_str = _('processed %(processed)s/%(total)s rows') % {
-                            'processed': rows_processed,
-                            'total': rows_total,
-                        }
-                        current_stage = f'{translated} - {row_str}'
-                    else:
-                        current_stage = translated
-                else:
-                    current_stage = job.status
-
+            progress_info = tracker.get_progress()
             return Response(
                 {
                     'job_id': str(job.job_id),
                     'endpoint': request.build_absolute_uri(),
                     'current_status': job.status,
-                    'progress': current_progress,
-                    'stage': current_stage,
+                    'progress': progress_info.get('percentage'),
+                    'stage': self._get_stage_label(progress_info, job.status),
                     'error_message': job.error_message,
                 },
                 status=status.HTTP_200_OK,
@@ -339,68 +369,3 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         job.refresh_from_db()
         return Response(self.get_serializer(job).data, status=status.HTTP_200_OK)
-
-    @extend_schema(tags=[ApiTags.CANCEL])
-    @CANCEL_JOB_POST_SCHEMA
-    @CANCEL_JOB_GET_SCHEMA
-    @action(detail=True, methods=['get', 'post'])
-    def cancel(self, request: HttpRequest, pk: str | None = None) -> Response:
-        """Request cancellation of a running job."""
-        job = self.get_object()
-
-        # GET: return status and last seen progress
-        if request.method == 'GET':
-            progress_info = tracker.get_progress()
-            current_progress = progress_info.get('percentage', 0)
-            stage = progress_info.get('stage')
-            rows_processed = progress_info.get('rows_processed')
-            rows_total = progress_info.get('rows_total')
-            if isinstance(stage, str):
-                translated = _(stage)
-                if rows_processed is not None and rows_total:
-                    row_str = _('processed %(processed)s/%(total)s rows') % {
-                        'processed': rows_processed,
-                        'total': rows_total,
-                    }
-                    current_stage = f'{translated} - {row_str}'
-                else:
-                    current_stage = translated
-            else:
-                current_stage = job.status
-
-            return Response(
-                {
-                    'job_id': str(job.job_id),
-                    'status': job.status,
-                    'progress': current_progress,
-                    'stage': current_stage,
-                    'error_message': job.error_message,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        # POST: request cancellation
-        if job.status != 'processing':
-            return Response({'message': 'Job not running', 'status': job.status}, status=status.HTTP_200_OK)
-
-        try:
-            job_control.cancel(str(job.job_id))
-            job.status = 'cancelled'
-            job.error_message = 'Cancellation requested'
-            job.save()
-
-            percentage = tracker.get_progress().get('percentage')
-            send_process_progress(
-                str(job.job_id),
-                percentage if isinstance(percentage, int) else 0,
-                'Cancelling',
-                'cancelling',
-            )
-
-            return Response(
-                {'message': 'Cancellation requested', 'job_id': str(job.job_id)},
-                status=status.HTTP_202_ACCEPTED,
-            )
-        except Exception as error:
-            logger.exception('Failed to request cancellation for job: %s', job.job_id)
-            return Response({'error': str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
