@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API root view with documentation links."""
+"""API root view with documentation links, Version control and Settings config values."""
 
 from __future__ import annotations
 

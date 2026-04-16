@@ -3,12 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API views package.
+"""API service layer for deidentification job processing.
 
-This package contains the API views for the Django backend.
+This module contains the logic for running deidentification jobs in the background.
 """
-
-from api.views.jobs_views import DeidentificationJobViewSet
-from api.views.root_views import APIRootView, VersionView
-
-__all__ = ['APIRootView', 'DeidentificationJobViewSet', 'VersionView']

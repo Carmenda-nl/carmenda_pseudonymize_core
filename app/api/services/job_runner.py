@@ -3,7 +3,13 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Background processing logic for deidentification jobs."""
+"""Background processing logic for deidentification jobs.
+
+This service handles the following responsibilities:
+    - Threading and progress monitoring for running the core processing in the background.
+    - Uses WebSocket communication for real-time progress updates to the frontend.
+    - Metrics formatting for human-readable performance information.
+"""
 
 from __future__ import annotations
 
@@ -158,7 +164,9 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
                     else:
                         current_stage = str(raw_stage) if raw_stage else 'Processing'
 
-                    percentage_changed = abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage
+                    percentage_changed = (
+                        abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage
+                    )
                     stage_changed = current_stage != last_stage
 
                     if percentage_changed or stage_changed:

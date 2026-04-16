@@ -44,8 +44,8 @@ from api.utils.file_handling import (
     generate_preview,
     match_output_cols,
 )
-from api.views.processing import run_processing, send_process_progress
-from api.views.root import ApiTags
+from api.services.job_runner import run_processing, send_process_progress
+from api.views.root_views import ApiTags
 from core.utils.logger import setup_logging
 from core.utils.progress_control import job_control
 from core.utils.progress_tracker import tracker
