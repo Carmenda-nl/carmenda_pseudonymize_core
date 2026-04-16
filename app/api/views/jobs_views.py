@@ -318,12 +318,11 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 datakey = f'{job.job_id}/{datakey_name}'
 
             # Start processing in background thread
-            processing_thread = threading.Thread(
+            threading.Thread(
                 target=run_processing,
                 args=(str(job.job_id), input_file, input_cols, output_cols, datakey),
                 daemon=True,
-            )
-            processing_thread.start()
+            ).start()
 
             return Response(
                 {
