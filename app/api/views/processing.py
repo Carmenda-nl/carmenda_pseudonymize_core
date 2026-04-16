@@ -143,6 +143,7 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
             def monitor_progress() -> None:
                 """Progress monitoring and send updates via WebSocket."""
                 last_percentage = -1
+                last_stage = ''
                 while not stop_monitoring.is_set():
                     progress_info = tracker.get_progress()
                     raw_percentage = progress_info['percentage']
@@ -150,11 +151,20 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
                         int(raw_percentage) if isinstance(raw_percentage, str) else (raw_percentage or 0)
                     )
                     raw_stage = progress_info['stage']
-                    current_stage = str(raw_stage) if raw_stage else 'Processing'
+                    rows_processed = progress_info.get('rows_processed')
+                    rows_total = progress_info.get('rows_total')
+                    if raw_stage and rows_processed is not None and rows_total:
+                        current_stage = f'{raw_stage} - processed {rows_processed}/{rows_total} rows'
+                    else:
+                        current_stage = str(raw_stage) if raw_stage else 'Processing'
 
-                    if abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage:
+                    percentage_changed = abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage
+                    stage_changed = current_stage != last_stage
+
+                    if percentage_changed or stage_changed:
                         send_process_progress(job_id, current_percentage, current_stage)
                         last_percentage = current_percentage
+                        last_stage = current_stage
 
                     stop_monitoring.wait(0.1)
 
