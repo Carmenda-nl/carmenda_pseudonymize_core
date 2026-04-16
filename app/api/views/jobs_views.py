@@ -37,7 +37,8 @@ from api.serializers import (
     JobStatusSerializer,
     ZipSerializer,
 )
-from api.services.job_runner import run_processing, send_process_progress
+from api.services.job_monitor import push_progress_update
+from api.services.job_runner import run_processing
 from api.utils.file_handling import (
     collect_output_files,
     create_zipfile,
@@ -172,7 +173,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
                 # Send WebSocket notification
                 percentage = tracker.get_progress().get('percentage')
-                send_process_progress(
+                push_progress_update(
                     str(instance.job_id),
                     percentage if isinstance(percentage, int) else 0,
                     'Cancelled (deletion)',
@@ -232,7 +233,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.save()
 
             percentage = tracker.get_progress().get('percentage')
-            send_process_progress(
+            push_progress_update(
                 str(job.job_id),
                 percentage if isinstance(percentage, int) else 0,
                 'Cancelling',

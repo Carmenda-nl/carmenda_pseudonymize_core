@@ -6,9 +6,9 @@
 """Running logic for deidentification jobs.
 
 This service handles the following responsibilities:
-    - Threading and progress monitoring for running the core processing in the background.
-    - Uses WebSocket communication for real-time progress updates to the frontend.
+    - Threading for running the core processing in the background.
     - Metrics formatting for human-readable performance information.
+    - Delegating progress monitoring to job_monitor.
 """
 
 from __future__ import annotations
@@ -18,12 +18,11 @@ import logging
 import threading
 from pathlib import Path
 
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.conf import settings
 from django.utils.translation import gettext as _
 
 from api.models import DeidentificationJob
+from api.services.job_monitor import monitor_progress, push_progress_update
 from api.utils.logger import setup_job_logging
 from core.processor import process_data
 from core.utils.logger import setup_logging
@@ -62,21 +61,6 @@ def _format_metrics(metrics: dict) -> dict:
     }
 
 
-def send_process_progress(job_id: str, percentage: int, stage: str, job_status: str = 'processing') -> None:
-    """Send processing progress update via WebSocket."""
-    channel_layer = get_channel_layer()
-    if channel_layer:
-        async_to_sync(channel_layer.group_send)(
-            f'job_progress_{job_id}',
-            {
-                'type': 'job_progress',
-                'percentage': percentage,
-                'stage': stage,
-                'status': job_status,
-            },
-        )
-
-
 def _handle_process_completion(job_id: str, current_job: DeidentificationJob, processor: str | None, file: str) -> None:
     """Handle processing completion: save preview, create zip, and send completion update."""
     if processor:
@@ -106,7 +90,7 @@ def _handle_process_completion(job_id: str, current_job: DeidentificationJob, pr
     current_job.status = 'completed'
     current_job.save()
 
-    send_process_progress(job_id, 100, 'Completed', 'completed')
+    push_progress_update(job_id, 100, 'Completed', 'completed')
 
 
 def _handle_process_cancellation(job_id: str) -> None:
@@ -121,7 +105,7 @@ def _handle_process_cancellation(job_id: str) -> None:
     percentage = progress_info.get('percentage', 0)
     progress_percentage = int(percentage) if isinstance(percentage, str) else (percentage or 0)
     last_stage = str(progress_info.get('stage') or 'Cancelled')
-    send_process_progress(job_id, progress_percentage, last_stage, 'cancelled')
+    push_progress_update(job_id, progress_percentage, last_stage, 'cancelled')
 
 
 def _handle_process_error(job_id: str, error: Exception) -> None:
@@ -132,55 +116,19 @@ def _handle_process_error(job_id: str, error: Exception) -> None:
     error_job.status = 'failed'
     error_job.save()
 
-    send_process_progress(job_id, 0, f'Error: {error}', 'failed')
-
-
-def _monitor_progress(job_id: str, stop_monitoring: threading.Event, completion_percentage: int = 100) -> None:
-    """Monitor processing progress and send updates via WebSocket until stop event is set."""
-    last_percentage = -1
-    last_stage = ''
-    while not stop_monitoring.is_set():
-        progress_info = tracker.get_progress()
-        raw_percentage = progress_info['percentage']
-        current_percentage = int(raw_percentage) if isinstance(raw_percentage, str) else (raw_percentage or 0)
-        raw_stage = progress_info['stage']
-        rows_processed = progress_info.get('rows_processed')
-        rows_total = progress_info.get('rows_total')
-        if raw_stage and rows_processed is not None and rows_total:
-            current_stage = f'{raw_stage} - processed {rows_processed}/{rows_total} rows'
-        else:
-            current_stage = str(raw_stage) if raw_stage else 'Processing'
-
-        percentage_changed = (
-            abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage
-        )
-        stage_changed = current_stage != last_stage
-
-        if percentage_changed or stage_changed:
-            send_process_progress(job_id, current_percentage, current_stage)
-            last_percentage = current_percentage
-            last_stage = current_stage
-
-        stop_monitoring.wait(0.1)
+    push_progress_update(job_id, 0, f'Error: {error}', 'failed')
 
 
 def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: str, datakey: str) -> None:
     """Run processing in background thread."""
     current_job = DeidentificationJob.objects.get(pk=job_id)
     job_handler = setup_job_logging(job_id, input_file, current_job)
+    stop_monitoring = threading.Event()
+    monitor_thread: threading.Thread | None = None
 
     try:
         with job_control.run_job(job_id):
-            # Set up progress monitoring
-            stop_monitoring = threading.Event()
-            completion_percentage = 100
-
-            # Start progress monitoring in separate thread
-            monitor_thread = threading.Thread(
-                target=_monitor_progress,
-                args=(job_id, stop_monitoring, completion_percentage),
-                daemon=True,
-            )
+            monitor_thread = threading.Thread(target=monitor_progress, args=(job_id, stop_monitoring), daemon=True)
             monitor_thread.start()
 
             processor = process_data(
@@ -206,14 +154,9 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
         deidentify_logger.removeHandler(job_handler)
         job_handler.close()
 
-        # Stop and join the monitor thread if it exists
-        try:
-            if 'stop_monitoring' in locals():
-                stop_monitoring.set()
-            if 'monitor_thread' in locals():
-                monitor_thread.join(timeout=1.0)
-        except (AttributeError, RuntimeError) as error:
-            logger.debug('Failed to stop monitor thread for %s: %s', job_id, error)
+        stop_monitoring.set()
+        if monitor_thread is not None:
+            monitor_thread.join(timeout=1.0)
 
         try:
             # Ensure the progress bar is finalized to avoid leftover UI/console output
