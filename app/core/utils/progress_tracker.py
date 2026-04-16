@@ -134,6 +134,10 @@ class ProgressTracker:
             'done': ('done', 100),
         }
 
+        # reset row progress when setting overall stages (mostly on re-runs)
+        self.rows_processed = None
+        self.rows_total = None
+
         current_stage = progress_stages[stage]
         self.overall_progress = max(0, min(current_stage[1], 100))
         self.overall_stage = current_stage[0]
