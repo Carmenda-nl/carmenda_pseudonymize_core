@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Background processing logic for deidentification jobs.
+"""Running logic for deidentification jobs.
 
 This service handles the following responsibilities:
     - Threading and progress monitoring for running the core processing in the background.
@@ -135,6 +135,35 @@ def _handle_process_error(job_id: str, error: Exception) -> None:
     send_process_progress(job_id, 0, f'Error: {error}', 'failed')
 
 
+def _monitor_progress(job_id: str, stop_monitoring: threading.Event, completion_percentage: int = 100) -> None:
+    """Monitor processing progress and send updates via WebSocket until stop event is set."""
+    last_percentage = -1
+    last_stage = ''
+    while not stop_monitoring.is_set():
+        progress_info = tracker.get_progress()
+        raw_percentage = progress_info['percentage']
+        current_percentage = int(raw_percentage) if isinstance(raw_percentage, str) else (raw_percentage or 0)
+        raw_stage = progress_info['stage']
+        rows_processed = progress_info.get('rows_processed')
+        rows_total = progress_info.get('rows_total')
+        if raw_stage and rows_processed is not None and rows_total:
+            current_stage = f'{raw_stage} - processed {rows_processed}/{rows_total} rows'
+        else:
+            current_stage = str(raw_stage) if raw_stage else 'Processing'
+
+        percentage_changed = (
+            abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage
+        )
+        stage_changed = current_stage != last_stage
+
+        if percentage_changed or stage_changed:
+            send_process_progress(job_id, current_percentage, current_stage)
+            last_percentage = current_percentage
+            last_stage = current_stage
+
+        stop_monitoring.wait(0.1)
+
+
 def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: str, datakey: str) -> None:
     """Run processing in background thread."""
     current_job = DeidentificationJob.objects.get(pk=job_id)
@@ -146,38 +175,12 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
             stop_monitoring = threading.Event()
             completion_percentage = 100
 
-            def monitor_progress() -> None:
-                """Progress monitoring and send updates via WebSocket."""
-                last_percentage = -1
-                last_stage = ''
-                while not stop_monitoring.is_set():
-                    progress_info = tracker.get_progress()
-                    raw_percentage = progress_info['percentage']
-                    current_percentage = (
-                        int(raw_percentage) if isinstance(raw_percentage, str) else (raw_percentage or 0)
-                    )
-                    raw_stage = progress_info['stage']
-                    rows_processed = progress_info.get('rows_processed')
-                    rows_total = progress_info.get('rows_total')
-                    if raw_stage and rows_processed is not None and rows_total:
-                        current_stage = f'{raw_stage} - processed {rows_processed}/{rows_total} rows'
-                    else:
-                        current_stage = str(raw_stage) if raw_stage else 'Processing'
-
-                    percentage_changed = (
-                        abs(current_percentage - last_percentage) >= 1 or current_percentage == completion_percentage
-                    )
-                    stage_changed = current_stage != last_stage
-
-                    if percentage_changed or stage_changed:
-                        send_process_progress(job_id, current_percentage, current_stage)
-                        last_percentage = current_percentage
-                        last_stage = current_stage
-
-                    stop_monitoring.wait(0.1)
-
             # Start progress monitoring in separate thread
-            monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
+            monitor_thread = threading.Thread(
+                target=_monitor_progress,
+                args=(job_id, stop_monitoring, completion_percentage),
+                daemon=True,
+            )
             monitor_thread.start()
 
             processor = process_data(
