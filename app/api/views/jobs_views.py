@@ -137,9 +137,14 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.datakey = new_datakey
             job.save(update_fields=['datakey'])
 
-        permission_changed = serializer.validated_data.get('data_permission', False) != old_permission
+        cols_update = (
+            columns_changed and not input_uploaded and not datakey_changed and 'data_permission' not in request.data
+        )
+        new_permission = serializer.validated_data.get('data_permission', False)
+        permission_changed = not cols_update and new_permission != old_permission
+
         if permission_changed:
-            job.data_permission = serializer.validated_data.get('data_permission', False)
+            job.data_permission = new_permission
             job.save(update_fields=['data_permission'])
             generate_consent(job)
 
@@ -151,7 +156,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.reset_output()
             if input_uploaded:
                 generate_preview(job)
-            if input_uploaded or datakey_changed:
+            if input_uploaded:
                 job.data_permission = False
                 job.save(update_fields=['data_permission'])
             elif job.data_permission:
