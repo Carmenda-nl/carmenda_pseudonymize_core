@@ -175,7 +175,8 @@ LANGUAGES = [
     ('nl', _('Dutch')),
 ]
 
-LOCALE_PATHS = [BASE_DIR / 'locale']
+
+LOCALE_PATHS = [Path(sys._MEIPASS) / 'app' / 'locale'] if hasattr(sys, '_MEIPASS') else [BASE_DIR / 'locale']
 
 
 # Static files (CSS, JavaScript, Images)
