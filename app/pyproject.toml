@@ -62,6 +62,7 @@ ignore = [
     'S301',   # (pickle file loading)
     'EXE001', # (Shebang in manage.py is OK without executable bit in Git)
     'COM812', # (May cause conflicts when used with the formatter)
+    'PLC0415' # (Lazy load imports)
 ]
 
 [tool.ruff.lint.pydocstyle]

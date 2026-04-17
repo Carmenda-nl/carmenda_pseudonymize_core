@@ -34,6 +34,12 @@ logs_dir.mkdir(parents=True, exist_ok=True)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'ignore_favicon': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': lambda record: '/favicon.ico' not in record.getMessage(),
+        },
+    },
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {message}',
@@ -50,6 +56,7 @@ LOGGING = {
             'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
             'formatter': 'console',
+            'filters': ['ignore_favicon'],
         },
     },
     'root': {
@@ -88,6 +95,11 @@ LOGGING = {
             'propagate': False,
         },
         'git': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'git.cmd': {
             'handlers': ['console'],
             'level': 'ERROR',
             'propagate': False,
