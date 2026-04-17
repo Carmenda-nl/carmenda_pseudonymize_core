@@ -157,6 +157,11 @@ def generate_consent(job: DeidentificationJob) -> None:
     consent_filename = f'{base_name}_consent.txt'
     consent_path = output_dir / consent_filename
 
+    if job.consent_file:
+        old_consent_path = Path(settings.MEDIA_ROOT) / job.consent_file.name
+        if old_consent_path.exists() and old_consent_path != consent_path:
+            old_consent_path.unlink()
+
     consent_path.write_text(
         _(
             'Yes, Carmenda may contact me with questions about improving the Privacytool.\n'

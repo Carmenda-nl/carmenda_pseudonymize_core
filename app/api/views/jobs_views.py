@@ -137,29 +137,28 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.datakey = new_datakey
             job.save(update_fields=['datakey'])
 
-        cols_update = (
-            columns_changed and not input_uploaded and not datakey_changed and 'data_permission' not in request.data
-        )
         new_permission = serializer.validated_data.get('data_permission', False)
-        permission_changed = not cols_update and new_permission != old_permission
+        permission_changed = new_permission != old_permission
 
         if permission_changed:
             job.data_permission = new_permission
             job.save(update_fields=['data_permission'])
-            generate_consent(job)
-
             job.reset_zip()
             job.save(update_fields=['zip_file', 'zip_preview'])
 
         should_reset = input_uploaded or datakey_changed or columns_changed
+
+        if not should_reset and ('data_permission' in request.data or (not job.data_permission and job.consent_file)):
+            generate_consent(job)
+
         if should_reset:
             job.reset_output()
             if input_uploaded:
                 generate_preview(job)
-            if input_uploaded:
+            if input_uploaded and 'data_permission' not in request.data:
                 job.data_permission = False
                 job.save(update_fields=['data_permission'])
-            elif job.data_permission:
+            if job.data_permission:
                 generate_consent(job)
 
         return Response(JobSerializer(job, context={'request': request}).data, status=status.HTTP_200_OK)

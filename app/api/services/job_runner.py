@@ -95,7 +95,7 @@ def _handle_process_completion(job_id: str, current_job: DeidentificationJob, pr
 
 def _handle_process_cancellation(job_id: str) -> None:
     """Handle processing cancellation: update database and send cancellation update."""
-    logger.info('Processing "%s" Cancelled by user', job_id)
+    logger.info('Processing "%s" cancelled by user', job_id)
     cancelled_job = DeidentificationJob.objects.get(pk=job_id)
     cancelled_job.error_message = 'Processing cancelled by user'
     cancelled_job.status = 'cancelled'
