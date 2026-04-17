@@ -50,7 +50,7 @@ class ServeMediaFilesMiddleware:
             if file_path.exists() and file_path.is_file():
                 try:
                     file_obj = file_path.open('rb')
-                    content_type, _ = mimetypes.guess_type(str(file_path))
+                    content_type, _encoding = mimetypes.guess_type(str(file_path))
 
                     if content_type is None:
                         content_type = 'application/octet-stream'
