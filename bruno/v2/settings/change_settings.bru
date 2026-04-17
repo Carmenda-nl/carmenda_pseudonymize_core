@@ -26,3 +26,12 @@ body:json {
 body:form-urlencoded {
   language: nl
 }
+
+script:post-response {
+  const data = res.getBody();
+  const language = data?.language;
+  
+  if (language) {
+    bru.setEnvVar("language", language);
+  }
+}
