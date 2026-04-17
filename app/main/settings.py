@@ -5,6 +5,7 @@
 
 """Settings for the Django project."""
 
+import contextlib
 import sys
 from pathlib import Path
 
@@ -198,7 +199,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Load additional log settings
 LOG_LEVEL = env('LOG_LEVEL')
 
-# Import logging settings if settings_log.py is available
-settings_log_path = Path(__file__).parent / 'settings_log.py'
-if settings_log_path.exists():
+# Import logging settings if settings_log module is available
+with contextlib.suppress(ImportError):
     from .settings_log import LOGGING  # noqa: F401

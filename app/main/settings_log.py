@@ -99,6 +99,11 @@ LOGGING = {
             'level': 'ERROR',
             'propagate': False,
         },
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
         'git.cmd': {
             'handlers': ['console'],
             'level': 'ERROR',

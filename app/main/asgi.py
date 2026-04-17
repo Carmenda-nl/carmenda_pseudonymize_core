@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import logging
 import os
 from typing import TYPE_CHECKING, cast
 
@@ -18,13 +17,6 @@ from django.core.asgi import get_asgi_application
 
 if TYPE_CHECKING:
     from channels.routing import _ExtendedURLPattern
-
-# Make asyncio and related loggers less noisy
-logging.getLogger('asyncio').setLevel(logging.WARNING)
-logging.getLogger('autobahn').setLevel(logging.WARNING)
-logging.getLogger('daphne').setLevel(logging.WARNING)
-logging.getLogger('daphne.http_protocol').setLevel(logging.WARNING)
-logging.getLogger('daphne.ws_protocol').setLevel(logging.WARNING)
 
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'main.settings')
