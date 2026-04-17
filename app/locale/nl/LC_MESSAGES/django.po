@@ -24,35 +24,26 @@ msgstr ""
 msgid "processed %(processed)s/%(total)s rows"
 msgstr "%(processed)s/%(total)s regels verwerkt"
 
-#: .\api\services\job_runner.py:45
+#: .\api\serializers.py
 #, python-format
 msgid "%(count)d hour"
-msgstr "%(count)d uur"
+msgid_plural "%(count)d hours"
+msgstr[0] "%(count)d uur"
+msgstr[1] "%(count)d uur"
 
-#: .\api\services\job_runner.py:45
-#, python-format
-msgid "%(count)d hours"
-msgstr "%(count)d uur"
-
-#: .\api\services\job_runner.py:48
+#: .\api\serializers.py
 #, python-format
 msgid "%(count)d minute"
-msgstr "%(count)d minuut"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minuut"
+msgstr[1] "%(count)d minuten"
 
-#: .\api\services\job_runner.py:48
-#, python-format
-msgid "%(count)d minutes"
-msgstr "%(count)d minuten"
-
-#: .\api\services\job_runner.py:52
+#: .\api\serializers.py
 #, python-format
 msgid "%(count)d second"
-msgstr "%(count)d seconde"
-
-#: .\api\services\job_runner.py:52
-#, python-format
-msgid "%(count)d seconds"
-msgstr "%(count)d seconden"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d seconde"
+msgstr[1] "%(count)d seconden"
 
 #: .\api\services\job_runner.py:55
 msgid "and"

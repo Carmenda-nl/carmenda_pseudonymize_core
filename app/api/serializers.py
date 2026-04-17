@@ -16,6 +16,7 @@ from pathlib import Path
 
 from django.db.models import FileField
 from django.utils.translation import gettext as _
+from django.utils.translation import ngettext as _ng
 from rest_framework import serializers
 
 from api.models import DeidentificationJob, output_path
@@ -178,6 +179,27 @@ class JobSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the job including files metadata, as size & built dates."""
         representation = super().to_representation(instance)
+
+        if representation.get('processed_preview'):
+            metrics = representation['processed_preview']['metrics']
+            hours, minutes, seconds = metrics.get('hours', 0), metrics.get('minutes', 0), metrics.get('seconds', 0)
+
+            parts = []
+
+            if hours:
+                parts.append(_ng('%(count)d hour', '%(count)d hours', hours) % {'count': hours})
+            if minutes:
+                parts.append(_ng('%(count)d minute', '%(count)d minutes', minutes) % {'count': minutes})
+            if seconds or not parts:
+                parts.append(_ng('%(count)d second', '%(count)d seconds', seconds) % {'count': seconds})
+
+            and_str = _('and')
+
+            representation['processed_preview']['metrics'] = {
+                'total_rows': metrics.get('total_rows'),
+                'total_time': f'{", ".join(parts[:-1])} {and_str} {parts[-1]}' if len(parts) > 1 else parts[0],
+                'time_per_row': f'{metrics.get("time_per_row_ms", 0):.3f} ms',
+            }
 
         file_fields = [file.name for file in instance._meta.get_fields() if isinstance(file, FileField)]
 

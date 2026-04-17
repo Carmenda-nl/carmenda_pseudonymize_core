@@ -7,7 +7,6 @@
 
 This service handles the following responsibilities:
     - Threading for running the core processing in the background.
-    - Metrics formatting for human-readable performance information.
     - Delegating progress monitoring to job_monitor.
 """
 
@@ -19,7 +18,6 @@ import threading
 from pathlib import Path
 
 from django.conf import settings
-from django.utils.translation import gettext as _
 
 from api.models import DeidentificationJob
 from api.services.job_monitor import monitor_progress, push_progress_update
@@ -32,43 +30,11 @@ from core.utils.progress_tracker import tracker
 logger = setup_logging()
 
 
-def _format_metrics(metrics: dict) -> dict:
-    """Format raw performance metrics from core into translated human-readable strings."""
-    hours = metrics.get('hours', 0)
-    minutes = metrics.get('minutes', 0)
-    seconds = metrics.get('seconds', 0)
-    time_per_row_ms = metrics.get('time_per_row_ms', 0)
-
-    parts = []
-    if hours:
-        parts.append(_('%(count)d hour') % {'count': hours} if hours == 1 else _('%(count)d hours') % {'count': hours})
-    if minutes:
-        parts.append(
-            _('%(count)d minute') % {'count': minutes} if minutes == 1 else _('%(count)d minutes') % {'count': minutes}
-        )
-    if seconds or not parts:
-        parts.append(
-            _('%(count)d second') % {'count': seconds} if seconds == 1 else _('%(count)d seconds') % {'count': seconds}
-        )
-
-    and_str = _('and')
-    total_time_str = f'{", ".join(parts[:-1])} {and_str} {parts[-1]}' if len(parts) > 1 else parts[0]
-
-    return {
-        'total_rows': metrics.get('total_rows'),
-        'total_time': total_time_str,
-        'time_per_row': f'{time_per_row_ms:.3f} ms',
-    }
-
-
-def _handle_process_completion(job_id: str, current_job: DeidentificationJob, processor: str | None, file: str) -> None:
+def _handle_process_completion(job_id: str, current_job: DeidentificationJob, processor: str, file: str) -> None:
     """Handle processing completion: save preview, create zip, and send completion update."""
-    if processor:
-        processed_data = json.loads(processor)
-        if 'metrics' in processed_data:
-            processed_data['metrics'] = _format_metrics(processed_data['metrics'])
-        current_job.processed_preview = processed_data
-        current_job.save()
+    processed_data = json.loads(processor)
+    current_job.processed_preview = processed_data
+    current_job.save()
 
     # Set job fields for files created by the core processor
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(current_job.job_id)
@@ -145,7 +111,6 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
 
     except JobCancelledError:
         _handle_process_cancellation(job_id)
-
     except Exception as error:
         logger.exception('Unexpected error during run process %s', job_id)
         _handle_process_error(job_id, error)

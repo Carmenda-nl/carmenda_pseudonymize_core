@@ -68,4 +68,3 @@ def monitor_progress(job_id: str, stop_monitoring: threading.Event, completion_p
             last_stage = current_stage
 
         stop_monitoring.wait(0.1)
-
