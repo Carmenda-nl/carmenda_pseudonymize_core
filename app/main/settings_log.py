@@ -94,12 +94,12 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
-        'git': {
+        'daphne': {
             'handlers': ['console'],
             'level': 'ERROR',
             'propagate': False,
         },
-        'daphne': {
+        'git': {
             'handlers': ['console'],
             'level': 'ERROR',
             'propagate': False,
@@ -107,6 +107,11 @@ LOGGING = {
         'git.cmd': {
             'handlers': ['console'],
             'level': 'ERROR',
+            'propagate': False,
+        },
+        'charset_normalizer': {
+            'handlers': ['console'],
+            'level': 'WARNING',
             'propagate': False,
         },
         'api': {
