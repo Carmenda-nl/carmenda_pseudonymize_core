@@ -6,5 +6,5 @@
 """Main package for the Django project.
 
 This package contains the main components and settings for the Django application.
-ASGI is setup to use a websocket protocol to handle requests asynchronously.
+ASGI is setup to use daphne to handle server-side events.
 """

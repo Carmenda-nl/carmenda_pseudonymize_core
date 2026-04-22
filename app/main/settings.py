@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
-    'channels',
     'main',
     'settings',
     'api',
@@ -66,7 +65,7 @@ if getattr(sys, 'frozen', False):
     MIDDLEWARE.append('main.middleware.ServeMediaFilesMiddleware')
 
 
-# CORS settings for app communication (HTTP + WebSocket origins)
+# CORS settings for app communication
 CORS_ALLOWED_ORIGINS = [
     'http://localhost',
     'http://127.0.0.1',
@@ -102,10 +101,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'main.wsgi.application'
 ASGI_APPLICATION = 'main.asgi.application'
-
-CHANNEL_LAYERS = {
-    'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'},
-}
 
 
 # Database

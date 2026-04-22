@@ -5,7 +5,7 @@
 
 """Django logging configuration.
 
-ASGI has logger overrules (too much noise in production)
+Daphne and asyncio loggers are silenced to reduce noise in production.
 """
 
 from pathlib import Path
@@ -79,27 +79,12 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
-        'django.channels.server': {
-            'handlers': ['console'],
-            'level': 'ERROR',
-            'propagate': False,
-        },
-        'django.utils.autoreload': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
         'asyncio': {
             'handlers': ['console'],
             'level': 'WARNING',
             'propagate': False,
         },
         'daphne': {
-            'handlers': ['console'],
-            'level': 'ERROR',
-            'propagate': False,
-        },
-        'git': {
             'handlers': ['console'],
             'level': 'ERROR',
             'propagate': False,
