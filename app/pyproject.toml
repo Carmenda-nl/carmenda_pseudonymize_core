@@ -4,11 +4,10 @@ dynamic = ["version"]
 description = "API backend"
 requires-python = ">=3.13"
 dependencies = [
-    "channels-redis>=4.3.0",
-    "channels[daphne]>=4.3.2",
     "charset-normalizer>=3.4.4",
+    "daphne>=4.0.0",
     "deduce>=3.0.6",
-    "django>=5.2.12",
+    "django~=5.2.12",
     "django-cors-headers>=4.9.0",
     "django-environ>=0.12.0",
     "djangorestframework>=3.16.1",
@@ -28,7 +27,6 @@ build = [
 ]
 
 dev = [
-    "channels-stubs>=0.1.9",
     "django-stubs>=5.2.9",
     "djangorestframework-stubs>=3.16.8",
     "lxml-stubs>=0.5.1",
