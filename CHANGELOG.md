@@ -3,7 +3,43 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.1-beta] - 2026-03-05
+## [1.4.2] - 2026-03-31
+
+### Added
+
+- Auto gen changelogs
+- Metrics output for API
+- Progress metrics (LVD-219) (LVD-222)
+- App version control (LVD-218)
+- Write version to file logic
+- 3 head & 3 tail rows for preview
+
+### Changed
+
+- Overwrite storage, refactor reset_output & add consent_file to API
+- Refactor & bugfix DeidentificationJobViewSet `PUT`
+- Remove hardcoded file paths in `collect_output_files`
+- Update changelog & readme (version control)
+- Move packaging files to own endpoint
+- Create a seperate serializer for API zip function
+- Convert project to a uv based
+- Move firstnames to common words (LVD-241)
+- Action workflow scripts
+- Python dependencies updated
+- Refactor time metrics & add hours
+
+### Fixed
+
+- Newlines not rendered properly
+- No proper Keep a Changelog format
+- Pickle file not properly located
+- Require the first word to be a known name
+- Update lookup tables
+- Fix double version.txt creation
+- Version not properly located in frozen env
+- Error when git not installed
+
+## [1.3.1] - 2026-03-05
 
 ### Added
 
