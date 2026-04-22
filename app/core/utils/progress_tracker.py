@@ -45,7 +45,7 @@ class ProgressTracker:
         """Set/reset the default progress tracking state values.
 
         Collects row progress & stage for the terminal pseudonymization progress bar
-        and overall progress & stage for the WebSocket updates to the frontend.
+        and overall progress & stage for real-time frontend updates.
         """
         self.task_id: TaskID | None = None
         self.rich_progress: Progress | None = None
@@ -144,7 +144,7 @@ class ProgressTracker:
         logger.debug('Overall progress: %s (%d%%)\n', current_stage[0], self.overall_progress)
 
     def get_progress(self) -> dict[str, int | str | None]:
-        """Retrieve the overall progress percentage and stage description for websocket reporting."""
+        """Retrieve the overall progress percentage and stage description for real-time reporting."""
         return {
             'stage': self.overall_stage,
             'percentage': self.overall_progress,

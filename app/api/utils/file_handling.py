@@ -153,13 +153,20 @@ def generate_consent(job: DeidentificationJob) -> None:
         job.save(update_fields=['consent_file'])
         return
 
-    base_name = Path(job.input_file.name).stem
+    base_name = Path(getattr(job.input_file, 'name', '')).stem
     consent_filename = f'{base_name}_consent.txt'
     consent_path = output_dir / consent_filename
 
+    if not base_name:
+        job.consent_file.delete(save=False)
+        job.consent_file = None
+        job.save(update_fields=['consent_file'])
+        return
+
     if job.consent_file:
-        old_consent_path = Path(settings.MEDIA_ROOT) / job.consent_file.name
-        if old_consent_path.exists() and old_consent_path != consent_path:
+        old_name = getattr(job.consent_file, 'name', '')
+        old_consent_path = Path(settings.MEDIA_ROOT) / old_name if old_name else None
+        if old_consent_path and old_consent_path.exists() and old_consent_path != consent_path:
             old_consent_path.unlink()
 
     consent_path.write_text(
@@ -177,7 +184,7 @@ def generate_consent(job: DeidentificationJob) -> None:
 def collect_output_files(job: DeidentificationJob) -> list[str]:
     """Collect all files in the job output directory, excluding the input file."""
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(job.job_id)
-    input_filename = Path(job.input_file.name).name
+    input_filename = Path(getattr(job.input_file, 'name', '')).name
 
     if not job_output_dir.exists():
         return []
@@ -185,13 +192,13 @@ def collect_output_files(job: DeidentificationJob) -> list[str]:
     return [
         str(path)
         for path in sorted(job_output_dir.iterdir())
-        if path.is_file() and path.name != input_filename and path.suffix != '.zip'
+        if path.is_file() and (not input_filename or path.name != input_filename) and path.suffix != '.zip'
     ]
 
 
 def create_zipfile(job: DeidentificationJob, files_to_zip: list[str]) -> None:
     """Create a zip file and store its information in the job model."""
-    output_filename = Path(job.output_file.name).name
+    output_filename = Path(getattr(job.output_file, 'name', '')).name
 
     if not files_to_zip:
         error_message = f'No output files found to zip for job {job.pk}'

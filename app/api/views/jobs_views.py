@@ -37,7 +37,6 @@ from api.serializers import (
     JobStatusSerializer,
     ZipSerializer,
 )
-from api.services.job_monitor import push_progress_update
 from api.services.job_runner import run_processing
 from api.utils.file_handling import (
     collect_output_files,
@@ -175,15 +174,6 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 instance.error_message = 'Job cancelled before deletion'
                 instance.save()
 
-                # Send WebSocket notification
-                percentage = tracker.get_progress().get('percentage')
-                push_progress_update(
-                    str(instance.job_id),
-                    percentage if isinstance(percentage, int) else 0,
-                    'Cancelled (deletion)',
-                    'cancelled',
-                )
-
                 # Give the process a moment to handle cancellation
                 time.sleep(0.5)
 
@@ -235,14 +225,6 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.status = 'cancelled'
             job.error_message = 'Cancellation requested'
             job.save()
-
-            percentage = tracker.get_progress().get('percentage')
-            push_progress_update(
-                str(job.job_id),
-                percentage if isinstance(percentage, int) else 0,
-                'Cancelling',
-                'cancelling',
-            )
 
             return Response(
                 {'message': 'Cancellation requested', 'job_id': str(job.job_id)},
