@@ -277,11 +277,16 @@ class ZipSerializer(serializers.ModelSerializer):
         fields = super().get_fields()
         for name in self.output_fields:
             fields[name] = serializers.FileField(read_only=True, use_url=True)
+
         return fields
 
     def get_zipfile(self, obj: DeidentificationJob) -> str:
         """Return the expected zip filename based on the output file name."""
-        return f'{Path(obj.output_file.name).stem}.zip'
+        name = getattr(obj.output_file, 'name', None)
+        if not name:
+            return ''
+
+        return f'{Path(name).stem}.zip'
 
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the zip including files metadata, as size & built dates."""
