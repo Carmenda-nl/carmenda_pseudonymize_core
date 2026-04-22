@@ -5,12 +5,7 @@
 
 """API service layer for deidentification job processing.
 
-This package runs deidentification jobs using two threads:
-    - Thread 1 (job_runner):
-      executes the core processing in the background so the
-      HTTP request can return immediately with a 202 Accepted response.
-
-    - Thread 2 (job_monitor):
-      polls the progress tracker every 100ms while Thread 1
-      is blocked on processing, and forwards updates to the frontend via WebSocket.
+This package runs deidentification jobs in a background thread (job_runner)
+so the HTTP request can return immediately. Progress is tracked via the
+progress tracker and streamed to the frontend using Server-Sent Events (SSE).
 """
