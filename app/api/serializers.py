@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 from pathlib import Path
 
+from django.conf import settings
 from django.db.models import FileField
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext as _ng
@@ -29,9 +30,15 @@ from settings.models import ConfigValues
 class ConfigValuesSerializer(serializers.ModelSerializer):
     """Serializer for the app settings persistent values."""
 
+    available_languages = serializers.SerializerMethodField(read_only=True)
+
+    def get_available_languages(self, obj: ConfigValues) -> list[dict[str, str]]:
+        """Return the list of languages supported by the application."""
+        return [{'code': code, 'name': str(name)} for code, name in settings.LANGUAGES]
+
     class Meta:
         model = ConfigValues
-        fields = '__all__'
+        fields = ('id', 'language', 'available_languages')
 
 
 class JobListSerializer(serializers.ModelSerializer):
