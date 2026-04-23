@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from django.conf import settings
+from django.utils.translation import gettext as _
 
 if TYPE_CHECKING:
     from api.models import DeidentificationJob
@@ -37,3 +38,21 @@ def setup_job_logging(job_id: str, input_file: str, job: DeidentificationJob) ->
     job.save(update_fields=['log_file'])
 
     return job_handler
+
+
+def stage_label(progress_info: dict, fallback: str) -> str:
+    """Translate and format a stage label, optionally including row counts."""
+    stage = progress_info.get('stage')
+    processed = progress_info.get('rows_processed')
+    total = progress_info.get('rows_total')
+
+    if not isinstance(stage, str):
+        return _(fallback)
+
+    translated_stage = _(stage)
+
+    if processed is not None and total:
+        processed_details = _('processed %(processed)s/%(total)s rows') % {'processed': processed, 'total': total}
+        return f'{translated_stage} - {processed_details}'
+
+    return translated_stage

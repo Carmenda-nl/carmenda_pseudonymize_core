@@ -79,6 +79,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'django.channels': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
         'asyncio': {
             'handlers': ['console'],
             'level': 'WARNING',

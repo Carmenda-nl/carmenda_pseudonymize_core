@@ -123,38 +123,42 @@ msgstr "Engels"
 msgid "Dutch"
 msgstr "Nederlands"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "start"
 msgstr "starten"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "processing csv"
 msgstr "csv verwerken"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "normalizing csv"
 msgstr "csv normaliseren"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "file loaded"
 msgstr "bestand ingeladen"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "initializing deduce"
 msgstr "deduce initialiseren"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "initializing tables"
 msgstr "tabellen initialiseren"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "initializing name detection"
 msgstr "naamdetectie initialiseren"
 
-#: core/utils/progress_tracker.py
+#: .\core\utils\progress_tracker.py
 msgid "done"
 msgstr "gereed"
 
-#: core/deidentify.py
+#: .\core\deidentify.py
 msgid "pseudonymize"
 msgstr "pseudonimiseren"
+
+#: .\api\views\sse_views.py
+msgid "processing"
+msgstr "verwerking"
