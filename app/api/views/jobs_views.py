@@ -10,12 +10,10 @@ from __future__ import annotations
 import gc
 import shutil
 import threading
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from django.conf import settings
-from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -23,7 +21,6 @@ from rest_framework.response import Response
 
 from api.models import DeidentificationJob
 from api.schemas import (
-    CANCEL_JOB_GET_SCHEMA,
     CANCEL_JOB_POST_SCHEMA,
     CREATE_JOB_SCHEMA,
     PROCESS_JOB_GET_SCHEMA,
@@ -48,7 +45,6 @@ from api.utils.file_handling import (
 from api.views.root_views import ApiTags
 from core.utils.logger import setup_logging
 from core.utils.progress_control import job_control
-from core.utils.progress_tracker import tracker
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -90,13 +86,15 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         job = serializer.save(status='pending')
+
         generate_preview(job)
+
         if job.data_permission:
             generate_consent(job)
 
         detail_serializer = JobSerializer(job, context={'request': request})
+
         return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request: Request, *args: object, **kwargs: object) -> Response:
@@ -165,18 +163,14 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance: DeidentificationJob) -> None:
         """Delete associated files from storage and remove job directory."""
         if instance.status == 'processing':
-            # Cancel the job if it's currently processing
             logger.info('Job "%s" Cancelling running job before deletion', instance.job_id)
+
             try:
                 job_control.cancel(str(instance.job_id))
 
                 instance.status = 'cancelled'
                 instance.error_message = 'Job cancelled before deletion'
                 instance.save()
-
-                # Give the process a moment to handle cancellation
-                time.sleep(0.5)
-
             except (RuntimeError, OSError):
                 logger.warning('Failed to cancel job before deletion.')
 
@@ -196,27 +190,10 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
     @extend_schema(tags=[ApiTags.CANCEL])
     @CANCEL_JOB_POST_SCHEMA
-    @CANCEL_JOB_GET_SCHEMA
-    @action(detail=True, methods=['get', 'post'])
+    @action(detail=True, methods=['post'])
     def cancel(self, request: HttpRequest, pk: str | None = None) -> Response:
         """Request cancellation of a running job."""
         job = self.get_object()
-
-        # GET: return status and last seen progress
-        if request.method == 'GET':
-            progress_info = tracker.get_progress()
-            return Response(
-                {
-                    'job_id': str(job.job_id),
-                    'status': job.status,
-                    'progress': progress_info.get('percentage', 0),
-                    'stage': self._get_stage_label(progress_info, job.status),
-                    'error_message': job.error_message,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        # POST: request cancellation
         if job.status != 'processing':
             return Response({'message': 'Job not running', 'status': job.status}, status=status.HTTP_200_OK)
 
@@ -233,24 +210,6 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
         except Exception as error:
             logger.exception('Failed to request cancellation for job: %s', job.job_id)
             return Response({'error': str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    def _get_stage_label(self, progress_info: dict, job_status: str) -> str:
-        """Build a human-readable stage label from tracker progress info."""
-        stage = progress_info.get('stage')
-        rows_processed = progress_info.get('rows_processed')
-        rows_total = progress_info.get('rows_total')
-
-        if not isinstance(stage, str):
-            return job_status
-
-        stage = _(stage)
-
-        if rows_processed is not None and rows_total:
-            row_str = _('processed %(processed)s/%(total)s rows') % {'processed': rows_processed, 'total': rows_total}
-            return f'{stage} - {row_str}'
-
-        # translate stage only if no row info is available
-        return stage
 
     @PROCESS_JOB_POST_SCHEMA
     @PROCESS_JOB_GET_SCHEMA
@@ -270,18 +229,9 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         # Get current progress from tracker if processing
         if request.method == 'GET':
-            progress_info = tracker.get_progress()
-            return Response(
-                {
-                    'job_id': str(job.job_id),
-                    'endpoint': request.build_absolute_uri(),
-                    'current_status': job.status,
-                    'progress': progress_info.get('percentage'),
-                    'stage': self._get_stage_label(progress_info, job.status),
-                    'error_message': job.error_message,
-                },
-                status=status.HTTP_200_OK,
-            )
+            data = self.get_serializer(job).data
+            data['endpoint'] = request.build_absolute_uri()
+            return Response(data, status=status.HTTP_200_OK)
 
         if job.status == 'processing':
             return Response(
