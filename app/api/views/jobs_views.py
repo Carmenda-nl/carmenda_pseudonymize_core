@@ -97,6 +97,23 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
+    def _reset_job(self, request: Request, job: DeidentificationJob, *, input_uploaded: bool) -> None:
+        """Reset the job's output and related fields."""
+        if job.status == 'processing':
+            job_control.cancel(str(job.job_id))
+
+        job_control.join_thread(str(job.job_id))
+        gc.collect()
+        job.reset_output()
+
+        if input_uploaded:
+            generate_preview(job)
+        if input_uploaded and 'data_permission' not in request.data:
+            job.data_permission = False
+            job.save(update_fields=['data_permission'])
+        if job.data_permission:
+            generate_consent(job)
+
     def update(self, request: Request, *args: object, **kwargs: object) -> Response:
         """Update a job with PUT request, deleting or overwrite old files after adding new ones."""
         job = self.get_object()
@@ -149,20 +166,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             generate_consent(job)
 
         if should_reset:
-            if job.status == 'processing':
-                job_control.cancel(str(job.job_id))
-
-            job_control.join_thread(str(job.job_id))
-            gc.collect()
-            job.reset_output()
-
-            if input_uploaded:
-                generate_preview(job)
-            if input_uploaded and 'data_permission' not in request.data:
-                job.data_permission = False
-                job.save(update_fields=['data_permission'])
-            if job.data_permission:
-                generate_consent(job)
+            self._reset_job(request, job, input_uploaded=input_uploaded)
 
         return Response(JobSerializer(job, context={'request': request}).data, status=status.HTTP_200_OK)
 
