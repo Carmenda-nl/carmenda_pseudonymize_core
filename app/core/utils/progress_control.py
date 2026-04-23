@@ -32,8 +32,21 @@ class JobControl:
     def __init__(self) -> None:
         """Initialize the JobControl instance."""
         self._events: dict[str, threading.Event] = {}
+        self._threads: dict[str, threading.Thread] = {}
         self._lock = threading.Lock()
         self._local = threading.local()
+
+    def register_thread(self, job_id: str, thread: threading.Thread) -> None:
+        """Associate a thread with a job so it can be joined later."""
+        with self._lock:
+            self._threads[job_id] = thread
+
+    def join_thread(self, job_id: str, timeout: float = 10.0) -> None:
+        """Wait for the thread associated with a job to finish."""
+        with self._lock:
+            thread = self._threads.get(job_id)
+        if thread is not None:
+            thread.join(timeout=timeout)
 
     @contextmanager
     def run_job(self, job_id: str) -> Generator[None]:
@@ -56,6 +69,7 @@ class JobControl:
                 event = self._events.pop(job_id, None)
                 if event:
                     event.set()
+                self._threads.pop(job_id, None)
 
             logger.debug("Job '%s' finished", job_id)
 

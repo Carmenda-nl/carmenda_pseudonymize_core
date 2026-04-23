@@ -149,7 +149,13 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             generate_consent(job)
 
         if should_reset:
+            if job.status == 'processing':
+                job_control.cancel(str(job.job_id))
+
+            job_control.join_thread(str(job.job_id))
+            gc.collect()
             job.reset_output()
+
             if input_uploaded:
                 generate_preview(job)
             if input_uploaded and 'data_permission' not in request.data:
@@ -255,11 +261,13 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 datakey = f'{job.job_id}/{datakey_name}'
 
             # Start processing in background thread
-            threading.Thread(
+            thread = threading.Thread(
                 target=run_processing,
                 args=(str(job.job_id), input_file, input_cols, output_cols, datakey),
                 daemon=True,
-            ).start()
+            )
+            job_control.register_thread(str(job.job_id), thread)
+            thread.start()
 
             return Response(
                 {
