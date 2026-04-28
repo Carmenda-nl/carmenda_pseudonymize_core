@@ -13,7 +13,8 @@ from pathlib import Path
 
 import polars as pl
 
-from core.utils.csv_handler import detect_csv_properties, normalize_csv, sanitize_csv
+from core.utils.csv_handler import detect_csv_properties, load_csv
+from core.utils.progress_tracker import tracker
 
 from .logger import setup_logging
 
@@ -51,20 +52,14 @@ def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
     logger.info('%s file of size: %s bytes', input_extension, file_size)
 
     if input_extension.lower() == '.csv':
-        properties = detect_csv_properties(file_path)
-        sanitized_csv = sanitize_csv(file_path, properties, output_folder)
-        input_file = normalize_csv(Path(sanitized_csv), properties)
-
-        df = pl.read_csv(source=input_file, encoding='utf-8', separator=',')
-
-        # Cleanup temp files
-        Path(sanitized_csv).unlink(missing_ok=True)
-        Path(input_file).unlink(missing_ok=True)
+        df = load_csv(file_path, output_folder)
     elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
         df = pl.read_excel(source=input_file, raise_if_empty=False)
     else:
         logger.error('Unsupported file type: %s', input_extension)
         return None
+
+    tracker.set_progress('file_loaded')
 
     return df
 

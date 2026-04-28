@@ -15,6 +15,8 @@ class APIRootResponseSerializer(serializers.Serializer):
     """Response serializer for API root view."""
 
     v1_jobs = serializers.URLField(source='v1/jobs', help_text='URL to the jobs list endpoint')
+    v1_version = serializers.URLField(source='v1/version', help_text='URL to the version endpoint')
+    v2_settings = serializers.URLField(source='v2/settings', help_text='URL to the settings endpoint')
     v1_docs = serializers.URLField(
         source='v1/docs',
         required=False,
@@ -98,7 +100,40 @@ class JobProcessErrorSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-# Schema definitions for endpoints
+class ZipFileMetaSerializer(serializers.Serializer):
+    """Metadata for a single output file."""
+
+    url = serializers.CharField()
+    filesize = serializers.IntegerField()
+    build_date = serializers.DateTimeField()
+
+
+class ZipFilesStatusSerializer(serializers.Serializer):
+    """Response serializer for packaging a job (GET)."""
+
+    zip_file = serializers.CharField()
+    files = serializers.DictField(child=ZipFileMetaSerializer())
+
+
+class ZipFilesNotReadySerializer(serializers.Serializer):
+    """Response serializer when the job is not ready for packaging."""
+
+    error = serializers.CharField(default='Job not ready for packaging')
+    message = serializers.CharField()
+
+
+class VersionResponseSerializer(serializers.Serializer):
+    """Response serializer for the version endpoint."""
+
+    version = serializers.CharField(help_text='Application version')
+
+
+VERSION_SCHEMA = extend_schema(
+    responses={
+        200: VersionResponseSerializer,
+    },
+)
+
 API_ROOT_SCHEMA = extend_schema(
     responses={
         200: APIRootResponseSerializer,
@@ -140,5 +175,21 @@ CANCEL_JOB_GET_SCHEMA = extend_schema(
     methods=['get'],
     responses={
         200: JobCancellationStatusSerializer,
+    },
+)
+
+ZIP_FILES_POST_SCHEMA = extend_schema(
+    methods=['post'],
+    responses={
+        201: JobSerializer,
+        400: ZipFilesNotReadySerializer,
+    },
+)
+
+ZIP_FILES_GET_SCHEMA = extend_schema(
+    methods=['get'],
+    responses={
+        200: ZipFilesStatusSerializer,
+        400: ZipFilesNotReadySerializer,
     },
 )

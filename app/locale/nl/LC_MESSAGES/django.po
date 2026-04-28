@@ -1,0 +1,74 @@
+# Privacytool Dutch translation.
+# Copyright (C) 2026 Carmenda
+# This file is distributed under the same license as the package.
+# Django Heimgartner django.heimgartner@radboudumc.nl, 2026.
+
+msgid ""
+msgstr ""
+
+"Project-Id-Version: v2.0.0\n"
+"Report-Msgid-Bugs-To: django.heimgartner@radboudumc.nl\n"
+"POT-Creation-Date: 2026-04-02 11:51+0200\n"
+"PO-Revision-Date: 2026-04-02 11:51+0200\n"
+"Last-Translator: Django Heimgartner django.heimgartner@radboudumc.nl\n"
+"Language-Team: LANGUAGE django.heimgartner@radboudumc.nl\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: .\api\utils\file_handling.py:162
+#, python-brace-format
+msgid "Yes, Carmenda may contact me with questions about improving the Privacytool.\nConfirmed during pseudonimisation of the file: {filename}"
+msgstr "Ja, Carmenda mag mij benaderen met vragen over het verbeteren van de Privacytool.\nBevestigd tijdens de pseudonimisering van het bestand: {filename}"
+
+#: .\main\middleware.py:66
+#, python-brace-format
+msgid "Can not open the file: {path}"
+msgstr "Kan het bestand niet openen: {path}"
+
+#: .\main\middleware.py:70
+#, python-brace-format
+msgid "File {path} not found."
+msgstr "Bestand {path} niet gevonden."
+
+#: core/utils/progress_tracker.py:135
+msgid "Start"
+msgstr "Starten"
+
+#: core/utils/progress_tracker.py:136
+msgid "Processing CSV"
+msgstr "CSV verwerken"
+
+#: core/utils/progress_tracker.py:137
+msgid "Normalizing CSV"
+msgstr "CSV normaliseren"
+
+#: core/utils/progress_tracker.py:138
+msgid "File Loaded"
+msgstr "Bestand ingeladen"
+
+#: core/utils/progress_tracker.py:139
+msgid "Initializing Deduce"
+msgstr "Deduce initialiseren"
+
+#: core/utils/progress_tracker.py:140
+msgid "Initializing Tables"
+msgstr "Tabellen initialiseren"
+
+#: core/utils/progress_tracker.py:141
+msgid "Initializing name detection"
+msgstr "Naamdetectie initialiseren"
+
+#: core/utils/progress_tracker.py:142
+msgid "Done"
+msgstr "Gereed"
+
+#: .\main\settings.py:173
+msgid "English"
+msgstr "Engels"
+
+#: .\main\settings.py:174
+msgid "Dutch"
+msgstr "Nederlands"

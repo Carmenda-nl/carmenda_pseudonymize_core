@@ -3,12 +3,8 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API views package.
+"""Settings package for Django backend.
 
-This package contains the API views for the Django backend.
+This package contains the persistent config values for the Django backend.
+The config values are designed to be used with the Django API framework.
 """
-
-from api.views.jobs import DeidentificationJobViewSet
-from api.views.root import APIRootView, VersionView
-
-__all__ = ['APIRootView', 'DeidentificationJobViewSet', 'VersionView']

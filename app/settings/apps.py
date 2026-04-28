@@ -3,12 +3,13 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API views package.
+"""Settings app for the Django project."""
 
-This package contains the API views for the Django backend.
-"""
+from django.apps import AppConfig
 
-from api.views.jobs import DeidentificationJobViewSet
-from api.views.root import APIRootView, VersionView
 
-__all__ = ['APIRootView', 'DeidentificationJobViewSet', 'VersionView']
+class SettingsConfig(AppConfig):
+    """Base configuration for the current app."""
+
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'settings'

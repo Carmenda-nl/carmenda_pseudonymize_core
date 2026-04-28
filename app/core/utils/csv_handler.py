@@ -14,9 +14,11 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import polars as pl
 from charset_normalizer import from_bytes
 
-from core.utils.logger import setup_logging
+from .logger import setup_logging
+from .progress_tracker import tracker
 
 logger = setup_logging()
 
@@ -114,7 +116,7 @@ def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> Non
             target_dir = Path(output_folder)
 
         target_dir.mkdir(parents=True, exist_ok=True)
-        error_csv = target_dir / f'{file_path.stem}_errors.csv'
+        error_csv = target_dir / f'{file_path.stem}_skipped_lines.csv'
         shutil.move(error_temp, error_csv)
         logger.warning('%d errors in rows found.', error_count)
     else:
@@ -122,7 +124,7 @@ def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> Non
         logger.info('No errors in rows found.')
 
 
-def sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: str) -> str:
+def _sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: str) -> str:
     """Convert CSV to UTF-8 and sanitize content.
 
     When the delimiter is `;`, unescape HTML character entities while replacing
@@ -181,7 +183,7 @@ def sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: str
     return temp_file.name
 
 
-def normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
+def _normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
     """Convert delimiter to comma and remove empty rows."""
     with (
         file_path.open('r', encoding='utf-8', newline='') as file,
@@ -205,3 +207,22 @@ def normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
             logger.warning('Found %d empty rows.\n', empty_rows)
 
     return csv_temp.name
+
+
+def load_csv(file_path: Path, output_folder: str) -> pl.DataFrame:
+    """Load a CSV file, sanitize and normalize it, and return as a DataFrame."""
+    properties = detect_csv_properties(file_path)
+
+    tracker.set_progress('sanitize_csv')
+    sanitized_csv = _sanitize_csv(file_path, properties, output_folder)
+
+    tracker.set_progress('normalize_csv')
+    input_file = _normalize_csv(Path(sanitized_csv), properties)
+
+    df = pl.read_csv(source=input_file, encoding='utf-8', separator=',')
+
+    # Cleanup temp files
+    Path(sanitized_csv).unlink(missing_ok=True)
+    Path(input_file).unlink(missing_ok=True)
+
+    return df

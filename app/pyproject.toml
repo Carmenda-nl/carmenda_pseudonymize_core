@@ -1,10 +1,51 @@
 [project]
-name = "Carmenda Privacytool - Backend API"
+name = "Carmenda_privacytool"
 dynamic = ["version"]
+description = "API backend"
+requires-python = ">=3.13"
+dependencies = [
+    "channels-redis>=4.3.0",
+    "channels[daphne]>=4.3.2",
+    "charset-normalizer>=3.4.4",
+    "deduce>=3.0.6",
+    "django>=5.2.12",
+    "django-cors-headers>=4.9.0",
+    "django-environ>=0.12.0",
+    "djangorestframework>=3.16.1",
+    "drf-spectacular>=0.29.0",
+    "fastexcel>=0.19.0",
+    "gitpython>=3.1.46",
+    "lxml>=6.0.2",
+    "polars[pandas]>=1.38.1",
+    "rich>=14.3.2",
+    "xlsxwriter>=3.2.9",
+]
 
-[tool.setuptools_scm]
-root = ".."
-version_file = "api/_version.py"
+[dependency-groups]
+build = [
+    "pyinstaller>=6.18.0",
+    "setuptools-scm>=9.2.2",
+]
+
+dev = [
+    "channels-stubs>=0.1.9",
+    "django-stubs>=5.2.9",
+    "djangorestframework-stubs>=3.16.8",
+    "lxml-stubs>=0.5.1",
+    "mypy>=1.19.1",
+    "pandas-stubs>=3.0.0.260204",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "pytest-django>=4.11.1",
+    "ruff>=0.15.0",
+]
+
+[tool.uv]
+package = false
+required-version = ">=0.10.9"
+
+[tool.setuptools]
+packages = []
 
 [tool.ruff]
 line-length = 120

@@ -12,12 +12,24 @@ from typing import TYPE_CHECKING, ClassVar
 if TYPE_CHECKING:
     from django.core.files.uploadedfile import UploadedFile
 
+from pathlib import Path
+
+from django.db.models import FileField
 from rest_framework import serializers
 
-from api.models import DeidentificationJob
+from api.models import DeidentificationJob, output_path
 from api.utils.file_handling import get_metadata
 from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
 from core.utils.progress_tracker import tracker
+from settings.models import ConfigValues
+
+
+class ConfigValuesSerializer(serializers.ModelSerializer):
+    """Serializer for the app settings persistent values."""
+
+    class Meta:
+        model = ConfigValues
+        fields = '__all__'
 
 
 class JobListSerializer(serializers.ModelSerializer):
@@ -54,18 +66,18 @@ class JobSerializer(serializers.ModelSerializer):
     )
     input_file = serializers.FileField(required=False)
     datakey = serializers.FileField(required=False)
-    data_permission = serializers.BooleanField()
+    data_permission = serializers.BooleanField(required=False, default=False)
 
     class Meta:
         model = DeidentificationJob
-        fields = '__all__'
+        exclude: ClassVar = ['zip_preview']
         read_only_fields: ClassVar = [
             'output_file',
             'output_datakey',
+            'consent_file',
             'log_file',
-            'error_rows_file',
+            'skipped_lines',
             'zip_file',
-            'zip_preview',
             'preview',
             'processed_preview',
             'status',
@@ -151,10 +163,9 @@ class JobSerializer(serializers.ModelSerializer):
             return attrs
 
         if input_cols and input_file and not isinstance(input_file, str):
-            metadata = getattr(self, '_file_metadata', {}).get('input_file', {})
-            validate_file_columns(input_cols, metadata.get('uploaded_file'))
+            validate_file_columns(input_cols, input_file)
 
-        elif input_cols and self.instance and self.instance.input_file:
+        elif input_cols and not input_file and self.instance and self.instance.input_file:
             validate_file_columns(input_cols, self.instance.input_file.path)
 
         return attrs
@@ -162,9 +173,10 @@ class JobSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the job including files metadata, as size & built dates."""
         representation = super().to_representation(instance)
-        fields = ['input_file', 'output_file', 'datakey', 'output_datakey', 'log_file', 'error_rows_file', 'zip_file']
 
-        return get_metadata(representation, instance, fields)
+        file_fields = [file.name for file in instance._meta.get_fields() if isinstance(file, FileField)]
+
+        return get_metadata(representation, instance, file_fields)
 
 
 class JobStatusSerializer(serializers.ModelSerializer):
@@ -179,7 +191,7 @@ class JobStatusSerializer(serializers.ModelSerializer):
         read_only_fields: ClassVar = ['job_id', 'status', 'progress', 'error_message']
 
     def get_status(self, obj: DeidentificationJob) -> str:
-        """Get the combined status and stage information."""
+        """Get the stage information."""
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
             stage = progress_info['stage']
@@ -194,8 +206,49 @@ class JobStatusSerializer(serializers.ModelSerializer):
         if obj.status == 'processing':
             progress_info = tracker.get_progress()
             percentage = progress_info['percentage']
+
             if percentage is None:
                 return 0
             return int(percentage) if isinstance(percentage, str) else percentage
 
         return 100 if obj.status == 'completed' else 0
+
+
+class ZipSerializer(serializers.ModelSerializer):
+    """Package the output files of a completed job into a zipfile."""
+
+    output_fields: ClassVar[list[str]] = [
+        field.name
+        for field in DeidentificationJob._meta.get_fields()
+        if isinstance(field, FileField) and field.upload_to is output_path and field.name != 'zip_file'
+    ]
+
+    zipfile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DeidentificationJob
+        fields: ClassVar = ['job_id', 'zipfile']
+        read_only_fields: ClassVar = ['job_id', 'zipfile']
+
+    def get_fields(self) -> dict:
+        """Add output FileFields to generates their URLs."""
+        fields = super().get_fields()
+        for name in self.output_fields:
+            fields[name] = serializers.FileField(read_only=True, use_url=True)
+        return fields
+
+    def get_zipfile(self, obj: DeidentificationJob) -> str:
+        """Return the expected zip filename based on the output file name."""
+        return f'{Path(obj.output_file.name).stem}.zip'
+
+    def to_representation(self, instance: DeidentificationJob) -> dict:
+        """Return the zip including files metadata, as size & built dates."""
+        representation = super().to_representation(instance)
+        representation = get_metadata(representation, instance, self.output_fields)
+
+        files = {}
+        for field in self.output_fields:
+            if isinstance(meta := representation.pop(field, None), dict):
+                files[Path(meta['url']).name] = meta
+
+        return {'zip_file': representation['zipfile'], 'files': files}

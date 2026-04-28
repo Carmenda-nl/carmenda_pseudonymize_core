@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.http import FileResponse, HttpResponseNotFound
+from django.utils.translation import gettext as _  # noqa: F401
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -62,10 +63,10 @@ class ServeMediaFilesMiddleware:
 
                 except (OSError, PermissionError):
                     # File can not be opened
-                    return HttpResponseNotFound(f'Can not open the file: {relative_path}')
+                    return HttpResponseNotFound(_('Can not open the file: {path}').format(path=relative_path))
                 else:
                     return response
 
-            return HttpResponseNotFound(f'File {relative_path} not found.')
+            return HttpResponseNotFound(_('File {path} not found.').format(path=relative_path))
 
         return self.get_response(request)

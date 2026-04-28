@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
 
       - name: Create .env file for build
         run: |
@@ -39,13 +39,26 @@ jobs:
           "@ | Out-File -FilePath "app\.env" -Encoding utf8
         shell: pwsh
 
-      - name: Build windows executable
-        uses: sayyid5416/pyinstaller@v1.8.0
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7.6.0
         with:
-          python_ver: "3.13"
-          spec: "build.spec"
-          requirements: "app/requirements.txt"
-          upload_exe_with_name: "backend-windows"
+          python-version: "3.13"
+          working-directory: app
+
+      - name: Install dependencies
+        working-directory: app
+        run: uv sync --group build
+
+      - name: Build windows executable
+        working-directory: app
+        run: uv run pyinstaller ../build.spec
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: backend-windows
+          path: app/dist/backend/
+          include-hidden-files: true
 
   create-beta-release:
     needs: build-beta-windows
@@ -53,12 +66,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Download build artifact
-        uses: actions/download-artifact@v7.0.0
+        uses: actions/download-artifact@v8.0.1
         with:
           name: backend-windows
+          path: backend
 
       - name: Create zip archive
         run: |
@@ -69,22 +85,21 @@ jobs:
 
       - name: Get release notes
         id: release_notes
-        run: |
-          DRAFT_BODY="**Tag:** ${{ github.ref_name }}
-          **Commit:** ${{ github.sha }}"
-
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          echo "$DRAFT_BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+        uses: orhun/git-cliff-action@v4.7.1
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          GITHUB_REPO: ${{ github.repository }}
 
       - name: Create beta release
-        uses: softprops/action-gh-release@v2.5.0
+        uses: softprops/action-gh-release@v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
           name: "Beta release ${{ github.ref_name }}"
-          body: ${{ steps.release_notes.outputs.body }}
+          body: ${{ steps.release_notes.outputs.content }}
           prerelease: true
           draft: false
           fail_on_unmatched_files: false

@@ -32,15 +32,21 @@ class DeidentifyHandler:
     def __init__(self) -> None:
         """Initialize a configured Deduce instance."""
         self.deduce_manager = DeduceInstanceManager()
+
+        tracker.set_progress('init_deduce')
         self.deduce_instance = self.deduce_manager.create_instance()
+
+        tracker.set_progress('init_tables')
         self.lookup_sets = self.deduce_manager.load_lookup_tables()
+
+        tracker.set_progress('init_names')
         self.name_detection = DutchNameDetector(self.lookup_sets)
 
         # For debug logging of de-identification results
         self.processed_reports: list[dict[str, str]] = []
         self.total_processed = 0
 
-        # Progress tracking
+        # Progress tracking (progress bar)
         self.processed_count = 0
         self.total_count = 0
         self.last_update = 0
@@ -173,20 +179,21 @@ class DeidentifyHandler:
             # Skip empty/null rows that may appear in batches
             if not report_text:
                 results.append('')
-                continue
-
-            result = self._process_report(report_text, clientname)
-            results.append(result)
+            else:
+                result = self._process_report(report_text, clientname)
+                results.append(result)
 
             max_percentage = 100
             self.processed_count += 1
 
             if self.processed_count - self.last_update >= max_percentage:
                 step_progress = (self.processed_count / self.total_count) * 100
-                tracker.update_progress(
+                tracker.set_row_progress(
                     'Pseudonymize',
-                    f'Processed {self.processed_count}/{self.total_count} rows',
+                    self.processed_count,
+                    self.total_count,
                     int(step_progress),
+                    overall=(20, 85),
                 )
                 self.last_update = self.processed_count
 
@@ -212,12 +219,7 @@ class DeidentifyHandler:
         else:
             return cleaned or text
 
-    def deidentify_text(
-        self,
-        df: pl.DataFrame,
-        datakey: pl.DataFrame | None,
-        input_cols: dict[str, str],
-    ) -> pl.DataFrame:
+    def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame | None, input_cols: dict) -> pl.DataFrame:
         """De-identify report text with or without clientname."""
         report_col = input_cols['report']
         has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
@@ -226,10 +228,10 @@ class DeidentifyHandler:
         clientname_message = 'with clientname' if has_clientname else ''
         logger.info('Processing %d rows %s\n', total_rows, clientname_message)
 
-        # Initialize a clean progress counter
+        # Initialize a clean progress bar
+        self.last_update = 0
         self.processed_count = 0
         self.total_count = total_rows
-        self.last_update = 0
 
         struct_cols = [pl.col(report_col).map_elements(self._clean_html, return_dtype=pl.Utf8).alias('report')]
 
@@ -244,11 +246,10 @@ class DeidentifyHandler:
             ],
         )
 
-        result = df.with_columns(processed_reports)
-        tracker.update_progress('Pseudonymize', f'Processed {self.total_count}/{self.total_count} rows', 100)
-        tracker.finalize_progress()
+        df_result = df.with_columns(processed_reports)
+        tracker.clean_progress_bar()
 
-        return result
+        return df_result
 
     def deidentify_text_debug(self) -> None:
         """Only show de-identification results if logger is in debug mode."""

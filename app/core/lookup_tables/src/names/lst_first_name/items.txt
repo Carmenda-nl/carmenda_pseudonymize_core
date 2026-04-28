@@ -1,4 +1,4 @@
-Aabadlkrim
+﻿Aabadlkrim
 Aaban
 Aabana
 Aabdelaziz
@@ -6174,7 +6174,6 @@ Aftabali
 Aftalie
 Aftar
 Aftegar
-Afternoon
 Afthon
 Aftob
 Afton
@@ -6232,7 +6231,6 @@ Agâh
 Agahcemal
 Agahta
 Agaiby
-Again
 Agajanian
 Agajunwa
 Agale
@@ -34999,7 +34997,6 @@ Ballal
 Ballard
 Ballay
 Ballèn
-Ballerina
 Ballestero
 Balley
 Balli
@@ -37957,7 +37954,6 @@ Belgacem
 Belgarion
 Belgasem
 Belger
-Belgie
 Belgihan
 Belgin
 Belğin
@@ -38952,7 +38948,6 @@ Benso
 Benson
 Ben-Stian
 Bensu
-Bent
 Benta
 Bentany
 Bentarek
@@ -44278,7 +44273,6 @@ Borna
 Borná
 Bornardo
 Borne
-Borneo
 Borneô
 Boro
 Bòro
@@ -45202,7 +45196,6 @@ Branci
 Brancie
 Branclene
 Branco
-Brand
 Bränd
 Branda
 Brandaan
@@ -46692,7 +46685,6 @@ Brusinus
 Brusk
 Brûsk
 Brüsk
-Brussel
 Brussly
 Brusten
 Brustijn
@@ -48918,7 +48910,6 @@ Cara-May
 Carambeau
 Caramea
 Carameja
-Caramel
 Caramella
 Caramia
 Caran
@@ -51900,7 +51891,6 @@ Celsi
 Celsia
 Celsie
 Celsio
-Celsius
 Celso
 Celsus
 Celsyano
@@ -66887,7 +66877,6 @@ Dabwiso
 Dabyan
 Dabyenne
 Dabyon
-Dac
 Dăc
 Daca
 Dacaïa
@@ -88882,7 +88871,6 @@ Douau
 Doubas
 Doubé
 Doubet
-Double
 Doucas
 Douce
 Douceline
@@ -113630,7 +113618,6 @@ Fijs-Jan
 Fijske
 Fijss
 Fijssal
-Fijt
 Fijtina
 Fijtje
 Fijtjen
@@ -114680,7 +114667,6 @@ Fleury-Anne
 Fleurycke
 Fleviano
 Flevinus
-Flex
 Flexy
 Flief
 Flien
@@ -114695,7 +114681,6 @@ Flin
 Flinck
 Flinder
 Flinja
-Flink
 Flinn
 Flinne
 Flinq
@@ -117830,7 +117815,6 @@ Frien
 Friena
 Frienka
 Friensia
-Fries
 Friesina
 Friesje
 Frieske
@@ -145624,7 +145608,6 @@ Hoodeh
 Hoodo
 Hoogwerf
 Hoogwerff
-Hooi
 Hooite
 Hooi-Ying
 Hookmani
@@ -151549,7 +151532,6 @@ Inçinaz
 Incinur
 Inck
 Incke
-Inco
 Incomio
 Incoronata
 Incy
@@ -151629,7 +151611,6 @@ Indhira
 Indhiya
 Indhy
 Indi
-India
 Indía
 India-Catalina
 India-Chloë
@@ -168909,7 +168890,6 @@ Jeenke
 Jeens
 Jeentina
 Jeentje
-Jeep
 Jeepé
 Jeepina
 Jeepje
@@ -187752,7 +187732,6 @@ Kalén
 Kalēn
 Kalena
 Kalenda
-Kalender
 Kalene
 Kalenga
 Kalengai
@@ -191926,7 +191905,6 @@ Kemuell
 Kemy
 Kèmy
 Ken
-ken
 Kena
 Ke'na
 Kenaan
@@ -196538,7 +196516,6 @@ Knollin
 Knowell
 Knowely
 Knowle
-Knowledge
 Knox
 Knoxville
 Knoxx
@@ -197105,7 +197082,6 @@ Koobanaf
 Koobs
 Koogje
 Kooichiroo
-Kook
 Kookai
 Kookaï
 Kookay
@@ -197120,7 +197096,6 @@ Kooni
 Koopalbert
 Koopjen
 Koopke
-Koopman
 Kooppien
 Koop-Pieter
 Koops
@@ -197215,7 +197190,6 @@ Korhan
 Korhan-Tansu
 Kori
 Korian
-Koriander
 Korianne
 Korie
 Korien
@@ -198963,7 +198937,6 @@ Kwakusekyi
 Kwaky
 Kwakye
 Kwakyewa
-Kwam
 Kwama
 Kwamba
 Kwambena
@@ -204532,10 +204505,8 @@ Legeinem
 Legeisha
 Legeman
 Legemin
-Legen
 Legencio
 Legend
-Legenda
 Legendaiyro
 Legendary
 Legendrick
@@ -212211,7 +212182,6 @@ Lonceny
 Lonchimar
 Lonciada
 Londa
-Londen
 Londhen
 Londisha
 Londoño
@@ -212229,7 +212199,6 @@ Lonella
 Lonet
 Lonetta
 Lonette
-Long
 Lóng
 Longendjo
 Longeno
@@ -216876,7 +216845,6 @@ Maahir
 Maahira
 Maahtab
 Maahzebeen
-Maai
 Maäi
 Maaia
 Maaicke
@@ -232864,7 +232832,6 @@ Meddina
 Meddo
 Meddox
 Meddy
-Mede
 Medea
 Medéa
 Médea
@@ -235604,7 +235571,6 @@ Menrieke
 Menrik
 Menrike
 Menro
-Mens
 Mensa
 Menşa
 Mensah
@@ -238552,7 +238518,6 @@ Mids
 Midun
 Midunan
 Midushy
-Midwinter
 Midy
 Midya
 Mie
@@ -244054,7 +244019,6 @@ Monnica
 Monnie
 Mónnie
 Monniek
-Monnik
 Monnika
 Monnique
 Monnix
@@ -244152,7 +244116,6 @@ Montel
 Montèl
 Montell
 Montella
-Montenegro
 Monteno
 Monteqim
 Monteque
@@ -249912,7 +249875,6 @@ Nalysha
 Nà-Lyshia
 Nalyssa
 Nalyzhia
-Nam
 Namachkani
 Namae
 Namagembe
@@ -267318,7 +267280,6 @@ Orell
 Orely
 Orély
 Oremelienda
-Oren
 Orén
 Orena
 Orencio
@@ -270163,7 +270124,6 @@ Papangkon
 Papatia
 Papatya
 Papaver
-Papaya
 Papazed
 Pape
 Paphatsara
@@ -270178,7 +270138,6 @@ Papito
 Papken
 Papoela
 Papoeroeriemye
-Papríka
 Papuana
 Papuchca
 Papula
@@ -279396,7 +279355,6 @@ Quinntino
 Quinnty
 Quinny
 Quino
-Quinoa
 Quin-Odin
 Quinona
 Quinora
@@ -308429,7 +308387,6 @@ Salomons
 Salomoon
 Salomy
 Salómy
-Salon
 Salona
 Salongo
 Saloni
@@ -344990,7 +344947,6 @@ Talem
 Talena
 Talencia
 Taleni
-Talent
 Talentu
 Talenus
 Talet
@@ -357175,7 +357131,6 @@ Triepti
 Tries
 Triesila
 Triesna
-Triest
 Triestan
 Triet
 Trieu
@@ -363214,7 +363169,6 @@ Vedde
 Vedder
 Vede
 Vedeh
-Veder
 Vedeshvar
 Vedh
 Vedha

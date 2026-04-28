@@ -3,6 +3,27 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1-beta] - 2026-03-05
+
+### Added
+
+- Permission boolean
+- API consent file build logic
+- A zip files endpoint
+
+### Changed
+
+- Moved all test outcome files to one folder
+- Overwrite storage, refactor reset_output
+- Remove hardcoded file paths in collect_output_files
+
+### Fixed
+
+- Bugfix: boolean field not updated on PUT
+- Refactor + bugfix jobs API
+- Prevent silent failing
+- improved Unescape HTML entities
+
 ## [1.3.0] - 2026-02-11
 
 ### Added
@@ -221,13 +242,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom Dutch lookup tables for improved accuracy
 - Pattern matching for names, locations, and institutions
 - Detailed logging and error handling
-
----
-
-## Legend
-
-- **New Features**: New functionality added to the project
-- **Improvements**: Enhancements to existing features
-- **Bug Fixes**: Resolved issues and corrections
-- **Breaking Changes**: Changes that may require updates to existing implementations
-- **Security**: Security-related improvements and fixes

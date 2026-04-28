@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import gc
-from django.db.models.fields.files import FieldFile
 import shutil
 import threading
 import time
@@ -28,14 +27,23 @@ from api.schemas import (
     CREATE_JOB_SCHEMA,
     PROCESS_JOB_GET_SCHEMA,
     PROCESS_JOB_POST_SCHEMA,
+    ZIP_FILES_GET_SCHEMA,
+    ZIP_FILES_POST_SCHEMA,
 )
 from api.serializers import (
     JobListSerializer,
     JobSerializer,
     JobStatusSerializer,
+    ZipSerializer,
 )
-from api.utils.file_handling import generate_consent, generate_preview, match_output_cols
-from api.views.processing import run_processing, send_job_progress
+from api.utils.file_handling import (
+    collect_output_files,
+    create_zipfile,
+    generate_consent,
+    generate_preview,
+    match_output_cols,
+)
+from api.views.processing import run_processing, send_process_progress
 from api.views.root import ApiTags
 from core.utils.logger import setup_logging
 from core.utils.progress_control import job_control
@@ -57,142 +65,72 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
     serializer_class = JobSerializer
     http_method_names = ('get', 'post', 'put', 'delete')
 
-    def get_serializer_class(self) -> type[JobSerializer | JobListSerializer | JobStatusSerializer]:
+    def get_serializer_class(self) -> type[JobSerializer | JobListSerializer | JobStatusSerializer | ZipSerializer]:
         """Return a serializer based on the current action."""
         if self.action == 'list':
             return JobListSerializer
         if self.action in ['process', 'cancel']:
             return JobStatusSerializer
+        if self.action == 'zip_files':
+            return ZipSerializer
         return JobSerializer
 
-    def _delete_file(self, file_field: FieldFile) -> None:
-        """Delete a file from disk if it exists."""
-        try:
-            Path(file_field.path).unlink(missing_ok=True)
-        except (OSError, ValueError, PermissionError):
-            logger.warning('Failed to delete file: %s', file_field)
-
-    # def _clean_input_files(self, job: DeidentificationJob, request: HttpRequest) -> None:
-    #     """Clean old input files when new ones are uploaded."""
-    #     if 'input_file' in request.FILES:
-    #         self._clean_file(job.input_file, str(job.job_id), 'input')
-
-    #         # Clean output files
-    #         if job.zip_file:
-    #             job.zip_file.delete(save=False)
-    #         if job.log_file:
-    #             job.log_file.delete(save=False)
-    #         if job.error_rows_file:
-    #             job.error_rows_file.delete(save=False)
-    #         if job.output_file:
-    #             job.output_file.delete(save=False)
-
-    #         if 'datakey' not in request.FILES and job.datakey:
-    #             job.datakey.delete(save=False)
-
-    #     if 'datakey' in request.FILES:
-    #         self._clean_file(job.datakey, str(job.job_id), 'datakey')
-
-
-
-
     def update(self, request: Request, *args: object, **kwargs: object) -> Response:
-        """Update a job with PUT request, deleting old files before adding new ones."""
+        """Update a job with PUT request, deleting or overwrite old files after adding new ones."""
         job = self.get_object()
         data = request.POST.copy()
         data.update(request.FILES)
 
-        if 'input_file' in request.FILES:
-            new_columns = request.data.get('input_cols')
-            job.status = 'pending'
+        old_columns = job.input_cols
+        old_input = job.input_file.name if job.input_file else None
+        old_datakey = job.datakey.name if job.datakey else None
+        old_permission = job.data_permission
 
-            if not new_columns or new_columns == job.input_cols:
-                job.input_cols = ''
-                data.pop('input_cols', None)
+        new_columns = request.data.get('input_cols')
+        columns_changed = new_columns is not None and new_columns != old_columns
 
-            if job.datakey:
-                self._delete_file(job.datakey)
-            if 'datakey' not in request.FILES:
-                job.datakey = None
+        new_input = request.FILES.get('input_file')
+        input_changed = new_input is not None and (not old_input or Path(old_input).name != new_input.name)
 
+        new_datakey = request.FILES.get('datakey')
+        datakey_changed = new_datakey is not None
 
-
-
-
-
-
-
-
-
-            job.save(update_fields=['status', 'processed_preview', 'input_cols', 'datakey'])
-            generate_preview(job)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        if 'data_permission' not in data:
-            data['data_permission'] = 'false'
-
-
-
-
-
-
-
-
-
-
+        if new_columns == old_columns and input_changed:
+            job.input_cols = ''
+            data.pop('input_cols', None)
 
         serializer = self.get_serializer(job, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         job = serializer.save()
 
+        if input_changed and old_input and job.input_file.name != old_input:
+            job.input_file.storage.delete(old_input)
 
+        if (datakey_changed or input_changed) and old_datakey:
+            job.datakey.storage.delete(old_datakey)
+            job.datakey = new_datakey
+            job.save(update_fields=['datakey'])
 
+        permission_changed = serializer.validated_data.get('data_permission', False) != old_permission
+        if permission_changed:
+            job.data_permission = serializer.validated_data.get('data_permission', False)
+            job.save(update_fields=['data_permission'])
+            generate_consent(job)
 
+            job.reset_zip()
+            job.save(update_fields=['zip_file', 'zip_preview'])
 
-
-
-
-        old_permission = job.data_permission
-        # Manage consent file if data_permission changed
-        if 'data_permission' in serializer.validated_data and job.data_permission != old_permission:
-            print('Managing consent file...')
-            # generate_consent(job)
-
-        # Reset output files if input_file, input_cols, or datakey are updated/removed
-        datakey_changed = 'datakey' in request.FILES
-        should_reset = 'input_file' in request.FILES or 'input_cols' in request.data or datakey_changed
-
-
+        should_reset = 'input_file' in request.FILES or datakey_changed or columns_changed
         if should_reset:
             job.reset_output()
+            generate_preview(job)
+            if input_changed or datakey_changed:
+                job.data_permission = False
+                job.save(update_fields=['data_permission'])
+            elif job.data_permission:
+                generate_consent(job)
 
-
-
-
-
-
-
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
+        return Response(JobSerializer(job, context={'request': request}).data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance: DeidentificationJob) -> None:
         """Delete associated files from storage and remove job directory."""
@@ -208,7 +146,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
                 # Send WebSocket notification
                 percentage = tracker.get_progress().get('percentage')
-                send_job_progress(
+                send_process_progress(
                     str(instance.job_id),
                     percentage if isinstance(percentage, int) else 0,
                     'Cancelled (deletion)',
@@ -252,6 +190,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
 
         job = serializer.save(status='pending')
         generate_preview(job)
+        if job.data_permission:
+            generate_consent(job)
 
         detail_serializer = JobSerializer(job, context={'request': request})
         return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
@@ -279,7 +219,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 current_progress = progress_info['percentage']
                 current_stage = progress_info['stage'] or job.status
             else:
-                current_progress = 100 if job.status == 'completed' else 0
+                current_progress = tracker.get_progress()['percentage']
                 current_stage = job.status
 
             return Response(
@@ -294,7 +234,12 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        # Reset the status and error message on re-runs
+        if job.status == 'processing':
+            return Response(
+                {'message': 'Job is already processing'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
         job.status = 'processing'
         job.error_message = ''
         job.save()
@@ -338,6 +283,31 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @ZIP_FILES_POST_SCHEMA
+    @ZIP_FILES_GET_SCHEMA
+    @action(detail=True, methods=['get', 'post'])
+    def zip_files(self, request: HttpRequest, pk: str | None = None) -> Response:
+        """Collect output files and create a ZIP archive for download."""
+        job = self.get_object()
+
+        if not job.output_file or job.status != 'completed':
+            return Response(
+                {
+                    'error': 'Job not ready for packaging',
+                    'message': 'The job must have an output file and a completed process status.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.method == 'GET':
+            return Response(self.get_serializer(job).data, status=status.HTTP_200_OK)
+
+        files_to_zip = collect_output_files(job)
+        create_zipfile(job, files_to_zip)
+
+        job_url = request.build_absolute_uri(f'/api/v1/jobs/{job.job_id}/')
+        return Response(status=status.HTTP_303_SEE_OTHER, headers={'Location': job_url})
+
     @extend_schema(tags=[ApiTags.CANCEL])
     @CANCEL_JOB_POST_SCHEMA
     @CANCEL_JOB_GET_SCHEMA
@@ -374,7 +344,7 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             job.save()
 
             percentage = tracker.get_progress().get('percentage')
-            send_job_progress(
+            send_process_progress(
                 str(job.job_id),
                 percentage if isinstance(percentage, int) else 0,
                 'Cancelling',
