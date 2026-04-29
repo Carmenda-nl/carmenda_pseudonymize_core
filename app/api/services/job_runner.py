@@ -37,9 +37,12 @@ def _handle_process_completion(current_job: DeidentificationJob, processor: str,
     # Set job fields for files created by the core processor
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(current_job.job_id)
 
+    datakey_name = getattr(current_job.datakey, 'name', None)
+    datakey_output_name = Path(datakey_name).name if datakey_name else f'{Path(file).stem}_key.csv'
+
     core_files = [
         ('output_file', job_output_dir / f'{Path(file).stem}_pseudonymised{Path(file).suffix}'),
-        ('output_datakey', next(job_output_dir.glob('*_key.csv'), None)),
+        ('output_datakey', job_output_dir / datakey_output_name),
         ('skipped_lines', next(job_output_dir.glob('*_skipped_lines.csv'), None)),
     ]
 
