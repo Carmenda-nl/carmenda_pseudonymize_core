@@ -7,14 +7,13 @@
 
 from __future__ import annotations
 
+import html
 import logging
 import re
 from functools import reduce
 
 import polars as pl
 from deduce.person import Person  # type: ignore[import-untyped]
-from lxml.etree import ParserError
-from lxml.html import HtmlElement, fromstring
 
 from core.deduce import DeduceInstanceManager
 from core.name_detector import DutchNameDetector, NameAnnotation
@@ -24,6 +23,10 @@ from core.utils.progress_tracker import tracker
 from core.utils.terminal import colorize_tags, log_block
 
 logger = setup_logging()
+
+# Precompiled regex patterns for HTML detection and cleaning
+HTML_INDICATOR = re.compile(r'</\s*[a-zA-Z][\w-]*\s*>|<\s*(?:br|hr|img|input|meta|link)[\s/>]', re.IGNORECASE)
+HTML_TAG = re.compile(r'</?[a-zA-Z][\w-]*(?:\s+[^>]*[=/][^>]*)?\s*/?>', re.IGNORECASE)
 
 
 class DeidentifyHandler:
@@ -206,18 +209,13 @@ class DeidentifyHandler:
 
         text = text.strip()
 
-        # Skip if no HTML tags or entities present
         if '<' not in text and '&' not in text:
             return text
 
-        try:
-            tree: HtmlElement = fromstring(text)
-            cleaned = tree.text_content()
-        except (ParserError, ValueError):
-            # If parsing fails, return original text
+        if not HTML_INDICATOR.search(text):
             return text
-        else:
-            return cleaned or text
+
+        return html.unescape(HTML_TAG.sub('', text)) or text
 
     def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame | None, input_cols: dict) -> pl.DataFrame:
         """De-identify report text with or without clientname."""
