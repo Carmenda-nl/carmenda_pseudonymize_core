@@ -75,12 +75,16 @@ jobs:
             echo "tag=${{ steps.version_from_releases.outputs.stable_tag }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Remove beta tag locally for release notes generation
+        if: steps.determine_tag.outputs.has_beta == 'true'
+        run: git tag -d "${{ steps.determine_tag.outputs.beta_tag }}" || true
+
       - name: Get release notes
         id: release_notes
         uses: orhun/git-cliff-action@v4.7.1
         with:
           config: cliff.toml
-          args: --tag ${{ steps.set_tag.outputs.tag }} --unreleased --ignore-tags ".*-beta" --strip header
+          args: --tag ${{ steps.set_tag.outputs.tag }} --unreleased --strip header
         env:
           GITHUB_REPO: ${{ github.repository }}
           OUTPUT: release_notes.md
