@@ -74,7 +74,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
         df = df.with_columns(pl.col(clientname_col).str.strip_chars())
 
         processed_datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
-        datakey_filename = Path(datakey).name if datakey else f'{Path(input_file).stem}_key.csv'
+        datakey_filename = f'{Path(input_file).stem}_key.csv'
         save_datakey(processed_datakey, input_file, output_folder, datakey_filename)
     else:
         logger.info('Clientname not provided, skipping datakey creation.\n')
