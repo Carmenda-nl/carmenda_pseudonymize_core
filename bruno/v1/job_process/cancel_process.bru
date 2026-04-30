@@ -1,0 +1,15 @@
+meta {
+  name: cancel_process
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/cancel/
+  body: none
+  auth: none
+}
+
+docs {
+  Requests cancellation of a running processing task. Status changes to `cancelled` once the current step finishes.
+}

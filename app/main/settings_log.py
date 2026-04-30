@@ -5,7 +5,7 @@
 
 """Django logging configuration.
 
-ASGI has logger overrules (too much noise in production)
+Daphne and asyncio loggers are silenced to reduce noise in production.
 """
 
 from pathlib import Path
@@ -34,6 +34,12 @@ logs_dir.mkdir(parents=True, exist_ok=True)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'ignore_favicon': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': lambda record: '/favicon.ico' not in record.getMessage(),
+        },
+    },
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {message}',
@@ -50,6 +56,7 @@ LOGGING = {
             'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
             'formatter': 'console',
+            'filters': ['ignore_favicon'],
         },
     },
     'root': {
@@ -72,6 +79,31 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'django.channels': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'asyncio': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'git.cmd': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'charset_normalizer': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
         'api': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
@@ -90,21 +122,6 @@ LOGGING = {
         'utils': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
-            'propagate': False,
-        },
-        'git': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'asyncio': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'django.utils.autoreload': {
-            'handlers': ['console'],
-            'level': 'WARNING',
             'propagate': False,
         },
     },

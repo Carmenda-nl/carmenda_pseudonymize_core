@@ -8,7 +8,7 @@ msgstr ""
 
 "Project-Id-Version: v2.0.0\n"
 "Report-Msgid-Bugs-To: django.heimgartner@radboudumc.nl\n"
-"POT-Creation-Date: 2026-04-02 11:51+0200\n"
+"POT-Creation-Date: 2026-04-16 15:46+0200\n"
 "PO-Revision-Date: 2026-04-02 11:51+0200\n"
 "Last-Translator: Django Heimgartner django.heimgartner@radboudumc.nl\n"
 "Language-Team: LANGUAGE django.heimgartner@radboudumc.nl\n"
@@ -18,10 +18,92 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: .\api\serializers.py:211 .\api\views\jobs_views.py:229
+#: .\api\views\jobs_views.py:247 .\api\views\jobs_views.py:361
+#, python-format
+msgid "processed %(processed)s/%(total)s rows"
+msgstr "%(processed)s/%(total)s regels verwerkt"
+
+#: .\api\serializers.py
+#, python-format
+msgid "%(count)d hour"
+msgid_plural "%(count)d hours"
+msgstr[0] "%(count)d uur"
+msgstr[1] "%(count)d uur"
+
+#: .\api\serializers.py
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minuut"
+msgstr[1] "%(count)d minuten"
+
+#: .\api\serializers.py
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d seconde"
+msgstr[1] "%(count)d seconden"
+
+#: .\api\services\job_runner.py:55
+msgid "and"
+msgstr "en"
+
 #: .\api\utils\file_handling.py:162
 #, python-brace-format
 msgid "Yes, Carmenda may contact me with questions about improving the Privacytool.\nConfirmed during pseudonimisation of the file: {filename}"
 msgstr "Ja, Carmenda mag mij benaderen met vragen over het verbeteren van de Privacytool.\nBevestigd tijdens de pseudonimisering van het bestand: {filename}"
+
+#: .\api\utils\validators.py:35
+#, python-format
+msgid "Column \"%(col_value)s\" not found in input file, available columns: %(available)s"
+msgstr "Kolom \"%(col_value)s\" niet gevonden in invoerbestand, beschikbare kolommen: %(available)s"
+
+#: .\api\utils\validators.py:48
+#, python-format
+msgid "Datakey file must contain columns: %(columns)s."
+msgstr "Datakey-bestand moet de volgende kolommen bevatten: %(columns)s."
+
+#: .\api\utils\validators.py:70
+msgid "File must contain a header row"
+msgstr "Bestand moet een headerregel bevatten"
+
+#: .\api\utils\validators.py:76
+msgid "File header is empty or invalid"
+msgstr "Bestandsheader is leeg of ongeldig"
+
+#: .\api\utils\validators.py:88
+msgid "File must contain at least 1 data row."
+msgstr "Bestand moet minimaal 1 dataregel bevatten."
+
+#: .\api\utils\validators.py:92
+msgid "This appears to be a datakey file (columns: Clientnaam, Synoniemen, Code)"
+msgstr "Dit lijkt een datakey-bestand te zijn (kolommen: Clientnaam, Synoniemen, Code)"
+
+#: .\api\utils\validators.py:111
+msgid "Excel file must contain at least 1 data row."
+msgstr "Excel-bestand moet minimaal 1 dataregel bevatten."
+
+#: .\api\utils\validators.py:134
+msgid "Datakey must be a CSV file."
+msgstr "Datakey moet een CSV-bestand zijn."
+
+#: .\api\utils\validators.py:145 .\api\utils\validators.py:177
+msgid "Unsupported file extension."
+msgstr "Niet-ondersteunde bestandsextensie."
+
+#: .\api\utils\validators.py:194
+msgid "Input columns must be a string"
+msgstr "Invoerkolommen moeten een tekstreeks zijn"
+
+#: .\api\utils\validators.py:206
+#, python-format
+msgid "Field '%(field)s' does not follow the format 'key=value'"
+msgstr "Veld '%(field)s' volgt niet het formaat 'sleutel=waarde'"
+
+#: .\api\utils\validators.py:214
+msgid "The 'report' key must be present (report=value)"
+msgstr "De sleutel 'report' moet aanwezig zijn (report=waarde)"
 
 #: .\main\middleware.py:66
 #, python-brace-format
@@ -33,38 +115,6 @@ msgstr "Kan het bestand niet openen: {path}"
 msgid "File {path} not found."
 msgstr "Bestand {path} niet gevonden."
 
-#: core/utils/progress_tracker.py:135
-msgid "Start"
-msgstr "Starten"
-
-#: core/utils/progress_tracker.py:136
-msgid "Processing CSV"
-msgstr "CSV verwerken"
-
-#: core/utils/progress_tracker.py:137
-msgid "Normalizing CSV"
-msgstr "CSV normaliseren"
-
-#: core/utils/progress_tracker.py:138
-msgid "File Loaded"
-msgstr "Bestand ingeladen"
-
-#: core/utils/progress_tracker.py:139
-msgid "Initializing Deduce"
-msgstr "Deduce initialiseren"
-
-#: core/utils/progress_tracker.py:140
-msgid "Initializing Tables"
-msgstr "Tabellen initialiseren"
-
-#: core/utils/progress_tracker.py:141
-msgid "Initializing name detection"
-msgstr "Naamdetectie initialiseren"
-
-#: core/utils/progress_tracker.py:142
-msgid "Done"
-msgstr "Gereed"
-
 #: .\main\settings.py:173
 msgid "English"
 msgstr "Engels"
@@ -72,3 +122,43 @@ msgstr "Engels"
 #: .\main\settings.py:174
 msgid "Dutch"
 msgstr "Nederlands"
+
+#: .\core\utils\progress_tracker.py
+msgid "start"
+msgstr "starten"
+
+#: .\core\utils\progress_tracker.py
+msgid "processing csv"
+msgstr "csv verwerken"
+
+#: .\core\utils\progress_tracker.py
+msgid "normalizing csv"
+msgstr "csv normaliseren"
+
+#: .\core\utils\progress_tracker.py
+msgid "file loaded"
+msgstr "bestand ingeladen"
+
+#: .\core\utils\progress_tracker.py
+msgid "initializing deduce"
+msgstr "deduce initialiseren"
+
+#: .\core\utils\progress_tracker.py
+msgid "initializing tables"
+msgstr "tabellen initialiseren"
+
+#: .\core\utils\progress_tracker.py
+msgid "initializing name detection"
+msgstr "naamdetectie initialiseren"
+
+#: .\core\utils\progress_tracker.py
+msgid "done"
+msgstr "gereed"
+
+#: .\core\deidentify.py
+msgid "pseudonymize"
+msgstr "pseudonimiseren"
+
+#: .\api\views\sse_views.py
+msgid "processing"
+msgstr "verwerking"

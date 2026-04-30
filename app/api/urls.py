@@ -12,7 +12,8 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from api.views import APIRootView, DeidentificationJobViewSet, VersionView
-from api.views.root import ConfigValuesView
+from api.views.root_views import ConfigValuesView
+from api.views.sse_views import progress
 
 router = DefaultRouter()
 router.register('v1/jobs', DeidentificationJobViewSet, basename='jobs')
@@ -22,6 +23,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('v1/version/', VersionView.as_view(), name='version'),
     path('v2/settings/', ConfigValuesView.as_view(), name='settings'),
+    path('v2/jobs/<str:job_id>/progress/', progress, name='progress'),
 ]
 
 if settings.DEBUG:

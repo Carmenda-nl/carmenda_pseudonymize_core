@@ -70,16 +70,6 @@ class JobCancellationResponseSerializer(serializers.Serializer):
     job_id = serializers.CharField()
 
 
-class JobCancellationStatusSerializer(serializers.Serializer):
-    """Response serializer for job cancellation status (GET)."""
-
-    job_id = serializers.CharField()
-    status = serializers.CharField()
-    progress = serializers.IntegerField()
-    stage = serializers.CharField()
-    error_message = serializers.CharField()
-
-
 class JobNotRunningResponseSerializer(serializers.Serializer):
     """Response serializer when trying to cancel a job that's not running."""
 
@@ -171,17 +161,10 @@ CANCEL_JOB_POST_SCHEMA = extend_schema(
     },
 )
 
-CANCEL_JOB_GET_SCHEMA = extend_schema(
-    methods=['get'],
-    responses={
-        200: JobCancellationStatusSerializer,
-    },
-)
-
 ZIP_FILES_POST_SCHEMA = extend_schema(
     methods=['post'],
     responses={
-        201: JobSerializer,
+        200: JobSerializer,
         400: ZipFilesNotReadySerializer,
     },
 )

@@ -1,0 +1,15 @@
+meta {
+  name: version
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/version/
+  body: none
+  auth: none
+}
+
+docs {
+  Returns the current application version.
+}

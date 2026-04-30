@@ -5,6 +5,7 @@
 
 """Settings for the Django project."""
 
+import contextlib
 import sys
 from pathlib import Path
 
@@ -42,7 +43,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
-    'channels',
     'main',
     'settings',
     'api',
@@ -65,7 +65,7 @@ if getattr(sys, 'frozen', False):
     MIDDLEWARE.append('main.middleware.ServeMediaFilesMiddleware')
 
 
-# CORS settings for app communication (HTTP + WebSocket origins)
+# CORS settings for app communication
 CORS_ALLOWED_ORIGINS = [
     'http://localhost',
     'http://127.0.0.1',
@@ -101,10 +101,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'main.wsgi.application'
 ASGI_APPLICATION = 'main.asgi.application'
-
-CHANNEL_LAYERS = {
-    'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'},
-}
 
 
 # Database
@@ -174,7 +170,8 @@ LANGUAGES = [
     ('nl', _('Dutch')),
 ]
 
-LOCALE_PATHS = [BASE_DIR / 'locale']
+
+LOCALE_PATHS = [Path(sys._MEIPASS) / 'app' / 'locale'] if hasattr(sys, '_MEIPASS') else [BASE_DIR / 'locale']
 
 
 # Static files (CSS, JavaScript, Images)
@@ -198,7 +195,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Load additional log settings
 LOG_LEVEL = env('LOG_LEVEL')
 
-# Import logging settings if settings_log.py is available
-settings_log_path = Path(__file__).parent / 'settings_log.py'
-if settings_log_path.exists():
+# Import logging settings if settings_log module is available
+with contextlib.suppress(ImportError):
     from .settings_log import LOGGING  # noqa: F401

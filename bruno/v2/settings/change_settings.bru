@@ -1,0 +1,37 @@
+meta {
+  name: change_settings
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v2/settings/
+  body: formUrlEncoded
+  auth: none
+}
+
+docs {
+  Updates the application settings.
+
+  Available fields:
+  - `language`: language code (e.g. `nl`, `en`)
+}
+
+body:json {
+  {
+    "language": "nl"
+  }
+}
+
+body:form-urlencoded {
+  language: nl
+}
+
+script:post-response {
+  const data = res.getBody();
+  const language = data?.language;
+  
+  if (language) {
+    bru.setEnvVar("language", language);
+  }
+}

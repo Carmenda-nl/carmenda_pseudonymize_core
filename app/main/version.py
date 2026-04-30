@@ -8,13 +8,6 @@
 import sys
 from pathlib import Path
 
-try:
-    import git
-
-    git_status = 'available'
-except ImportError:
-    git_status = 'unavailable'
-
 FILE_DIR = Path(__file__).parent
 
 VERSION_FILE = (
@@ -24,6 +17,13 @@ VERSION_FILE = (
 
 def get_version() -> str:
     """When frozen git or git.exe is unavailable, so create version.txt as fallback."""
+    try:
+        import git
+
+        git_status = 'available'
+    except ImportError:
+        git_status = 'unavailable'
+
     if not hasattr(sys, '_MEIPASS') and git_status == 'available':
         repo = git.Repo(FILE_DIR, search_parent_directories=True)
         return repo.git.describe('--tags', '--abbrev=0')

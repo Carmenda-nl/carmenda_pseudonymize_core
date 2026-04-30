@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.http import FileResponse, HttpResponseNotFound
-from django.utils.translation import gettext as _  # noqa: F401
+from django.utils.translation import gettext as _
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -50,7 +50,7 @@ class ServeMediaFilesMiddleware:
             if file_path.exists() and file_path.is_file():
                 try:
                     file_obj = file_path.open('rb')
-                    content_type, _ = mimetypes.guess_type(str(file_path))
+                    content_type, _encoding = mimetypes.guess_type(str(file_path))
 
                     if content_type is None:
                         content_type = 'application/octet-stream'

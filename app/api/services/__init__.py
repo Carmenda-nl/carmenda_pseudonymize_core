@@ -3,8 +3,9 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API websocket package for Django backend.
+"""API service layer for deidentification job processing.
 
-This package contains the WebSocket consumers and routing
-for real-time updates.
+This package runs deidentification jobs in a background thread (job_runner)
+so the HTTP request can return immediately. Progress is tracked via the
+progress tracker and streamed to the frontend using Server-Sent Events (SSE).
 """

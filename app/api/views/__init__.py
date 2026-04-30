@@ -8,7 +8,7 @@
 This package contains the API views for the Django backend.
 """
 
-from api.views.jobs import DeidentificationJobViewSet
-from api.views.root import APIRootView, VersionView
+from api.views.jobs_views import DeidentificationJobViewSet
+from api.views.root_views import APIRootView, VersionView
 
 __all__ = ['APIRootView', 'DeidentificationJobViewSet', 'VersionView']

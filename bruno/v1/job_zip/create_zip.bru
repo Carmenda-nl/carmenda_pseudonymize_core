@@ -1,0 +1,20 @@
+meta {
+  name: create_zip
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/jobs/{{jobId}}/zip_files/
+  body: none
+  auth: none
+}
+
+docs {
+  Creates a ZIP archive of all job output files (pseudonymized file, datakey, log file, etc.).
+
+  Requirements:
+  - The job must have status `completed`
+
+  Returns the updated job data including the ZIP file URL.
+}

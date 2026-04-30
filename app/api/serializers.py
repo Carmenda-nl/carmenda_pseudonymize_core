@@ -14,12 +14,16 @@ if TYPE_CHECKING:
 
 from pathlib import Path
 
+from django.conf import settings
 from django.db.models import FileField
+from django.utils.translation import gettext as _
+from django.utils.translation import ngettext as _ng
 from rest_framework import serializers
 
 from api.models import DeidentificationJob, output_path
 from api.utils.file_handling import get_metadata
-from api.utils.validators import validate_file, validate_file_columns, validate_input_cols
+from api.utils.logger import stage_label
+from api.utils.validators import validate_file, validate_file_columns, validate_input_cols, validate_required_columns
 from core.utils.progress_tracker import tracker
 from settings.models import ConfigValues
 
@@ -27,9 +31,15 @@ from settings.models import ConfigValues
 class ConfigValuesSerializer(serializers.ModelSerializer):
     """Serializer for the app settings persistent values."""
 
+    available_languages = serializers.SerializerMethodField(read_only=True)
+
+    def get_available_languages(self, obj: ConfigValues) -> list[dict[str, str]]:
+        """Return the list of languages supported by the application."""
+        return [{'code': code, 'name': str(name)} for code, name in settings.LANGUAGES]
+
     class Meta:
         model = ConfigValues
-        fields = '__all__'
+        fields = ('id', 'language', 'available_languages')
 
 
 class JobListSerializer(serializers.ModelSerializer):
@@ -166,13 +176,38 @@ class JobSerializer(serializers.ModelSerializer):
             validate_file_columns(input_cols, input_file)
 
         elif input_cols and not input_file and self.instance and self.instance.input_file:
-            validate_file_columns(input_cols, self.instance.input_file.path)
+            if self.instance.preview:
+                columns = list(self.instance.preview[0].keys())
+                validate_required_columns(columns, input_cols)
+            else:
+                validate_file_columns(input_cols, self.instance.input_file.path)
 
         return attrs
 
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the job including files metadata, as size & built dates."""
         representation = super().to_representation(instance)
+
+        if representation.get('processed_preview'):
+            metrics = representation['processed_preview']['metrics']
+            hours, minutes, seconds = metrics.get('hours', 0), metrics.get('minutes', 0), metrics.get('seconds', 0)
+
+            parts = []
+
+            if hours:
+                parts.append(_ng('%(count)d hour', '%(count)d hours', hours) % {'count': hours})
+            if minutes:
+                parts.append(_ng('%(count)d minute', '%(count)d minutes', minutes) % {'count': minutes})
+            if seconds or not parts:
+                parts.append(_ng('%(count)d second', '%(count)d seconds', seconds) % {'count': seconds})
+
+            and_str = _('and')
+
+            representation['processed_preview']['metrics'] = {
+                'total_rows': metrics.get('total_rows'),
+                'total_time': f'{", ".join(parts[:-1])} {and_str} {parts[-1]}' if len(parts) > 1 else parts[0],
+                'time_per_row': f'{metrics.get("time_per_row_ms", 0):.3f} ms',
+            }
 
         file_fields = [file.name for file in instance._meta.get_fields() if isinstance(file, FileField)]
 
@@ -193,13 +228,9 @@ class JobStatusSerializer(serializers.ModelSerializer):
     def get_status(self, obj: DeidentificationJob) -> str:
         """Get the stage information."""
         if obj.status == 'processing':
-            progress_info = tracker.get_progress()
-            stage = progress_info['stage']
+            return stage_label(tracker.get_progress(), obj.status)
 
-            if stage:
-                return str(stage)
-
-        return obj.status
+        return _(obj.status)
 
     def get_progress(self, obj: DeidentificationJob) -> int:
         """Get the current progress percentage from the tracker."""
@@ -235,11 +266,16 @@ class ZipSerializer(serializers.ModelSerializer):
         fields = super().get_fields()
         for name in self.output_fields:
             fields[name] = serializers.FileField(read_only=True, use_url=True)
+
         return fields
 
     def get_zipfile(self, obj: DeidentificationJob) -> str:
         """Return the expected zip filename based on the output file name."""
-        return f'{Path(obj.output_file.name).stem}.zip'
+        name = getattr(obj.output_file, 'name', None)
+        if not name:
+            return ''
+
+        return f'{Path(name).stem}.zip'
 
     def to_representation(self, instance: DeidentificationJob) -> dict:
         """Return the zip including files metadata, as size & built dates."""

@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API root view with documentation links."""
+"""API root view with documentation links, Version control and Settings config values."""
 
 from __future__ import annotations
 
@@ -69,13 +69,13 @@ class VersionView(APIView):
 
 @extend_schema(tags=[ApiTags.API], request=ConfigValuesSerializer, responses=ConfigValuesSerializer)
 class ConfigValuesView(generics.RetrieveUpdateAPIView):
-    """Retrieve and update the singleton application config values."""
+    """Retrieve and update the application config values."""
 
     serializer_class = ConfigValuesSerializer
     http_method_names = ('get', 'put', 'patch', 'head', 'options')
 
     def get_object(self) -> ConfigValues:
-        """Return the singleton config values instance, creating it if missing."""
+        """Return the config values instance, creating it if missing."""
         config_values = ConfigValues.objects.first()
 
         if config_values is None:
