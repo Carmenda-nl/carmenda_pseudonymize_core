@@ -2,6 +2,20 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.6.0-beta] - 2026-05-04
+
+### Changed
+
+- Datakey always renamed to filename_key.csv
+- Changelog accept merge from remote
+
+### Fixed
+
+- Datakey missed in zip preview [LVD-285]
+- Keep regular text between <> [LVD-266]
+- Set default language to dutch
+- Fix changelog.md not properly updated
+- Fix ruff format error
 
 ## [1.4.2] - 2026-03-31
 
