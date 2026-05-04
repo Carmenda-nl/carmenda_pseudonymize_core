@@ -54,7 +54,7 @@ class DeidentifyHandler:
         self.total_count = 0
         self.last_update = 0
 
-    def replace_synonym(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+    def replace_synonym(self, df: pl.DataFrame, datakey: pl.DataFrame, report_cols: list[str]) -> pl.DataFrame:
         """Replace all synonyms in the report text with their main names."""
         synonym_df = (
             datakey.with_columns(pl.col('synonyms').str.split(','))
@@ -64,14 +64,16 @@ class DeidentifyHandler:
             .select([pl.col('clientname'), pl.col('synonyms')])
         )
 
-        report_col = input_cols['report']
-        synonym_pairs = zip(synonym_df['synonyms'], synonym_df['clientname'], strict=True)
+        synonym_pairs = list(zip(synonym_df['synonyms'], synonym_df['clientname'], strict=True))
 
-        replaced_synonyms = reduce(
-            lambda expr, pair: expr.str.replace_all(r'\b' + re.escape(pair[0]) + r'\b', pair[1], literal=False),
-            synonym_pairs,
-            pl.col(report_col),
-        )
+        replaced_synonyms = [
+            reduce(
+                lambda expr, pair: expr.str.replace_all(r'\b' + re.escape(pair[0]) + r'\b', pair[1], literal=False),
+                synonym_pairs,
+                pl.col(column),
+            ).alias(column)
+            for column in report_cols
+        ]
         return df.with_columns(replaced_synonyms)
 
     def add_clientcodes(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:

@@ -55,15 +55,15 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
         clientname_col = input_cols_dict.get('clientname')
         has_clientname = clientname_col in df.columns
-        report_col = input_cols_dict.get('report')
-        has_report = report_col in df.columns
+        report_cols = [value.strip() for key, value in input_cols_dict.items() if key.startswith('report')]
+        missing_reports = [col for col in report_cols if col and col not in df.columns]
     else:
         message = f'Input file "{input_file_path}" could not be loaded.'
         logger.error(message)
         return json.dumps({'error': message})
 
-    if not has_report:
-        message = f'Report column "{report_col}" not found in input data.'
+    if missing_reports:
+        message = f'Report column not found in input data: {", ".join(missing_reports)}.'
         logger.error(message)
         return json.dumps({'error': message})
 
@@ -84,7 +84,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     handler = DeidentifyHandler()
 
     if has_clientname:
-        df = handler.replace_synonym(df, processed_datakey, input_cols_dict)
+        df = handler.replace_synonym(df, processed_datakey, report_cols)
         df = handler.deidentify_text(df, processed_datakey, input_cols_dict)
         df = handler.add_clientcodes(df, processed_datakey, input_cols_dict)
     else:
