@@ -2,20 +2,38 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-## [1.6.0-beta] - 2026-05-04
+
+## [1.5.0-beta] - 2026-04-28
+
+### Added
+
+- SSE endpoint for progress tracking
+- Translatable stage labels in api
+- Available languages to settings endpoint
+- Ceate a Bruno collection to test the API endpoints
+- Dutch translations for api validators
 
 ### Changed
 
-- Datakey always renamed to filename_key.csv
-- Changelog accept merge from remote
+- uv sync --update packages
+- Core transl. to api serializer
+- Refactor performance metrics
+- Move django-channels to warning lvl for cleaner debug
+- Update django logger & levels
+- Refactor & organize jobs_view
+- Silence charset_normalizer in log
+- Old code cleanup
 
 ### Fixed
 
-- Datakey missed in zip preview [LVD-285]
-- Keep regular text between <> [LVD-266]
-- Set default language to dutch
-- Fix changelog.md not properly updated
-- Fix ruff format error
+- Remove django transl. dependencie from core
+- Translation string mismatch
+- Clean input_cols, datakey & consent when new input_file
+- Lazy load git in version.py & clean log
+- Settings_log not properly loaded in frozen environment
+- Gettext shadowed by local tuple-unpack var
+- Consent_file not properly: renamed, deleted & handled
+- Metrics not translating in thread
 
 ## [1.4.2] - 2026-03-31
 
