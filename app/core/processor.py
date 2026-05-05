@@ -98,11 +98,13 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     if 'clientcode' in df.columns and 'clientname' in input_cols_dict:
         rename_headers['clientcode'] = input_cols_dict['clientname']
 
-    rename_headers.update({
-        f'processed_report_{index}': input_cols_dict[report_key]
-        for index, report_key in enumerate((key for key in input_cols_dict if key.startswith('report')), start=1)
-        if f'processed_report_{index}' in df.columns
-    })
+    rename_headers.update(
+        {
+            f'processed_report_{index}': input_cols_dict[report_key]
+            for index, report_key in enumerate((key for key in input_cols_dict if key.startswith('report')), start=1)
+            if f'processed_report_{index}' in df.columns
+        }
+    )
 
     df = df.rename(rename_headers)
 
