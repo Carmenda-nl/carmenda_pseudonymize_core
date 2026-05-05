@@ -62,7 +62,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
         logger.error(message)
         return json.dumps({'error': message})
 
-    if missing_reports:
+    if not report_cols or missing_reports:
         message = f'Report column not found in input data: {", ".join(missing_reports)}.'
         logger.error(message)
         return json.dumps({'error': message})
