@@ -22,6 +22,8 @@ from .progress_tracker import tracker
 
 logger = setup_logging()
 
+HTML_TAG = re.compile(r'</?[a-zA-Z][\w-]*(?:\s+[^>]*[=/][^>]*)?\s*/?>', re.IGNORECASE)
+
 
 def _html_unescape(text: str) -> str:
     """Unescape HTML entities, replacing double-quote entities with a typographic quote.
@@ -165,7 +167,7 @@ def _sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: st
                         continue
 
                     if replace_html:
-                        line = _html_unescape(line)
+                        line = _html_unescape(HTML_TAG.sub('', line))
                     temp_file.write(line + '\n')
                 buffer = b''
                 continue
@@ -174,7 +176,7 @@ def _sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: st
             quote_count = text.count('"') - text.count('\\"')
             if not chunk or quote_count % 2 == 0:
                 if replace_html:
-                    text = _html_unescape(text)
+                    text = _html_unescape(HTML_TAG.sub('', text))
                 temp_file.write(text)
                 buffer = b''
 

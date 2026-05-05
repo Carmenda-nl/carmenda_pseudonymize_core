@@ -98,11 +98,13 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     if 'clientcode' in df.columns and 'clientname' in input_cols_dict:
         rename_headers['clientcode'] = input_cols_dict['clientname']
 
-    if 'processed_report' in df.columns and 'report' in input_cols_dict:
-        rename_headers['processed_report'] = input_cols_dict['report']
+    rename_headers.update({
+        f'processed_report_{index}': input_cols_dict[report_key]
+        for index, report_key in enumerate((key for key in input_cols_dict if key.startswith('report')), start=1)
+        if f'processed_report_{index}' in df.columns
+    })
 
-    if rename_headers:
-        df = df.rename(rename_headers)
+    df = df.rename(rename_headers)
 
     # Show pseudonymized reports in debug mode and when NOT running as a frozen executable
     if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):

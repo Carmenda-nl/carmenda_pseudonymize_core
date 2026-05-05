@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import html
 import logging
 import re
 from functools import reduce
@@ -23,10 +22,6 @@ from core.utils.progress_tracker import tracker
 from core.utils.terminal import colorize_tags, log_block
 
 logger = setup_logging()
-
-# Precompiled regex patterns for HTML detection and cleaning
-HTML_INDICATOR = re.compile(r'</\s*[a-zA-Z][\w-]*\s*>|<\s*(?:br|hr|img|input|meta|link)[\s/>]', re.IGNORECASE)
-HTML_TAG = re.compile(r'</?[a-zA-Z][\w-]*(?:\s+[^>]*[=/][^>]*)?\s*/?>', re.IGNORECASE)
 
 
 class DeidentifyHandler:
@@ -75,27 +70,6 @@ class DeidentifyHandler:
             for column in report_cols
         ]
         return df.with_columns(replaced_synonyms)
-
-    def add_clientcodes(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
-        """Add patient codes to DataFrame and replace [PATIENT] tags in processed reports."""
-        clientname_col = input_cols['clientname']
-
-        df = (
-            df.join(
-                datakey.select(['clientname', 'code']),
-                left_on=clientname_col,
-                right_on='clientname',
-                how='left',
-                coalesce=True,
-            )
-            .rename({'code': 'clientcode'})
-            .select('clientcode', pl.all().exclude('clientcode'))
-        )
-
-        # Replace [PATIENT] tags in `processed_report` with datakeys
-        return df.with_columns(
-            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('clientcode'))),
-        )
 
     def _deduce_detection(self, report_text: str, clientname: str | None = None) -> str:
         """Apply Deduce detection with or without clientname (case-insensitive)."""
@@ -204,24 +178,10 @@ class DeidentifyHandler:
 
         return pl.Series(results)
 
-    def _clean_html(self, text: str) -> str:
-        """Remove HTML tags and decode HTML entities from text."""
-        if not text or not isinstance(text, str):
-            return text
-
-        text = text.strip()
-
-        if '<' not in text and '&' not in text:
-            return text
-
-        if not HTML_INDICATOR.search(text):
-            return text
-
-        return html.unescape(HTML_TAG.sub('', text)) or text
-
     def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame | None, input_cols: dict) -> pl.DataFrame:
         """De-identify report text with or without clientname."""
-        report_col = input_cols['report']
+        reports_cols = [value.strip() for key, value in input_cols.items() if key.startswith('report')]
+
         has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
         total_rows = df.height
 
@@ -231,25 +191,54 @@ class DeidentifyHandler:
         # Initialize a clean progress bar
         self.last_update = 0
         self.processed_count = 0
-        self.total_count = total_rows
+        self.total_count = total_rows * len(reports_cols)
 
-        struct_cols = [pl.col(report_col).map_elements(self._clean_html, return_dtype=pl.Utf8).alias('report')]
+        df = df.with_row_index('_idx')
+        other_columns = [column for column in df.columns if column not in reports_cols]
 
-        if has_clientname and 'clientname' in input_cols:
-            struct_cols.append(pl.col(input_cols['clientname']).alias('clientname'))
+        melted = df.unpivot(index=other_columns, on=reports_cols, variable_name='_col', value_name='report')
 
-        processed_reports = df.select(
-            [
-                pl.struct(struct_cols)
-                .map_batches(self._deidentify_batch, return_dtype=pl.Utf8)
-                .alias('processed_report'),
-            ],
+        struct_fields = [pl.col('report').str.strip_chars().alias('report')]
+        if has_clientname:
+            struct_fields.append(pl.col(input_cols['clientname']).alias('clientname'))
+
+        melted = melted.with_columns(
+            pl.struct(struct_fields).map_batches(self._deidentify_batch, return_dtype=pl.Utf8).alias('processed')
         )
 
-        df_result = df.with_columns(processed_reports)
+        pivoted = melted.pivot(values='processed', index='_idx', on='_col')
+
+        rename_map = {col: f'processed_report_{number}' for number, col in enumerate(reports_cols, start=1)}
+        pivoted = pivoted.select(['_idx', *reports_cols]).rename(rename_map)
+        df_result = df.join(pivoted, on='_idx').drop('_idx')
+
         tracker.clean_progress_bar()
 
         return df_result
+
+    def add_clientcodes(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+        """Add patient codes to DataFrame and replace [PATIENT] tags in processed reports."""
+        clientname_col = input_cols['clientname']
+
+        df = (
+            df.join(
+                datakey.select(['clientname', 'code']),
+                left_on=clientname_col,
+                right_on='clientname',
+                how='left',
+                coalesce=True,
+            )
+            .rename({'code': 'clientcode'})
+            .select('clientcode', pl.all().exclude('clientcode'))
+        )
+
+        processed_cols = [col for col in df.columns if col.startswith('processed_report_')]
+        return df.with_columns(
+            [
+                pl.col(col).str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('clientcode')))
+                for col in processed_cols
+            ]
+        )
 
     def deidentify_text_debug(self) -> None:
         """Only show de-identification results if logger is in debug mode."""
