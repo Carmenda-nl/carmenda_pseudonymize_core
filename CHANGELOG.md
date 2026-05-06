@@ -6,17 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add missing v1.5.0 notes
 - Proper git attributes
-- Replace_synonym multi report support
-- Multi report support for deidentify_text
-- Add multi report support in API
+- Multi report support
 
 ### Changed
 
 - Datakey always renamed to filename_key.csv
-- Changelog accept merge from remote
-- Ruff format
 - Update dependencies to latest
 
 ### Fixed
@@ -24,8 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Datakey missed in zip preview [LVD-285]
 - Keep regular text between <> [LVD-266]
 - Set default language to dutch
-- Fix changelog.md not properly updated
-- Fix ruff format error
+- changelog.md not properly updated
 - Catch error when no report in input_cols
 
 ## [1.5.0-beta] - 2026-04-28
