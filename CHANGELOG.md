@@ -2,25 +2,11 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-## [1.6.0-beta] - 2026-05-08
+
+## [1.6.0-beta] - 2026-05-06
 
 ### Added
 
-- Localization support
-- Build a persisten config values app
-- Config app controllable by api
-- Multilanguage consent file support
-- Extend progress tracking on pre-states
-- Transl. & cleanup/refactor progresstracker
-- Nl stage translations
-- Compile nl stage translations
-- Create a Bruno collection to test the API endpoints
-- Transl. progress stages & fix checks overload
-- Dutch translations for api validators
-- Available languages to settings endpoint
-- Build a concept sse view
-- Translatable stage labels in api
-- Sse endpoint for progress tracking
 - Add missing v1.5.0 notes
 - Proper git attributes
 - Replace_synonym multi report support
@@ -29,278 +15,325 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Rename config app to settings
-- Error_rows_file > skipped_lines
-- All python packages
-- Remove unused translations
-- Refactored asgi code
-- Timer at top of processor pipeline
-- Refactored file_handler & add tracker to processor
-- Refactored csv_handler & add tracker to file_handling
-- Cleanup old tracker code
-- Uv sync --update packages
-- Core transl. to api serializer
-- Translations update
-- Refactor performance metrics
-- Add dutch translations for timestamps
-- Move django-channels to warning lvl for cleaner debug
-- Update django logger & levels
-- Refactor websocket consumer
-- Add row changes to processing websocket output
-- Improve api code structure
-- Refactor & organize jobs_view
-- Simplified Thread call
-- Refactor & organize jobs_runner
-- Improve code structure & split every thread
-- Silence charset_normalizer in log
-- Ruff lint fix
-- Upgrade ruff
-- Add language script to bruno
-- Build files + fix bruno typo
-- Update python packages
-- Django-channels in favor for SSE
-- Websocket code in favor for SSE
-- Create paths/urls & fix ruff lint error
-- Cleanup job runner
-- Websocket code in favor for SSE
-- Refactor jobs view & remove cancel GET
-- Update bruno collections
-- Fix lint complexity error
 - Datakey always renamed to filename_key.csv
 - Changelog accept merge from remote
 - Ruff format
 - Update dependencies to latest
 - Changelog update
-- Clean up CHANGELOG.md by removing duplicate entries
 
 ### Fixed
 
-- Block request when job is processing
-- Last stage not saved in API
-- Import routing after django is initialized
-- Ruff lint errors in core tests
-- Remove django transl. dependencie from core
-- Ruff lint errors in core tests
-- Small fix for API not showing proper response
-- Clean input_cols, datakey & consent when new input_file
-- Translation string mismatch
-- Complete stage progress not properly shown in process
-- Lazy load git in version.py & clean log
-- Settings_log not properly loaded in frozen environment
-- Gettext shadowed by local tuple-unpack var
-- Permission not properly handled in PUT request
-- Consent_file not properly: renamed, deleted & handled
-- Locale path not properly set in builded core
-- Metrics not translating in thread
-- Associate a thread with a job as retries gives errors
 - Datakey missed in zip preview [LVD-285]
 - Keep regular text between <> [LVD-266]
 - Set default language to dutch
 - Fix changelog.md not properly updated
 - Fix ruff format error
 - Catch error when no report in input_cols
-- Workflow generates dublicate releases in changelog.md
+
+## [1.5.0-beta] - 2026-04-28
+
+### Added
+
+- SSE endpoint for progress tracking
+- Translatable stage labels in api
+- Available languages to settings endpoint
+- Ceate a Bruno collection to test the API endpoints
+- Dutch translations for api validators
+
+### Changed
+
+- uv sync --update packages
+- Core transl. to api serializer
+- Refactor performance metrics
+- Move django-channels to warning lvl for cleaner debug
+- Update django logger & levels
+- Refactor & organize jobs_view
+- Silence charset_normalizer in log
+- Old code cleanup
+
+### Fixed
+
+- Remove django transl. dependencie from core
+- Translation string mismatch
+- Clean input_cols, datakey & consent when new input_file
+- Lazy load git in version.py & clean log
+- Settings_log not properly loaded in frozen environment
+- Gettext shadowed by local tuple-unpack var
+- Consent_file not properly: renamed, deleted & handled
+- Metrics not translating in thread
+
 ## [1.4.2] - 2026-03-31
 
 ### Added
 
-- Add files via upload
-- Add dummy data generation script
-- Add files via upload
-- Add argument for existing pseudonymization key
-- Add options for input and output extention, manual partitioning.
-- Add gitignore
-- Add progress tracking
-- Add copyright
-- Add Deduce report only function
-- Add dummy data to wiki
-- Added COPYING statement
-- Add a reset when new input_file is provided
-- Add error_rows file to the DB & API
-- Add missing first names to lookup tables
-- Add a datakey db field for output
-- Add query request for datakey removal
-- Add missing first names
-- Add func to prevent confused parser on semicolons
-- Add GitHub workflows for auto deployment
-- Add build when no beta is available
-- Add frontend build trigger
-- Add a data permission boolean to API
-- Add filename to all processed files
-- Add a help text for the DRF GUI
-- Add consent logic to file_handling
-- Add UV badge to readme
 - Auto gen changelogs
 - Metrics output for API
 - Progress metrics (LVD-219) (LVD-222)
-- App version control [LVD-218]
+- App version control (LVD-218)
 - Write version to file logic
-- 2 head & 3 tail rows for preview
+- 3 head & 3 tail rows for preview
 
 ### Changed
 
-- Initial commit
-- Restructure and simplify execution script
-- Implement main loop for future CLI arguments. UDFs had to be defined within main.
-- Update README.md
-- Select filename in docker run CLI statement
-- Fix and clarify docker commands to users
-- Custom_cols option to python programme.
-- Wiki_images
-- Update README.md
-- Delete Generate dummy data.ipynb
-- Update README.md
-- Update README.md
-- Fix pseudonymization function uniqueness check, minor console print changes.
-- Input size scaling improvements
-- Further schema flexibility, columns for report time and caretaker no longer need to exist.
-- Clarify dummy data naming and setup gitignore to include dummy input and output
-- Better specify minimal dummy input
-- Implement first guardrails, restructure docker and project
-- Refactoring (lots) and exception handling
-- Refactor input_file to input_fofi and clarifations for partitioning, paralellization, quality check.
-- Safer max_n_processes default, better exception text.
-- Update Dockerfile
-- Fix v0.3 custom_cols
-- Safer max_n_processes default, warning about .csv output_extension
-- Update Dockerfile comments
-- Update pyspark_deducer.py intro comment
-- Update pyspark_deducer.py
-- Output column handling improvements
-- Split logger from main script
-- Split Spark session from main
-- PEP8 fixes & add requirements
-- Move args from main, used in CLI & App
-- PEP8, refactor, multiplatform for process_data
-- Refactor porgress tracker
-- Update deployment files
-- Fix absolute path errors in docker environment
-- Split progress tracker
-- Check Readme & add badge
-- Minor code, check, cleanup & refactor
-- Replace pyspark with polars
-- Cleanup Dockerfile
-- Bump python version to latest
-- Update requirements.txt
-- Update polars_deduce.py
-- Detect separators in .csv's
-- Update README.md
-- Develop ([#40](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/issues/40))
-- V1.2.6
-- Update pypi packages, Docker image & changelog
-- Update Readme badges
-- Lookup tables ([#54](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/issues/54))
-- Refactored api to make input_cols optional
-- Extend API: update files, input_cols & fileMeta trough PUT
-- Update API Swagger schema's
-- Pre-process clientnames as case-insensitive
-- Refactored serializers & add extra file checks
-- Update packages & prepare for v1.2.8
-- Cleanup custom PUT function + fix reset input_cols logic
-- Set preview to max of 2 & bugfix for pre process_report when no client
-- Update changelog
-- API `create job` returns the full job representation in Json
-- Replace chardet with charset-normalizer
-- Refactor file handler for robust encoding support
-- Update changelog
-- Validate upload has an allowed extension
-- Check if input file appears to be a datakey
-- Force to read the 3 first lines only
-- Upgrade pyinstaller
-- Ruf Formatting fixes
-- Keep name from input datakey
-- Refactored utils & rebase/split to utils folder
-- Change clenup & reset logic
-- Update changelog
-- Cleanup Html tags when loading data files
-- Skip cleanup Html when line is empty
-- Reorganise deidentify.py + add _clean_html func
-- Update changelog
-- False positives during tests
-- Remove BOM from header if present
-- Security update django > v5.2.9
-- V1.2.9
-- Improve lookup tables
-- Change copyright year to 2026
-- Update polars package > v1.36.1
-- Update changelog + copyright year
-- Improve reading problematic csv files
-- Replace Newline HTML chars
-- Improve HTML handling for Json preview
-- Update packages & install mypy
-- Fix all type errors in code
-- Test all code changes on develop
-- Refactor & bugfix file_handling ([#56](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/issues/56))
-- Hotfix 1 ([#57](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/issues/57))
-- Feature excel ([#58](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/issues/58))
-- Set relative path for error_rows file
-- Update packages
-- Bump to version 1.3.0
-- Excel output was converted to csv
-- St_birthtime is unavailable in Linux
-- Set filenames max length to 255 characters
-- Move all testfiles to one folder
-- Remove pytest folder from build
-- Refactor models & move help text to serializers
-- Rename serializer + Bugfix: boolean field not updated on PUT
-- Move file remove logic from API to models
-- Refactor + bugfix jobs API
-- Prevent silent failing
-- Improved Unescape HTML entities
 - Overwrite storage, refactor reset_output & add consent_file to API
 - Refactor & bugfix DeidentificationJobViewSet `PUT`
 - Remove hardcoded file paths in `collect_output_files`
-- Ruff format
 - Update changelog & readme (version control)
 - Move packaging files to own endpoint
-- Update changelog
-- Update django > 5.2.12
-- Correct function code order
 - Create a seperate serializer for API zip function
 - Convert project to a uv based
-- Ruff lint fix
-- Update packages
-- Update & fix docker build file
-- Create-beta-release misses artifact
-- Test-develop.yml incorrect location coverage report
-- Uv version warning
-- Readme commit conventions
 - Move firstnames to common words (LVD-241)
-- Refactor, version & clean build script
 - Action workflow scripts
 - Python dependencies updated
-- Git + asyncio to django logger (log level)
-- Dependencies
-- Refactor preview_rows
-- First 2 rows > first 3 rows
 - Refactor time metrics & add hours
 
 ### Fixed
 
-- Fix default run command, still no whitespaces in custom_cols
-- Fix typo patientID
-- Remove none in key dict
-- Keep deduced cache after first run
-- Also pseudomise if only first name available
-- Force ASCII to UTF-8 encoding
-- API cancel not finishing job properly
-- Garbage coll. releases file handles
-- Add missing variable
-- HTML entity decoding only accepts strings (skip integers)
-- Json dump not working with dattime fields
-- Ignore quote char in strings
-- Build.spec creates double cache folder
-- Permission not changed
 - Newlines not rendered properly
 - No proper Keep a Changelog format
 - Pickle file not properly located
 - Require the first word to be a known name
 - Update lookup tables
 - Fix double version.txt creation
-- .env missing in build
-- .env missing in build (part 2)
 - Version not properly located in frozen env
 - Error when git not installed
-- Add missing metric total_rows
-- 'git_status' is not defined
 
+## [1.3.1] - 2026-03-05
+
+### Added
+
+- Permission boolean
+- API consent file build logic
+- A zip files endpoint
+
+### Changed
+
+- Moved all test outcome files to one folder
+- Overwrite storage, refactor reset_output
+- Remove hardcoded file paths in collect_output_files
+
+### Fixed
+
+- Bugfix: boolean field not updated on PUT
+- Refactor + bugfix jobs API
+- Prevent silent failing
+- improved Unescape HTML entities
+
+## [1.3.0] - 2026-02-11
+
+### Added
+
+- Uploading basic excel files
+
+### Changed
+
+- Upgrade used py packages
+- CSV file handling
+
+### Fixed
+
+- Faulty CSV file rows are not collected in a seperate file
+- build.spec creates double cache folder
+- Solved all type errors with mypy
+
+## [1.2.10] - 2026-01-06
+
+### Changed
+
+- Update polars v1.36.1
+- Copyright year 2026
+
+### Fixed
+
+- Ignore quote char in strings
+- Minor false positives in lookup tables
+
+## [1.2.9] - 2025-12-04
+
+### Added
+
+- Core: Major coverage update, adding missing first names
+- Core: Clean HTML tags in report text
+
+### Fixed
+
+- Prevent confused parser on semicolons
+- Cleanup UTF-8 BOM characters from header per column
+
+## [1.2.8] - 2025-11-25
+
+### Added
+
+- API: update files, input_cols & fileMeta trough PUT
+- API: Extra checks on input file and datakey
+- API: Error row collector
+- Core: Pre-process clientnames as case-insensitive
+
+### Changed
+
+- API: input_cols is optional when creating a job
+- API: closer in functionality of frontend
+- API: Improved file handler for robust encoding support
+- Update: channels package -> v4.3.2
+
+### Fixed
+
+- Lookup tables false-positives
+
+## [1.2.7] - 2025-11-13
+
+### Added
+
+- Missing copyright text in progress_control.py
+- Force ASCII to UTF-8 encoding
+
+### Changed
+
+- Update: Docker version to python:3.13.6-slim
+- Update: pypi packages
+
+### Fixed
+
+- Force ASCII to UTF-8 encoding
+
+## [1.2.6] - 2025-11-12
+
+### Added
+
+- Progress cancellation functionality with API support
+- Cancelled state to job status choices
+- Job control to cancel running processes
+- Health check endpoint via Server-Sent Events (SSE)
+
+### Changed
+
+- Updated build.spec to remove unused files when building
+- Optimized build script for PyInstaller
+- Improved Swagger API schemas
+- Cleaned up comments and logging throughout codebase
+- Disabled console output when running as PyInstaller executable
+
+### Fixed
+
+- NoneType AttributeError in Progress Tracker
+- Newer versions of Polars don't accept return_dtype in map_batches
+- Datakey built in wrong folder
+- Proper handling of job deletion including directories and files
+
+## [v1.1.1] - 2025-09-09
+
+### New Features
+
+- Real-time progress tracking with Server-Sent Events
+- Enhanced logging with DEBUG.log output file
+- Job-based file processing system
+- Populate files with URL, filesize, and last modified date
+- Terminal progress bar for better visibility
+
+### Improvements
+
+- Refactored logging system with configurable log levels
+- Replaced synchronous processing with vectorized Polars solution
+- Improved Polars memory efficiency for large datasets
+- Updated datakey structure and header titles
+- Expanded Django's logging capabilities
+
+### Bug Fixes
+
+- Log file not created in frozen environment
+- Write protection preventing backend boot
+- False positives in detection
+- Circular import error in settings
+- Filter null rows only on report column
+- Syntax errors in frontend communication
+- OSError handling to keep backend running
+- Progress tracking display issues in frontend
+- UTF-8 encoding for logger
+
+## [v1.0.4] - 2025-09-04
+
+### New Features
+
+- Terminal line separator for better output formatting
+
+### Improvements
+
+- Improved API response handling
+- Upgraded logging to accept environment variables or arguments for level setting
+
+### Bug Fixes
+
+- Various bugfixes in API responses
+- Memory efficiency improvements
+
+## [v1.0.3] - 2025-08-25
+
+### New Features
+
+- Extended lookup tables for Dutch names and locations
+- Additional Dutch surnames (393,468 unique entries)
+- Enhanced Dutch first names database
+- Eponymous disease list to prevent false positives
+- Medical terminology whitelist
+
+### Improvements
+
+- Rebalanced lookup tables to prevent false positives
+- Updated Deduce lookup tables cache
+- Proper debug flag configuration
+
+### Bug Fixes
+
+- Regex pattern matching issues
+- Deduce update compatibility (missing base_config)
+- Docker build process for Windows
+
+## [v1.0.2] - 2025-08-18
+
+### New Features
+
+- Custom name detector for improved Dutch name recognition
+- Extended unit test cases
+- Logging toggle functionality
+
+### Improvements
+
+- Optimized column creation in data processing
+- Refactored deduce_handler following DRY principles
+- Relocated lookup tables to dedicated folder
+- Set cache folder for lookup tables
+
+### Bug Fixes
+
+- Whitespace handling on patient names and keys
+- Double Deduce initialization
+- Loading of custom lookup tables
+- Surname detector test cases
+
+## [v1.0.1] - 2025-08-12
+
+### New Features
+
+- Dedicated deployment folder structure
+- Improved Dockerfile with proper volume handling
+
+### Improvements
+
+- Relocated all files to app directory
+- Updated project structure for better organization
+
+### Bug Fixes
+
+- Dockerfile help documentation
+- Volume mounting issues
+
+## [v1.0.0] - 2025-08-07
+
+### Initial Release
+
+- REST API for text pseudonymization using Deduce algorithm
+- Polars-based high-performance vectorized data processing
+- Automatic OpenAPI/Swagger documentation
+- Custom Dutch lookup tables for improved accuracy
+- Pattern matching for names, locations, and institutions
+- Detailed logging and error handling
