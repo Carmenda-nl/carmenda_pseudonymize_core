@@ -3,7 +3,7 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.6.0-beta] - 2026-05-06
+## [1.6.0-beta] - 2026-05-08
 
 ### Added
 
@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ruff format
 - Update dependencies to latest
 - Changelog update
+- Clean up CHANGELOG.md by removing duplicate entries
+- Revise CHANGELOG.md for version 1.6.0-beta
 
 ### Fixed
 
@@ -29,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix changelog.md not properly updated
 - Fix ruff format error
 - Catch error when no report in input_cols
+- Workflow generates dublicate releases in changelog.md
+- Do not remove older changelogs
 
 ## [1.5.0-beta] - 2026-04-28
 
