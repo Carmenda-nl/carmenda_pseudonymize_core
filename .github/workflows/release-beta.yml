@@ -106,13 +106,36 @@ jobs:
           generate_release_notes: false
           files: "*.zip"
 
-      - name: Update CHANGELOG.md
+      - name: Generate changelog entry
         uses: orhun/git-cliff-action@v4.7.1
         with:
           config: cliff.toml
-          args: --output CHANGELOG.md
+          args: --latest --strip header
         env:
           GITHUB_REPO: ${{ github.repository }}
+          OUTPUT: /tmp/changelog_entry.md
+
+      - name: Update CHANGELOG.md
+        run: |
+          python3 << 'EOF'
+          import re
+          version_no_v = '${{ github.ref_name }}'.lstrip('v')
+          with open('/tmp/changelog_entry.md', 'r') as f:
+              new_entry = f.read().strip()
+          with open('CHANGELOG.md', 'r') as f:
+              content = f.read()
+          pattern = r'## \[' + re.escape(version_no_v) + r'\].*?(?=\n## \[|\Z)'
+          content = re.sub(pattern, '', content, flags=re.DOTALL)
+          match = re.search(r'\n(## \[)', content)
+          if match:
+              pos = match.start() + 1
+              content = content[:pos] + new_entry + '\n\n' + content[pos:]
+          else:
+              content = content.rstrip() + '\n\n' + new_entry + '\n'
+          content = re.sub(r'\n{3,}', '\n\n', content)
+          with open('CHANGELOG.md', 'w') as f:
+              f.write(content)
+          EOF
 
       - name: Commit CHANGELOG.md
         run: |

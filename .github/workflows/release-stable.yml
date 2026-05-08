@@ -152,12 +152,29 @@ jobs:
 
       - name: Update CHANGELOG.md
         if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
-        uses: orhun/git-cliff-action@v4.7.1
-        with:
-          config: cliff.toml
-          args: --ignore-tags ".*-beta" --output CHANGELOG.md
-        env:
-          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          python3 << 'EOF'
+          import re
+          stable_ver = '${{ steps.set_tag.outputs.tag }}'.lstrip('v')
+          beta_ver = '${{ steps.determine_tag.outputs.beta_tag }}'.lstrip('v')
+          with open('release_notes.md', 'r') as f:
+              new_entry = f.read().strip()
+          with open('CHANGELOG.md', 'r') as f:
+              content = f.read()
+          for ver in [stable_ver, beta_ver]:
+              if ver:
+                  pattern = r'## \[' + re.escape(ver) + r'\].*?(?=\n## \[|\Z)'
+                  content = re.sub(pattern, '', content, flags=re.DOTALL)
+          match = re.search(r'\n(## \[)', content)
+          if match:
+              pos = match.start() + 1
+              content = content[:pos] + new_entry + '\n\n' + content[pos:]
+          else:
+              content = content.rstrip() + '\n\n' + new_entry + '\n'
+          content = re.sub(r'\n{3,}', '\n\n', content)
+          with open('CHANGELOG.md', 'w') as f:
+              f.write(content)
+          EOF
 
       - name: Commit CHANGELOG.md
         if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
