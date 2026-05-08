@@ -110,7 +110,7 @@ jobs:
         uses: orhun/git-cliff-action@v4.7.1
         with:
           config: cliff.toml
-          args: --latest --prepend CHANGELOG.md
+          args: --output CHANGELOG.md
         env:
           GITHUB_REPO: ${{ github.repository }}
 
