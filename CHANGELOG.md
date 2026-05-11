@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Closing thread fails when file stil in use
+- Wait for background thread to finish before garbage collection
 
 ## [1.6.0-beta] - 2026-05-08
 
