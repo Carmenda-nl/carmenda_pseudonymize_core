@@ -184,6 +184,8 @@ class DeidentificationJobViewSet(viewsets.ModelViewSet):
             except (RuntimeError, OSError):
                 logger.warning('Failed to cancel job before deletion.')
 
+        job_control.join_thread(str(instance.job_id))
+
         # Force garbage collection to release file handles
         gc.collect()
 
