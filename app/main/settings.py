@@ -13,6 +13,8 @@ import environ
 from django.core.management.utils import get_random_secret_key
 from django.utils.translation import gettext_lazy as _
 
+from main.version import get_version
+
 env = environ.FileAwareEnv(
     # Set casting, default values for env's
     DEBUG=(bool, False),
@@ -131,7 +133,7 @@ if DEBUG:
     SPECTACULAR_SETTINGS = {
         'TITLE': 'Deidentification API',
         'DESCRIPTION': 'API for file-based deidentification',
-        'VERSION': '1.4.0',
+        'VERSION': get_version(),
         'SERVE_INCLUDE_SCHEMA': False,
         'TAGS': [
             {'name': 'API', 'description': 'base endpoints and documentation'},
