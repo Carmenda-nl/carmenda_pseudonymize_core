@@ -56,7 +56,7 @@ def match_output_cols(input_cols: str) -> str:
         if col.startswith('clientname='):
             output_cols.append('clientcode')
         elif col.startswith('report='):
-            output_cols.append('processed_report')
+            output_cols.append('processed_report_1')
         elif col.split('=', 1)[0].strip().startswith('report_'):
             suffix = col.split('=', 1)[0].strip()[len('report_') :]
             output_cols.append(f'processed_report_{suffix}')
