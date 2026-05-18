@@ -16,6 +16,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db.models import FileField
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext as _ng
 from rest_framework import serializers
@@ -72,7 +73,12 @@ class JobSerializer(serializers.ModelSerializer):
     input_cols = serializers.CharField(
         required=False,
         allow_blank=True,
-        help_text="Format: key=value (e.g. 'report=Report, clientname=Patient'). The 'report' key is required.",
+        help_text=mark_safe(
+            "Format: key=value (e.g. 'report=Report, clientname=Patient') "
+            "or ('report_1=Report, report_2=Report 2, clientname=Patient') <br />"
+            "Atleast one 'report' key is required."
+        ),
+        max_length=100,
     )
     input_file = serializers.FileField(required=False)
     datakey = serializers.FileField(required=False)
