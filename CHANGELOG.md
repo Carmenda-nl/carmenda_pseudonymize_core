@@ -3,6 +3,17 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2-beta] - 2026-05-18
+
+### Added
+
+- Get current version in API docs [LVD-293]
+- Multiline help text in api input_cols [LVD-294]
+
+### Fixed
+
+- Fix single report not processed [LVD-299]
+
 ## [1.6.1-beta] - 2026-05-11
 
 ### Fixed
