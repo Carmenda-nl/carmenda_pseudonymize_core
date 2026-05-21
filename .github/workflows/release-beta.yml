@@ -137,11 +137,15 @@ jobs:
               f.write(content)
           EOF
 
-      - name: Commit CHANGELOG.md
+      - name: Update _version.py
+        run: |
+          echo '__version__ = "${{ github.ref_name }}"' > app/main/_version.py
+
+      - name: Commit CHANGELOG.md and _version.py
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
+          git add CHANGELOG.md app/main/_version.py
           git diff --cached --quiet || git commit -m "chore(release): update CHANGELOG.md for ${{ github.ref_name }}"
           git push origin HEAD:develop
 
