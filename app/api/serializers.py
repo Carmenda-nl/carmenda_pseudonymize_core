@@ -78,7 +78,6 @@ class JobSerializer(serializers.ModelSerializer):
             "or ('report_1=Report, report_2=Report 2, clientname=Patient') <br />"
             "Atleast one 'report' key is required."
         ),
-        max_length=100,
     )
     input_file = serializers.FileField(required=False)
     datakey = serializers.FileField(required=False)
