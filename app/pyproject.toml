@@ -1,20 +1,13 @@
 [project]
-name = "Carmenda_privacytool"
+name = "Carmenda_deduce_engine"
 dynamic = ["version"]
-description = "API backend"
-requires-python = ">=3.13"
+description = "FastAPI based engine with a modified deduce core"
+requires-python = ">=3.14"
 dependencies = [
     "charset-normalizer>=3.4.4",
-    "daphne>=4.0.0",
     "deduce>=3.0.6",
-    "django~=5.2.12",
-    "django-cors-headers>=4.9.0",
-    "django-environ>=0.12.0",
-    "djangorestframework>=3.16.1",
-    "drf-spectacular>=0.29.0",
     "fastapi[standard]>=0.136.1",
     "fastexcel>=0.19.0",
-    "gitpython>=3.1.46",
     "polars[pandas]>=1.38.1",
     "rich>=14.3.2",
     "xlsxwriter>=3.2.9",
@@ -27,19 +20,19 @@ build = [
 ]
 
 dev = [
-    "django-stubs>=5.2.9",
-    "djangorestframework-stubs>=3.16.8",
     "mypy>=1.19.1",
     "pandas-stubs>=3.0.0.260204",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
-    "pytest-django>=4.11.1",
     "ruff>=0.15.0",
 ]
 
 [tool.uv]
 package = false
 required-version = ">=0.10.9"
+
+[tool.fastapi]
+entrypoint = "api.main:app"
 
 [tool.setuptools]
 packages = []
@@ -51,14 +44,9 @@ exclude = ['migrations']
 [tool.ruff.lint]
 select = ['ALL']
 ignore = [
-    'ARG002', # (`request` & `pk` are mandatory for DRF)
-    'D106',   # (Meta classes don't need a docstring)
-    'DTZ005', # (Timezones are managed by django)
     'SLF001', # (MEIPASS use for PyInstaller)
     'S101',   # (False positives when using with pytest)
     'S301',   # (pickle file loading)
-    'EXE001', # (Shebang in manage.py is OK without executable bit in Git)
-    'COM812', # (May cause conflicts when used with the formatter)
     'PLC0415' # (Lazy load imports)
 ]
 
@@ -71,19 +59,6 @@ inline-quotes = 'single'
 [tool.ruff.format]
 quote-style = 'single'
 
-[tool.mypy]
-plugins = [
-    'mypy_django_plugin.main',
-    'mypy_drf_plugin.main',
-]
-
-[[tool.mypy.overrides]]
-module = 'environ'
-ignore_missing_imports = true
-
-[tool.django-stubs]
-django_settings_module = 'main.settings'
-
 [tool.coverage.run]
 data_file = 'pytest/.coverage'
 
@@ -94,7 +69,6 @@ directory = 'pytest/html'
 output = 'pytest/coverage.xml'
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = 'main.settings'
 python_files = ['tests.py', 'test_*.py', '*_tests.py']
 cache_dir = 'pytest/.pytest_cache'
 addopts = [
