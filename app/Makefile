@@ -1,7 +1,7 @@
 .PHONY: dev lint format test typecheck
 
 dev:
-	uv run fastapi dev api/main.py
+	uv run fastapi dev
 
 lint:
 	uv run ruff check .

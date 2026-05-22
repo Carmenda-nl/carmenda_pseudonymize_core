@@ -3,12 +3,21 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""API views package.
+"""FastAPI base and Swagger config.
 
-This package contains the API views for the Django backend.
+swagger_ui_parameters hides the schemas in the Swagger interface.
+Swagger interface available in /api/docs
 """
 
-from api.views.jobs_views import DeidentificationJobViewSet
-from api.views.root_views import APIRootView, VersionView
+from fastapi import FastAPI
 
-__all__ = ['APIRootView', 'DeidentificationJobViewSet', 'VersionView']
+from _version import __version__
+from api.routes import router
+
+app = FastAPI(
+    title='Carmenda deduce',
+    version=__version__,
+    swagger_ui_parameters={'defaultModelsExpandDepth': -1},
+)
+
+app.include_router(router)
