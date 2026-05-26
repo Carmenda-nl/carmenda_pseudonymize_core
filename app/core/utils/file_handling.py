@@ -64,7 +64,7 @@ def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
     return df
 
 
-def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
+def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> str | None:
     """Save processed DataFrame to file in the specified output folder."""
     filepath = Path(filename)
     stem = filepath.stem
@@ -82,8 +82,10 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
             df.write_csv(str(filepath))
         elif input_extension.lower() in ('.xls', '.xlsx'):
             df.write_excel(str(filepath))
+        return str(filepath)
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)
+        return None
 
 
 def load_datakey(datakey_path: str) -> pl.DataFrame | None:
@@ -103,7 +105,7 @@ def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 
-def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datakey_name: str | None = None) -> None:
+def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datakey_name: str | None = None) -> str | None:
     """Save the processed datakey to a CSV file for future use."""
     filepath = Path(filename)
     parent = filepath.parent
@@ -119,5 +121,7 @@ def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datak
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=',')
         logger.debug('Saving datakey: %s\n%s\n', output_filename, datakey)
+        return str(file_path)
     except OSError:
         logger.warning('Cannot write datakey to "%s".', file_path)
+        return None

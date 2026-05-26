@@ -12,11 +12,11 @@ This pipeline provides functionality for:
     - Writing processed data to output files
 """
 
-import json
 import logging
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 
@@ -33,7 +33,7 @@ MAX_LAST_PREVIEW_ROWS = 3
 MINIMUM_ROWS = 6
 
 
-def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str) -> str:
+def process_data(input_file: str, input_cols: str, output_cols: str, datakey: str | None = None) -> dict[str, Any]:
     """Process and pseudonymize data from input file and return the first 10 rows in Json."""
     start_time = time.time()
     tracker.set_progress('start')
@@ -43,6 +43,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     logger.debug('Parsed arguments:\n%s\n', params_str)
 
     input_folder, output_folder = get_environment()
+    json_output: dict[str, Any] = {}
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
@@ -60,12 +61,12 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     else:
         message = f'Input file "{input_file_path}" could not be loaded.'
         logger.error(message)
-        return json.dumps({'error': message})
+        return {'error': message}
 
     if not report_cols or missing_reports:
         message = f'Report column not found in input data: {", ".join(missing_reports)}.'
         logger.error(message)
-        return json.dumps({'error': message})
+        return {'error': message}
 
     # ------------------------------ STEP 2: CREATE KEY ------------------------------- #
 
@@ -75,7 +76,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
         processed_datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
         datakey_filename = f'{Path(input_file).stem}_key.csv'
-        save_datakey(processed_datakey, input_file, output_folder, datakey_filename)
+        json_output['datakey'] = save_datakey(processed_datakey, input_file, output_folder, datakey_filename)
     else:
         logger.info('Clientname not provided, skipping datakey creation.\n')
 
@@ -103,7 +104,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
             f'processed_report_{index}': input_cols_dict[report_key]
             for index, report_key in enumerate((key for key in input_cols_dict if key.startswith('report')), start=1)
             if f'processed_report_{index}' in df.columns
-        }
+        },
     )
 
     df = df.rename(rename_headers)
@@ -114,14 +115,19 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
     # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
-    metrics = performance_metrics(start_time, df.height)
-    save_datafile(df, input_file, output_folder)
+    json_output['output_file'] = save_datafile(df, input_file, output_folder)
+    json_output['metrics'] = performance_metrics(start_time, df.height)
     tracker.set_progress('done')
 
-    preview_rows = (
+    json_output['log'] = next(
+        (Path(handler.baseFilename) for handler in logger.handlers if isinstance(handler, logging.FileHandler)),
+        None,
+    )
+
+    json_output['preview'] = (
         df.head(MAX_FIRST_PREVIEW_ROWS).to_dicts()
         if df.height < MINIMUM_ROWS
         else df.head(MAX_FIRST_PREVIEW_ROWS).to_dicts() + df.tail(MAX_LAST_PREVIEW_ROWS).to_dicts()
     )
 
-    return json.dumps({'data': preview_rows, 'metrics': metrics}, default=str)
+    return json_output
