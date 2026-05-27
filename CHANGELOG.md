@@ -3,6 +3,13 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3-beta] - 2026-05-21
+
+### Fixed
+
+- App version not properly updated
+- Serializer had a max of 100 characters
+
 ## [1.6.2-beta] - 2026-05-18
 
 ### Added
