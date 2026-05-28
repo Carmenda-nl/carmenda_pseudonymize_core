@@ -63,12 +63,6 @@ def parse_cli_arguments() -> argparse.Namespace:
         help='Input column mappings as comma-separated key=value pairs. Required keys: clientname and report.',
     )
     parser.add_argument(
-        '--output_cols',
-        nargs='?',
-        default=None,
-        help='Output column list. Defaults to clientcode and all processed_report_N columns.',
-    )
-    parser.add_argument(
         '--datakey',
         nargs='?',
         default=None,
@@ -85,16 +79,6 @@ def parse_cli_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _default_output_cols(input_cols: str) -> str:
-    """Build default output_cols from input_cols when not explicitly provided."""
-    report_keys = [
-        key for key in dict(column.strip().split('=') for column in input_cols.split(',')) if key.startswith('report')
-    ]
-    reports = ', '.join(f'processed_report_{number}' for number, _ in enumerate(report_keys, start=1))
-
-    return f'clientcode, {reports}'
-
-
 def main() -> None:
     """Parse command-line arguments, and call the main processing function."""
     args = parse_cli_arguments()
@@ -104,7 +88,6 @@ def main() -> None:
     process_data(
         input_file=args.input_file,
         input_cols=args.input_cols,
-        output_cols=args.output_cols or _default_output_cols(args.input_cols),
         datakey=args.datakey,
     )
 

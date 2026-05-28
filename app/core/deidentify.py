@@ -178,7 +178,7 @@ class DeidentifyHandler:
 
         return pl.Series(results)
 
-    def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame | None, input_cols: dict) -> pl.DataFrame:
+    def deidentify_text(self, df: pl.DataFrame, input_cols: dict) -> pl.DataFrame:
         """De-identify report text with or without clientname."""
         reports_cols = [value.strip() for key, value in input_cols.items() if key.startswith('report')]
 
@@ -203,7 +203,7 @@ class DeidentifyHandler:
             struct_fields.append(pl.col(input_cols['clientname']).alias('clientname'))
 
         melted = melted.with_columns(
-            pl.struct(struct_fields).map_batches(self._deidentify_batch, return_dtype=pl.Utf8).alias('processed')
+            pl.struct(struct_fields).map_batches(self._deidentify_batch, return_dtype=pl.Utf8).alias('processed'),
         )
 
         pivoted = melted.pivot(values='processed', index='_idx', on='_col')
@@ -237,7 +237,7 @@ class DeidentifyHandler:
             [
                 pl.col(col).str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('clientcode')))
                 for col in processed_cols
-            ]
+            ],
         )
 
     def deidentify_text_debug(self) -> None:
