@@ -1,45 +1,44 @@
 [project]
-name = "Carmenda_deduce_engine"
-dynamic = ["version"]
-description = "FastAPI based engine with a modified deduce core"
-requires-python = ">=3.14"
+name = 'carmenda-deduce-engine'
+dynamic = ['version']
+description = 'FastAPI based engine with a modified deduce core'
+requires-python = '>=3.14'
 dependencies = [
-    "charset-normalizer>=3.4.4",
-    "deduce>=3.0.6",
-    "fastapi[standard]>=0.136.1",
-    "fastexcel>=0.19.0",
-    "polars[pandas]>=1.38.1",
-    "rich>=14.3.2",
-    "xlsxwriter>=3.2.9",
+    'charset-normalizer>=3.4.4',
+    'deduce>=3.0.6',
+    'fastapi[standard]>=0.136.1',
+    'fastexcel>=0.19.0',
+    'polars[pandas]>=1.38.1',
+    'rich>=14.3.2',
+    'xlsxwriter>=3.2.9',
 ]
 
 [dependency-groups]
 build = [
-    "pyinstaller>=6.18.0",
-    "setuptools-scm>=9.2.2",
+    'pyinstaller>=6.18.0',
+    'setuptools-scm>=9.2.2',
 ]
 
 dev = [
-    "mypy>=1.19.1",
-    "pandas-stubs>=3.0.0.260204",
-    "pytest>=9.0.2",
-    "pytest-cov>=7.0.0",
-    "ruff>=0.15.0",
+    'mypy>=1.19.1',
+    'pandas-stubs>=3.0.0.260204',
+    'pytest>=9.0.2',
+    'pytest-cov>=7.0.0',
+    'ruff>=0.15.0',
 ]
+
+[tool.setuptools.packages.find]
+include = ['api*', 'core*']
 
 [tool.uv]
 package = false
-required-version = ">=0.10.9"
+required-version = '>=0.11.2'
 
 [tool.fastapi]
-entrypoint = "api.main:app"
-
-[tool.setuptools]
-packages = []
+entrypoint = 'api.main:app'
 
 [tool.ruff]
 line-length = 120
-exclude = ['migrations']
 
 [tool.ruff.lint]
 select = ['ALL']
@@ -51,7 +50,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.pydocstyle]
-convention = "google"
+convention = 'google'
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = 'single'
