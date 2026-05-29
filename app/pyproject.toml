@@ -35,7 +35,7 @@ package = false
 required-version = '>=0.11.2'
 
 [tool.fastapi]
-entrypoint = 'api.main:app'
+entrypoint = 'main:app'
 
 [tool.ruff]
 line-length = 120
@@ -43,10 +43,11 @@ line-length = 120
 [tool.ruff.lint]
 select = ['ALL']
 ignore = [
-    'SLF001', # (MEIPASS use for PyInstaller)
-    'S101',   # (False positives when using with pytest)
-    'S301',   # (pickle file loading)
-    'PLC0415' # (Lazy load imports)
+    'SLF001',  # (MEIPASS use for PyInstaller)
+    'S101',    # (False positives when using with pytest)
+    'S301',    # (Pickle file loading)
+    'PLC0415', # (Lazy load imports)
+    'COM812',  # (Conflicts with ruff formatter)
 ]
 
 [tool.ruff.lint.pydocstyle]
