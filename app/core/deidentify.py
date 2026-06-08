@@ -13,8 +13,6 @@ from functools import reduce
 
 import polars as pl
 from deduce.person import Person  # type: ignore[import-untyped]
-from lxml.etree import ParserError
-from lxml.html import HtmlElement, fromstring
 
 from core.deduce import DeduceInstanceManager
 from core.name_detector import DutchNameDetector, NameAnnotation
@@ -51,7 +49,7 @@ class DeidentifyHandler:
         self.total_count = 0
         self.last_update = 0
 
-    def replace_synonym(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+    def replace_synonym(self, df: pl.DataFrame, datakey: pl.DataFrame, report_cols: list[str]) -> pl.DataFrame:
         """Replace all synonyms in the report text with their main names."""
         synonym_df = (
             datakey.with_columns(pl.col('synonyms').str.split(','))
@@ -61,36 +59,17 @@ class DeidentifyHandler:
             .select([pl.col('clientname'), pl.col('synonyms')])
         )
 
-        report_col = input_cols['report']
-        synonym_pairs = zip(synonym_df['synonyms'], synonym_df['clientname'], strict=True)
+        synonym_pairs = list(zip(synonym_df['synonyms'], synonym_df['clientname'], strict=True))
 
-        replaced_synonyms = reduce(
-            lambda expr, pair: expr.str.replace_all(r'\b' + re.escape(pair[0]) + r'\b', pair[1], literal=False),
-            synonym_pairs,
-            pl.col(report_col),
-        )
+        replaced_synonyms = [
+            reduce(
+                lambda expr, pair: expr.str.replace_all(r'\b' + re.escape(pair[0]) + r'\b', pair[1], literal=False),
+                synonym_pairs,
+                pl.col(column),
+            ).alias(column)
+            for column in report_cols
+        ]
         return df.with_columns(replaced_synonyms)
-
-    def add_clientcodes(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
-        """Add patient codes to DataFrame and replace [PATIENT] tags in processed reports."""
-        clientname_col = input_cols['clientname']
-
-        df = (
-            df.join(
-                datakey.select(['clientname', 'code']),
-                left_on=clientname_col,
-                right_on='clientname',
-                how='left',
-                coalesce=True,
-            )
-            .rename({'code': 'clientcode'})
-            .select('clientcode', pl.all().exclude('clientcode'))
-        )
-
-        # Replace [PATIENT] tags in `processed_report` with datakeys
-        return df.with_columns(
-            pl.col('processed_report').str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('clientcode'))),
-        )
 
     def _deduce_detection(self, report_text: str, clientname: str | None = None) -> str:
         """Apply Deduce detection with or without clientname (case-insensitive)."""
@@ -199,29 +178,10 @@ class DeidentifyHandler:
 
         return pl.Series(results)
 
-    def _clean_html(self, text: str) -> str:
-        """Remove HTML tags and decode HTML entities from text."""
-        if not text or not isinstance(text, str):
-            return text
-
-        text = text.strip()
-
-        # Skip if no HTML tags or entities present
-        if '<' not in text and '&' not in text:
-            return text
-
-        try:
-            tree: HtmlElement = fromstring(text)
-            cleaned = tree.text_content()
-        except (ParserError, ValueError):
-            # If parsing fails, return original text
-            return text
-        else:
-            return cleaned or text
-
     def deidentify_text(self, df: pl.DataFrame, datakey: pl.DataFrame | None, input_cols: dict) -> pl.DataFrame:
         """De-identify report text with or without clientname."""
-        report_col = input_cols['report']
+        reports_cols = [value.strip() for key, value in input_cols.items() if key.startswith('report')]
+
         has_clientname = 'clientname' in input_cols and input_cols['clientname'] in df.columns
         total_rows = df.height
 
@@ -231,25 +191,54 @@ class DeidentifyHandler:
         # Initialize a clean progress bar
         self.last_update = 0
         self.processed_count = 0
-        self.total_count = total_rows
+        self.total_count = total_rows * len(reports_cols)
 
-        struct_cols = [pl.col(report_col).map_elements(self._clean_html, return_dtype=pl.Utf8).alias('report')]
+        df = df.with_row_index('_idx')
+        other_columns = [column for column in df.columns if column not in reports_cols]
 
-        if has_clientname and 'clientname' in input_cols:
-            struct_cols.append(pl.col(input_cols['clientname']).alias('clientname'))
+        melted = df.unpivot(index=other_columns, on=reports_cols, variable_name='_col', value_name='report')
 
-        processed_reports = df.select(
-            [
-                pl.struct(struct_cols)
-                .map_batches(self._deidentify_batch, return_dtype=pl.Utf8)
-                .alias('processed_report'),
-            ],
+        struct_fields = [pl.col('report').str.strip_chars().alias('report')]
+        if has_clientname:
+            struct_fields.append(pl.col(input_cols['clientname']).alias('clientname'))
+
+        melted = melted.with_columns(
+            pl.struct(struct_fields).map_batches(self._deidentify_batch, return_dtype=pl.Utf8).alias('processed')
         )
 
-        df_result = df.with_columns(processed_reports)
+        pivoted = melted.pivot(values='processed', index='_idx', on='_col')
+
+        rename_map = {col: f'processed_report_{number}' for number, col in enumerate(reports_cols, start=1)}
+        pivoted = pivoted.select(['_idx', *reports_cols]).rename(rename_map)
+        df_result = df.join(pivoted, on='_idx').drop('_idx')
+
         tracker.clean_progress_bar()
 
         return df_result
+
+    def add_clientcodes(self, df: pl.DataFrame, datakey: pl.DataFrame, input_cols: dict[str, str]) -> pl.DataFrame:
+        """Add patient codes to DataFrame and replace [PATIENT] tags in processed reports."""
+        clientname_col = input_cols['clientname']
+
+        df = (
+            df.join(
+                datakey.select(['clientname', 'code']),
+                left_on=clientname_col,
+                right_on='clientname',
+                how='left',
+                coalesce=True,
+            )
+            .rename({'code': 'clientcode'})
+            .select('clientcode', pl.all().exclude('clientcode'))
+        )
+
+        processed_cols = [col for col in df.columns if col.startswith('processed_report_')]
+        return df.with_columns(
+            [
+                pl.col(col).str.replace_all(r'\[PATIENT\]', pl.format('[{}]', pl.col('clientcode')))
+                for col in processed_cols
+            ]
+        )
 
     def deidentify_text_debug(self) -> None:
         """Only show de-identification results if logger is in debug mode."""

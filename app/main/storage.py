@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Custom storage functionality for the API."""
+"""Custom storage functionality for the application."""
 
 from django.core.files.storage import FileSystemStorage
 

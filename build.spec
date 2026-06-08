@@ -9,12 +9,9 @@ import deduce
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
 
 sys.path.insert(0, str(Path(SPECPATH) / 'app'))
-from main.version import write_version
+from main.version import get_version
 
-# Write the latest git tag to version.txt
-version_file = write_version(Path(SPECPATH) / 'app' / 'version.txt')
-
-print(f'\nCore build: {version_file}\n')
+print(f'\nCore build: {get_version()}\n')
 
 # Check build OS
 windows = sys.platform == 'win32'

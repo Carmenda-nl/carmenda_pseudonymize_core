@@ -55,15 +55,15 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
 
         clientname_col = input_cols_dict.get('clientname')
         has_clientname = clientname_col in df.columns
-        report_col = input_cols_dict.get('report')
-        has_report = report_col in df.columns
+        report_cols = [value.strip() for key, value in input_cols_dict.items() if key.startswith('report')]
+        missing_reports = [col for col in report_cols if col and col not in df.columns]
     else:
         message = f'Input file "{input_file_path}" could not be loaded.'
         logger.error(message)
         return json.dumps({'error': message})
 
-    if not has_report:
-        message = f'Report column "{report_col}" not found in input data.'
+    if not report_cols or missing_reports:
+        message = f'Report column not found in input data: {", ".join(missing_reports)}.'
         logger.error(message)
         return json.dumps({'error': message})
 
@@ -74,7 +74,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
         df = df.with_columns(pl.col(clientname_col).str.strip_chars())
 
         processed_datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
-        datakey_filename = Path(datakey).name if datakey else f'{Path(input_file).stem}_key.csv'
+        datakey_filename = f'{Path(input_file).stem}_key.csv'
         save_datakey(processed_datakey, input_file, output_folder, datakey_filename)
     else:
         logger.info('Clientname not provided, skipping datakey creation.\n')
@@ -84,7 +84,7 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     handler = DeidentifyHandler()
 
     if has_clientname:
-        df = handler.replace_synonym(df, processed_datakey, input_cols_dict)
+        df = handler.replace_synonym(df, processed_datakey, report_cols)
         df = handler.deidentify_text(df, processed_datakey, input_cols_dict)
         df = handler.add_clientcodes(df, processed_datakey, input_cols_dict)
     else:
@@ -98,11 +98,15 @@ def process_data(input_file: str, input_cols: str, output_cols: str, datakey: st
     if 'clientcode' in df.columns and 'clientname' in input_cols_dict:
         rename_headers['clientcode'] = input_cols_dict['clientname']
 
-    if 'processed_report' in df.columns and 'report' in input_cols_dict:
-        rename_headers['processed_report'] = input_cols_dict['report']
+    rename_headers.update(
+        {
+            f'processed_report_{index}': input_cols_dict[report_key]
+            for index, report_key in enumerate((key for key in input_cols_dict if key.startswith('report')), start=1)
+            if f'processed_report_{index}' in df.columns
+        }
+    )
 
-    if rename_headers:
-        df = df.rename(rename_headers)
+    df = df.rename(rename_headers)
 
     # Show pseudonymized reports in debug mode and when NOT running as a frozen executable
     if logger.level == logging.DEBUG and not getattr(sys, 'frozen', False):

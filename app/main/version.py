@@ -5,39 +5,22 @@
 
 """Application version information."""
 
-import sys
 from pathlib import Path
+
+from main._version import __version__
 
 FILE_DIR = Path(__file__).parent
 
-VERSION_FILE = (
-    Path(sys._MEIPASS) / 'app' / 'version.txt' if hasattr(sys, '_MEIPASS') else FILE_DIR.parent / 'version.txt'
-)
-
 
 def get_version() -> str:
-    """When frozen git or git.exe is unavailable, so create version.txt as fallback."""
+    """Resolve version from git tag or _version.py."""
     try:
         import git
-
-        git_status = 'available'
     except ImportError:
-        git_status = 'unavailable'
-
-    if not hasattr(sys, '_MEIPASS') and git_status == 'available':
-        repo = git.Repo(FILE_DIR, search_parent_directories=True)
-        return repo.git.describe('--tags', '--abbrev=0')
+        return __version__
 
     try:
-        return VERSION_FILE.read_text(encoding='utf-8').strip()
-    except FileNotFoundError:
-        return 'unknown'
-
-
-def write_version(target: Path | None = None) -> str:
-    """Write the current version to a file."""
-    version = get_version()
-    path = target or VERSION_FILE
-    path.write_text(version, encoding='utf-8')
-
-    return version
+        repo = git.Repo(FILE_DIR, search_parent_directories=True)
+        return repo.git.describe('--tags', '--abbrev=0')
+    except (git.GitCommandError, git.InvalidGitRepositoryError):
+        return __version__

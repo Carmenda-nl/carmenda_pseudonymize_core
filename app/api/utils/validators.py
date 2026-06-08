@@ -210,8 +210,9 @@ def validate_input_cols(value: str) -> str:
         val = match.group(2)
         field_dict[key] = val
 
-    if 'report' not in field_dict:
-        message = _("The 'report' key must be present (report=value)")
+    has_report = 'report' in field_dict or any(key.startswith('report_') for key in field_dict)
+    if not has_report:
+        message = _("A 'report' key must be present (report=value)")
         raise serializers.ValidationError(message)
 
     return value

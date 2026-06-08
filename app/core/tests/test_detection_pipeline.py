@@ -69,7 +69,7 @@ def test_name_detection_pipeline() -> None:
         logger.info('\nTEST CASE %d:', case_number)
         logger.info('  Client:  Client name: %s (%s)', row['clientname'], row['client_initials'])
         logger.info("  Input:   '%s'", row['report'])
-        logger.info("  Output:  '%s'\n", row['processed_report'])
+        logger.info("  Output:  '%s'\n", row['processed_report_1'])
 
         # Show what the detector alone would find for comparison
         custom_annotations = handler.name_detection.names_case_insensitive(row['report'])

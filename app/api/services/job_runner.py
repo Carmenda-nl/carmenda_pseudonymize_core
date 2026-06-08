@@ -12,6 +12,7 @@ Responsible for:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from pathlib import Path
@@ -34,12 +35,12 @@ def _handle_process_completion(current_job: DeidentificationJob, processor: str,
     current_job.processed_preview = processed_data
     current_job.save()
 
-    # Set job fields for files created by the core processor
     job_output_dir = Path(settings.MEDIA_ROOT) / 'output' / str(current_job.job_id)
+    datakey_output_name = f'{Path(file).stem}_key.csv'
 
     core_files = [
         ('output_file', job_output_dir / f'{Path(file).stem}_pseudonymised{Path(file).suffix}'),
-        ('output_datakey', next(job_output_dir.glob('*_key.csv'), None)),
+        ('output_datakey', job_output_dir / datakey_output_name),
         ('skipped_lines', next(job_output_dir.glob('*_skipped_lines.csv'), None)),
     ]
 
@@ -79,28 +80,19 @@ def run_processing(job_id: str, input_file: str, input_cols: str, output_cols: s
     job_handler = setup_job_logging(job_id, input_file, current_job)
 
     try:
-        with job_control.run_job(job_id):
+        with job_control.run_job(job_id), contextlib.closing(job_handler):
             processor = process_data(
-                input_file=input_file,
-                input_cols=input_cols,
-                output_cols=output_cols,
-                datakey=datakey,
+                input_file=input_file, input_cols=input_cols, output_cols=output_cols, datakey=datakey
             )
-
             _handle_process_completion(current_job, processor, input_file)
-
     except JobCancelledError:
         _handle_process_cancellation(job_id)
     except Exception as error:
         logger.exception('Unexpected error during run process %s', job_id)
         _handle_process_error(job_id, error)
     finally:
-        deidentify_logger = logging.getLogger('deidentify')
-        deidentify_logger.removeHandler(job_handler)
-        job_handler.close()
+        logging.getLogger('deidentify').removeHandler(job_handler)
 
-        try:
-            # Ensure the progress bar is finalized to avoid leftover UI/console output
+        # Ensure the progress bar is finalized to avoid leftover UI/console output
+        with contextlib.suppress(AttributeError, RuntimeError):
             tracker.clean_progress_bar()
-        except (AttributeError, RuntimeError) as error:
-            logger.debug('Failed to finalize progress for %s: %s', job_id, error)
