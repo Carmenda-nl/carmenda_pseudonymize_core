@@ -75,19 +75,17 @@ jobs:
             echo "tag=${{ steps.version_from_releases.outputs.stable_tag }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Remove beta tag locally for release notes generation
-        if: steps.determine_tag.outputs.has_beta == 'true'
-        run: git tag -d "${{ steps.determine_tag.outputs.beta_tag }}" || true
-
-      - name: Get release notes
-        id: release_notes
-        uses: orhun/git-cliff-action@v4.7.1
-        with:
-          config: cliff.toml
-          args: --tag ${{ steps.set_tag.outputs.tag }} --unreleased --strip header
-        env:
-          GITHUB_REPO: ${{ github.repository }}
-          OUTPUT: release_notes.md
+      - name: Get release notes from CHANGELOG
+        run: |
+          python3 << 'EOF'
+          import re
+          stable = '${{ steps.set_tag.outputs.tag }}'.lstrip('v')
+          with open('CHANGELOG.md', 'r') as f:
+              content = f.read()
+          match = re.search(r'(## \[' + re.escape(stable) + r'\].*?)(?=\n## \[|\Z)', content, re.DOTALL)
+          with open('release_notes.md', 'w') as f:
+              f.write(match.group(1).strip() if match else '')
+          EOF
 
       - name: Download beta release assets
         if: steps.determine_tag.outputs.has_beta == 'true'
@@ -149,41 +147,6 @@ jobs:
           echo "Deleted beta tag"
 
           echo "Promotion complete: ${{ steps.determine_tag.outputs.beta_tag }} → ${{ steps.determine_tag.outputs.stable_tag }}"
-
-      - name: Update CHANGELOG.md
-        if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
-        run: |
-          python3 << 'EOF'
-          import re
-          stable_ver = '${{ steps.set_tag.outputs.tag }}'.lstrip('v')
-          beta_ver = '${{ steps.determine_tag.outputs.beta_tag }}'.lstrip('v')
-          with open('release_notes.md', 'r') as f:
-              new_entry = f.read().strip()
-          with open('CHANGELOG.md', 'r') as f:
-              content = f.read()
-          for ver in [stable_ver, beta_ver]:
-              if ver:
-                  pattern = r'## \[' + re.escape(ver) + r'\].*?(?=\n## \[|\Z)'
-                  content = re.sub(pattern, '', content, flags=re.DOTALL)
-          match = re.search(r'\n(## \[)', content)
-          if match:
-              pos = match.start() + 1
-              content = content[:pos] + new_entry + '\n\n' + content[pos:]
-          else:
-              content = content.rstrip() + '\n\n' + new_entry + '\n'
-          content = re.sub(r'\n{3,}', '\n\n', content)
-          with open('CHANGELOG.md', 'w') as f:
-              f.write(content)
-          EOF
-
-      - name: Commit CHANGELOG.md
-        if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          git diff --cached --quiet || git commit -m "chore(release): update CHANGELOG.md for ${{ steps.set_tag.outputs.tag }}"
-          git push origin HEAD:main
 
       - name: Trigger frontend build
         if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
