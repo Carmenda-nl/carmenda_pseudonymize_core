@@ -38,7 +38,7 @@ jobs:
 
       - name: Update _version.py to stable
         run: |
-          echo '__version__ = "${{ steps.version.outputs.stable }}"' > app/main/_version.py
+          echo "__version__ = '${{ steps.version.outputs.stable }}'" > app/main/_version.py
 
       - name: Strip -beta from CHANGELOG.md
         run: |
