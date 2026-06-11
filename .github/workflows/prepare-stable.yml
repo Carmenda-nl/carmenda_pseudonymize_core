@@ -1,0 +1,53 @@
+# GitHub Actions workflow
+# This workflow prepares the stable version before merging develop into main.
+# It strips the -beta suffix from _version.py and CHANGELOG.md on develop,
+# so that main receives the correct stable version after merge.
+#
+# Triggered on:
+#   - PULL REQUEST from develop to main is opened or updated
+
+name: Prepare stable version
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-stable-version:
+    if: github.event.pull_request.head.ref == 'develop'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v6.0.3
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Determine stable version
+        id: version
+        run: |
+          VERSION=$(cat app/main/_version.py | grep -oP '(?<=").*(?=")')
+          STABLE="${VERSION%-beta}"
+          echo "stable=$STABLE" >> $GITHUB_OUTPUT
+
+      - name: Update _version.py to stable
+        run: |
+          echo "__version__ = '${{ steps.version.outputs.stable }}'" > app/main/_version.py
+
+      - name: Strip -beta from CHANGELOG.md
+        run: |
+          sed -i 's/\[${{ steps.version.outputs.stable }}-beta\]/[${{ steps.version.outputs.stable }}]/g' CHANGELOG.md
+
+      - name: Commit stable version and CHANGELOG
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/main/_version.py CHANGELOG.md
+          git diff --cached --quiet || git commit -m "chore(release): bump version to ${{ steps.version.outputs.stable }}"
+          git push origin develop
