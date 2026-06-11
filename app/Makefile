@@ -1,10 +1,7 @@
-.PHONY: dev prod lint format test typecheck
+.PHONY: run prod lint format test typecheck
 
-dev:
-	uv run fastapi dev
-
-prod:
-	uv run fastapi run
+run:
+	uv run python run.py
 
 lint:
 	uv run ruff check .
