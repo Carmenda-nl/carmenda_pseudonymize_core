@@ -10,13 +10,16 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 
 from core.utils.csv_handler import detect_csv_properties, load_csv
-from core.utils.progress_tracker import tracker
 
 from .logger import setup_logging
+
+if TYPE_CHECKING:
+    from core.utils.progress_tracker import ProgressTracker
 
 logger = setup_logging()
 
@@ -41,7 +44,7 @@ def get_environment() -> tuple[str, str]:
     return input_folder, output_folder
 
 
-def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
+def load_datafile(input_file: str, output_folder: str, tracker: ProgressTracker) -> pl.DataFrame | None:
     """Load datafile and return as a DataFrame."""
     file_path = Path(input_file)
     if not file_path.is_file():
@@ -52,7 +55,7 @@ def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
     logger.info('%s file of size: %s bytes', input_extension, file_size)
 
     if input_extension.lower() == '.csv':
-        df = load_csv(file_path, output_folder)
+        df = load_csv(file_path, output_folder, tracker=tracker)
     elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
         df = pl.read_excel(source=input_file, raise_if_empty=False)
     else:
@@ -105,12 +108,12 @@ def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 
-def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datakey_name: str | None = None) -> str | None:
+def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, key_name: str | None = None) -> str | None:
     """Save the processed datakey to a CSV file for future use."""
     filepath = Path(filename)
     parent = filepath.parent
 
-    output_filename = datakey_name or f'{filepath.stem}_key.csv'
+    output_filename = key_name or f'{filepath.stem}_key.csv'
 
     # If filename included a parent (like job_id), write into that subfolder under output.
     target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)

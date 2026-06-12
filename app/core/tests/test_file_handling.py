@@ -22,6 +22,7 @@ from core.utils.file_handling import (
     save_datafile,
     save_datakey,
 )
+from core.utils.progress_tracker import ProgressTracker
 
 # ----------------------------------- FIXTURES ------------------------------------ #
 
@@ -92,7 +93,7 @@ class TestLoadDatafile:
 
     def test_file_not_exists_returns_none(self, tmp_path: Path) -> None:
         """Non-existent file returns None."""
-        assert load_datafile(str(tmp_path / 'nonexistent.csv'), str(tmp_path)) is None
+        assert load_datafile(str(tmp_path / 'nonexistent.csv'), str(tmp_path), ProgressTracker()) is None
 
     def test_basic_csv_loads_correctly(self, csv_file: Path, output_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Basic CSV file returns a Polars DataFrame with correct structure."""
@@ -111,7 +112,7 @@ class TestLoadDatafile:
         monkeypatch.setattr(csv_handler, '_sanitize_csv', mock_sanitize)
         monkeypatch.setattr(csv_handler, '_normalize_csv', mock_normalize)
 
-        result = load_datafile(str(csv_file), str(output_dir))
+        result = load_datafile(str(csv_file), str(output_dir), ProgressTracker())
 
         assert isinstance(result, pl.DataFrame)
         assert result.columns == ['name', 'age', 'city']
@@ -123,7 +124,7 @@ class TestLoadDatafile:
         txt_file.write_text('some text', encoding='utf-8')
 
         with caplog.at_level(logging.WARNING):
-            result = load_datafile(str(txt_file), str(tmp_path))
+            result = load_datafile(str(txt_file), str(tmp_path), ProgressTracker())
 
         assert result is None
         assert 'Unsupported file type' in caplog.text
@@ -273,10 +274,10 @@ class TestSaveDatakey:
         assert 'Jan,J,C001' in content
 
     def test_custom_datakey_name(self, tmp_path: Path) -> None:
-        """Custom datakey_name is used as output filename."""
+        """Custom key_name is used as output filename."""
         df = pl.DataFrame({'clientname': ['Jan'], 'synonyms': ['J'], 'code': ['C001']})
 
-        save_datakey(df, 'test.csv', str(tmp_path), datakey_name='custom.csv')
+        save_datakey(df, 'test.csv', str(tmp_path), key_name='custom.csv')
 
         assert (tmp_path / 'custom.csv').exists()
         assert not (tmp_path / 'test_key.csv').exists()
