@@ -13,7 +13,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from api import router
-from api.endpoints.process import cleanup_temp, shutdown_worker
+from api.endpoints.process import cleanup_output, cleanup_temp, shutdown_worker
 from main._version import __version__ as app_version
 from main.config import settings
 
@@ -27,6 +27,7 @@ logging.getLogger('asyncio').setLevel(logging.WARNING)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Wipe stale jobs at startup; on shutdown, properly cancel any running job."""
+    cleanup_output()
     cleanup_temp()
     yield
     shutdown_worker()
