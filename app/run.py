@@ -6,20 +6,36 @@
 """FastAPI base and Swagger config."""
 
 import logging
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import uvicorn
 from fastapi import FastAPI
 
 from api import router
-from main._version import __version__
+from api.endpoints.process import cleanup_temp, shutdown_worker
+from main._version import __version__ as app_version
 from main.config import settings
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+# Silence asyncio
 logging.getLogger('asyncio').setLevel(logging.WARNING)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+    """Wipe stale jobs at startup; on shutdown, properly cancel any running job."""
+    cleanup_temp()
+    yield
+    shutdown_worker()
 
 
 app = FastAPI(
     title='Carmenda deduce',
-    version=__version__,
+    version=app_version,
+    lifespan=lifespan,
     swagger_ui_parameters={'defaultModelsExpandDepth': -1},
     docs_url='/docs' if settings.debug else None,
     openapi_url='/openapi.json' if settings.debug else None,
