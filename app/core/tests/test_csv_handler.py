@@ -12,7 +12,6 @@ import logging
 from pathlib import Path
 
 import pytest
-
 from core.utils.csv_handler import (
     _detect_delimiter,
     _detect_encoding,
