@@ -23,19 +23,9 @@ def _get_log_level(arg_log_level: str | None = None) -> int:
 
 
 def setup_logging(log_level: str | None = None) -> logging.Logger:
-    """Set up comprehensive logging with log levels."""
+    """Set up the deidentify logger. The log file itself is only open while a job runs."""
     level: int = _get_log_level(log_level)
-    log_path = Path(__file__).resolve().parent.parent.parent / 'data/output'
 
-    try:
-        log_path.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        warnings.warn(f'Cannot create log directory "{log_path}": {error}', stacklevel=2)
-
-    # Create formatters
-    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    # Setup deidentify logger
     logger = logging.getLogger('deidentify')
     logger.setLevel(level)
     logger.propagate = True
@@ -46,32 +36,34 @@ def setup_logging(log_level: str | None = None) -> logging.Logger:
             handler.close()
         logger.handlers.clear()
 
-    job_only = os.environ.get('JOB_LOG_ONLY', 'false').lower() == 'true'
-
-    if not job_only:
-        log_file_path = log_path / 'deidentification.log'
-        try:
-            log_file_path.open('w', encoding='utf-8').close()  # <-- reset log file
-            file_handler = logging.FileHandler(str(log_file_path), encoding='utf-8')
-            file_handler.setFormatter(file_formatter)
-            file_handler.setLevel(logging.INFO)
-            logger.addHandler(file_handler)
-        except (OSError, PermissionError) as error:
-            warnings.warn(f'Cannot create log file "{log_file_path}": {error}', stacklevel=2)
-
-    # debug file handler if log level is DEBUG
-    if log_level == logging.DEBUG:
-        debug_file_path = log_path / 'debug.log'
-
-        try:
-            debug_handler = logging.FileHandler(str(debug_file_path), encoding='utf-8')
-            debug_handler.setFormatter(file_formatter)
-            debug_handler.setLevel(logging.DEBUG)
-            logger.addHandler(debug_handler)
-        except (OSError, PermissionError) as error:
-            warnings.warn(f'Cannot create debug log file "{debug_file_path}": {error}', stacklevel=2)
-
     return logger
+
+
+def attach_job_log() -> logging.FileHandler | None:
+    """Open the job log file and attach it to the deidentify logger for the duration of a job."""
+    log_path = Path(__file__).resolve().parent.parent.parent / 'data/output'
+    log_file_path = log_path / 'deidentification.log'
+
+    try:
+        log_path.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(str(log_file_path), mode='w', encoding='utf-8')
+    except (OSError, PermissionError) as error:
+        warnings.warn(f'Cannot create log file "{log_file_path}": {error}', stacklevel=2)
+        return None
+
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    file_handler.setLevel(logging.INFO)
+    logging.getLogger('deidentify').addHandler(file_handler)
+    return file_handler
+
+
+def detach_job_log(file_handler: logging.FileHandler | None) -> None:
+    """Detach and close the job log file, so it is no longer locked between jobs."""
+    if file_handler is None:
+        return
+
+    logging.getLogger('deidentify').removeHandler(file_handler)
+    file_handler.close()
 
 
 def setup_clean_logger() -> logging.Logger:
