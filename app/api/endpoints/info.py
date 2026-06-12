@@ -14,7 +14,7 @@ from main.config import settings
 router = APIRouter(tags=['Info'])
 
 
-@router.get('/info', response_model=InfoResponse)
+@router.get('/api/info', response_model=InfoResponse)
 def app_info() -> JSONResponse:
     """Returns if the api is healthy with status and current base settings."""
     return JSONResponse(
