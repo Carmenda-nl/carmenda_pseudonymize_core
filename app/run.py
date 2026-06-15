@@ -37,6 +37,7 @@ app = FastAPI(
     docs_url='/docs' if settings.debug else None,
     openapi_url='/openapi.json' if settings.debug else None,
     redoc_url=None,
+    openapi_tags=[{'name': 'Info'}, {'name': 'Process engine'}, {'name': 'Output'}],
 )
 
 app.include_router(router)

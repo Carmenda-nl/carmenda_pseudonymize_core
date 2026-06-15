@@ -8,13 +8,11 @@
 from fastapi import APIRouter
 
 from api.endpoints.app_info import router as info_router
-from api.endpoints.download import router as download_router
-from api.endpoints.job_status import router as status_router
+from api.endpoints.output import router as output_router
 from api.endpoints.process import router as process_router
 
 router = APIRouter()
 
 router.include_router(info_router)
 router.include_router(process_router)
-router.include_router(status_router)
-router.include_router(download_router)
+router.include_router(output_router)
