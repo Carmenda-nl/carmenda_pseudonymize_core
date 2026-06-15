@@ -159,13 +159,14 @@ class TestSaveDatafile:
 
         assert (output_folder / 'test_pseudonymised.csv').exists()
 
-    def test_with_parent_creates_subfolder(self, tmp_path: Path) -> None:
-        """Filename with parent path creates subfolder in output."""
+    def test_ignores_parent_writes_flat_into_output(self, tmp_path: Path) -> None:
+        """Filename with a parent path is written flat into the output folder, ignoring the parent."""
         df = pl.DataFrame({'name': ['Alice']})
 
         save_datafile(df, 'job123/data.csv', str(tmp_path / 'output'))
 
-        assert (tmp_path / 'output' / 'job123' / 'data_pseudonymised.csv').exists()
+        assert (tmp_path / 'output' / 'data_pseudonymised.csv').exists()
+        assert not (tmp_path / 'output' / 'job123').exists()
 
     def test_oserror_logs_warning(
         self,

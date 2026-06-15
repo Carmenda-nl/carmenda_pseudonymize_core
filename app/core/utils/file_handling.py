@@ -71,10 +71,7 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> str | 
     """Save processed DataFrame to file in the specified output folder."""
     filepath = Path(filename)
     stem = filepath.stem
-    parent = filepath.parent
-
-    # If filename included a parent (like job_id), write into that subfolder under output.
-    target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
+    target_dir = Path(output_folder)
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -111,12 +108,9 @@ def load_datakey(datakey_path: str) -> pl.DataFrame | None:
 def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, key_name: str | None = None) -> str | None:
     """Save the processed datakey to a CSV file for future use."""
     filepath = Path(filename)
-    parent = filepath.parent
-
     output_filename = key_name or f'{filepath.stem}_key.csv'
 
-    # If filename included a parent (like job_id), write into that subfolder under output.
-    target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
+    target_dir = Path(output_folder)
     file_path = target_dir / output_filename
 
     try:
