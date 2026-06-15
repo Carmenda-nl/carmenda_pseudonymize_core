@@ -1,4 +1,4 @@
-.PHONY: run prod lint format test typecheck
+.PHONY: run prod lint format test typecheck check
 
 run:
 	uv run python run.py
@@ -14,3 +14,5 @@ test:
 
 typecheck:
 	uv run mypy .
+
+check: format lint typecheck test
