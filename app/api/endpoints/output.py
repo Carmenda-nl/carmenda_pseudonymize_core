@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 
 from api.endpoints.process import worker
 from api.schemas import ErrorResponse, ProcessResponse, ProgressResponse
@@ -30,11 +30,11 @@ router = APIRouter(tags=['Output'])
     response_model=ProgressResponse,
     responses={404: {'model': ErrorResponse, 'description': 'No process submitted'}},
 )
-def get_progress() -> JSONResponse:
+def get_progress() -> ProgressResponse:
     """Return the progress of the current process."""
     if worker.tracker is None:
         raise HTTPException(status_code=404, detail='No process submitted')
-    return JSONResponse(content=worker.tracker.get_progress())
+    return ProgressResponse(**worker.tracker.get_progress())
 
 
 @router.get(
@@ -46,7 +46,7 @@ def get_progress() -> JSONResponse:
         500: {'model': ErrorResponse, 'description': 'Process failed'},
     },
 )
-def get_result() -> JSONResponse:
+def get_result() -> ProcessResponse:
     """Return the result of the current process once it has completed."""
     if worker.tracker is None:
         raise HTTPException(status_code=404, detail='No process submitted')
@@ -56,17 +56,17 @@ def get_result() -> JSONResponse:
     if 'error' in worker.result:
         raise HTTPException(status_code=500, detail=worker.result['error'])
 
-    response: dict = {
-        'preview': worker.result['preview'],
-        'metrics': worker.result['metrics'],
-        'output_url': f'/api/download/{Path(worker.result["output_file"]).name}',
-    }
+    response = ProcessResponse(
+        preview=worker.result['preview'],
+        metrics=worker.result['metrics'],
+        output_url=f'/api/download/{Path(worker.result["output_file"]).name}',
+    )
     if worker.result.get('datakey'):
-        response['datakey_url'] = f'/api/download/{Path(worker.result["datakey"]).name}'
+        response.datakey_url = f'/api/download/{Path(worker.result["datakey"]).name}'
     if worker.result.get('log'):
-        response['log_url'] = f'/api/download/{Path(worker.result["log"]).name}'
+        response.log_url = f'/api/download/{Path(worker.result["log"]).name}'
 
-    return JSONResponse(content=response)
+    return response
 
 
 @router.get(

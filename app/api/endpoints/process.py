@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
 from starlette.status import HTTP_202_ACCEPTED
 
 from api.schemas import ErrorResponse, FileField, InputCols, OptionalFileField, StatusResponse
@@ -117,8 +116,10 @@ def shutdown_worker() -> None:
     response_model=StatusResponse,
     responses={409: {'model': ErrorResponse, 'description': 'A process is already running'}},
 )
-async def process_file(input_file: FileField, input_cols: InputCols, datakey: OptionalFileField = None) -> JSONResponse:
-    """Accept a pseudonymization process and run in it."""
+async def process_file(
+    input_file: FileField, input_cols: InputCols, datakey: OptionalFileField = None
+) -> StatusResponse:
+    """Run a pseudonymization process session."""
     if worker.is_running:
         raise HTTPException(status_code=409, detail='A process is already running')
 
@@ -152,7 +153,7 @@ async def process_file(input_file: FileField, input_cols: InputCols, datakey: Op
         temp_dir,
     )
 
-    return JSONResponse(content={'status': 'accepted'}, status_code=HTTP_202_ACCEPTED)
+    return StatusResponse(status='accepted')
 
 
 @router.delete(
@@ -161,10 +162,10 @@ async def process_file(input_file: FileField, input_cols: InputCols, datakey: Op
     response_model=StatusResponse,
     responses={404: {'model': ErrorResponse, 'description': 'No process running'}},
 )
-async def cancel_process() -> JSONResponse:
+def cancel_process() -> StatusResponse:
     """Cancel the currently running process; it aborts at its next checkpoint and frees the worker."""
     if worker.tracker is None or not worker.is_running:
         raise HTTPException(status_code=404, detail='No process running')
 
     worker.tracker.cancel()
-    return JSONResponse(content={'status': 'cancelling'}, status_code=HTTP_202_ACCEPTED)
+    return StatusResponse(status='cancelling')

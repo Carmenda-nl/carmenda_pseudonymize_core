@@ -6,7 +6,6 @@
 """Health check & application info endpoint."""
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 
 from api.schemas import InfoResponse
 from main.config import settings
@@ -15,14 +14,12 @@ router = APIRouter(tags=['Info'])
 
 
 @router.get('/api/info', response_model=InfoResponse)
-def app_info() -> JSONResponse:
+def app_info() -> InfoResponse:
     """Returns if the api is healthy with status and current base settings."""
-    return JSONResponse(
-        content={
-            'status': 'ok',
-            'host': settings.host,
-            'port': settings.port,
-            'debug': settings.debug,
-            'log_level': settings.log_level,
-        }
+    return InfoResponse(
+        status='ok',
+        host=settings.host,
+        port=settings.port,
+        debug=settings.debug,
+        log_level=settings.log_level,
     )
