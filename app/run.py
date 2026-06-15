@@ -5,7 +5,6 @@
 
 """FastAPI base and Swagger config."""
 
-import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -19,9 +18,6 @@ from main.config import settings
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
-
-# Silence asyncio
-logging.getLogger('asyncio').setLevel(logging.WARNING)
 
 
 @asynccontextmanager

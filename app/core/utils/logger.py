@@ -12,19 +12,17 @@ import os
 import warnings
 from pathlib import Path
 
+from dotenv import load_dotenv
 
-def _get_log_level(arg_log_level: str | None = None) -> int:
-    """Get log level from argument or environment variable."""
-    if arg_log_level:
-        return logging.getLevelName(arg_log_level.upper())
-
-    log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
-    return logging.getLevelName(log_level)
+load_dotenv()
 
 
-def setup_logging(log_level: str | None = None) -> logging.Logger:
+def setup_logging() -> logging.Logger:
     """Set up the deidentify logger. The log file itself is only open while a job runs."""
-    level: int = _get_log_level(log_level)
+    level: int = logging.getLevelName(os.environ.get('LOG_LEVEL', 'INFO').upper())
+
+    # Silence asyncio debug log
+    logging.getLogger('asyncio').setLevel(logging.WARNING)
 
     logger = logging.getLogger('deidentify')
     logger.setLevel(level)
@@ -76,24 +74,6 @@ def setup_clean_logger() -> logging.Logger:
         logger.handlers.clear()
 
     # Add console handler with no formatting
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter('%(message)s'))
-    logger.addHandler(console_handler)
-    logger.propagate = False
-
-    return logger
-
-
-def setup_progress_logger() -> logging.Logger:
-    """Set up a dedicated logger for progress tracking that outputs to console."""
-    logger = logging.getLogger('progress')
-    logger.setLevel(logging.DEBUG)
-
-    # Remove existing handlers to prevent duplicates
-    if logger.hasHandlers():
-        logger.handlers.clear()
-
-    # Add console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter('%(message)s'))
     logger.addHandler(console_handler)
