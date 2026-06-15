@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 
 import polars as pl
-
 import pytest
+
 from core.utils import csv_handler, file_handling
 from core.utils.file_handling import (
     get_environment,
