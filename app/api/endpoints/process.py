@@ -86,6 +86,7 @@ def _run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey
         # Clean up first, then publish the result — setting worker.result marks the process as done
         with contextlib.suppress(Exception):
             tracker.clean_progress_bar()
+        tracker.mark_done()
         detach_job_log(log_handler)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
