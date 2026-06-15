@@ -65,7 +65,7 @@ def _detect_encoding(data_sample: bytes) -> str:
         if encoding.lower() == 'ascii':
             encoding = 'utf-8'
 
-    except (LookupError, ValueError, TypeError, OSError):
+    except LookupError, ValueError, TypeError, OSError:
         logger.warning('Encoding detection failed, defaults to UTF-8 encoding.')
         encoding = 'utf-8'
 
