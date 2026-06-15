@@ -19,17 +19,13 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from api.endpoints.process import worker
-from api.schemas import ErrorResponse, ProcessResponse, ProgressResponse
+from api.schemas import ProcessResponse, ProgressResponse, error_responses
 from core.utils.file_handling import get_environment
 
 router = APIRouter(tags=['Output'])
 
 
-@router.get(
-    '/api/progress',
-    response_model=ProgressResponse,
-    responses={404: {'model': ErrorResponse, 'description': 'No process submitted'}},
-)
+@router.get('/api/progress', responses=error_responses((404, 'No process submitted')))
 def get_progress() -> ProgressResponse:
     """Return the progress of the current process."""
     if worker.tracker is None:
@@ -39,12 +35,11 @@ def get_progress() -> ProgressResponse:
 
 @router.get(
     '/api/process',
-    response_model=ProcessResponse,
-    responses={
-        404: {'model': ErrorResponse, 'description': 'No process submitted'},
-        409: {'model': ErrorResponse, 'description': 'Process still running'},
-        500: {'model': ErrorResponse, 'description': 'Process failed'},
-    },
+    responses=error_responses(
+        (404, 'No process submitted'),
+        (409, 'Process still running'),
+        (500, 'Process failed'),
+    ),
 )
 def get_result() -> ProcessResponse:
     """Return the result of the current process once it has completed."""
@@ -69,13 +64,7 @@ def get_result() -> ProcessResponse:
     return response
 
 
-@router.get(
-    '/api/download/{filename}',
-    responses={
-        400: {'model': ErrorResponse, 'description': 'Invalid filename'},
-        404: {'model': ErrorResponse, 'description': 'File not found'},
-    },
-)
+@router.get('/api/download/{filename}', responses=error_responses((400, 'Invalid filename'), (404, 'File not found')))
 def download_file(filename: str) -> FileResponse:
     """Download a processed output file by filename (output, datakey or log)."""
     output_folder = get_environment()[1]

@@ -49,6 +49,11 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+def error_responses(*responses: tuple[int, str]) -> dict[int | str, dict[str, Any]]:
+    """Build an OpenAPI `responses` dict mapping status codes to ErrorResponse descriptions."""
+    return {status_code: {'model': ErrorResponse, 'description': description} for status_code, description in responses}
+
+
 class MetricsSchema(BaseModel):
     """Timing and row-count metrics for a completed pseudonymization run."""
 

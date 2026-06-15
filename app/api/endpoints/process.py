@@ -25,7 +25,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_202_ACCEPTED
 
-from api.schemas import ErrorResponse, FileField, InputCols, OptionalFileField, StatusResponse
+from api.schemas import FileField, InputCols, OptionalFileField, StatusResponse, error_responses
 from core.processor import process_data
 from core.utils.file_handling import get_environment
 from core.utils.logger import attach_job_log, detach_job_log
@@ -78,12 +78,7 @@ def _run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey
     """Runs process_data on the worker thread and stores the result on the worker state."""
     log_handler = attach_job_log()
     try:
-        result = process_data(
-            file=input_file,
-            input_cols=input_cols,
-            tracker=tracker,
-            datakey=datakey,
-        )
+        result = process_data(file=input_file, input_cols=input_cols, tracker=tracker, datakey=datakey)
     except Exception as exc:  # noqa: BLE001 — a failed or cancelled process must free the worker, not crash it
         # Polars wraps exceptions from the row loop, so use our own message for cancellations
         result = {'error': 'Process was cancelled' if tracker.cancel_requested else str(exc)}
@@ -110,15 +105,8 @@ def shutdown_worker() -> None:
         time.sleep(0.1)
 
 
-@router.post(
-    '/api/process',
-    status_code=HTTP_202_ACCEPTED,
-    response_model=StatusResponse,
-    responses={409: {'model': ErrorResponse, 'description': 'A process is already running'}},
-)
-async def process_file(
-    input_file: FileField, input_cols: InputCols, datakey: OptionalFileField = None
-) -> StatusResponse:
+@router.post('/api/process', status_code=HTTP_202_ACCEPTED, responses=error_responses((409, 'A process is running')))
+async def process_file(file: FileField, input_cols: InputCols, datakey: OptionalFileField = None) -> StatusResponse:
     """Run a pseudonymization process session."""
     if worker.is_running:
         raise HTTPException(status_code=409, detail='A process is already running')
@@ -129,10 +117,10 @@ async def process_file(
     temp_dir = tempfile.mkdtemp(prefix='input_', dir=TEMP_ROOT)
     work_dir = Path(temp_dir)
 
-    input_suffix = Path(input_file.filename).suffix if input_file.filename else ''
+    input_suffix = Path(file.filename).suffix if file.filename else ''
     input_path = work_dir / f'input{input_suffix}'
     with input_path.open('wb') as f:
-        shutil.copyfileobj(input_file.file, f)
+        shutil.copyfileobj(file.file, f)
 
     datakey_path = None
     if datakey and datakey.filename:
@@ -156,12 +144,7 @@ async def process_file(
     return StatusResponse(status='accepted')
 
 
-@router.delete(
-    '/api/process',
-    status_code=HTTP_202_ACCEPTED,
-    response_model=StatusResponse,
-    responses={404: {'model': ErrorResponse, 'description': 'No process running'}},
-)
+@router.delete('/api/process', status_code=HTTP_202_ACCEPTED, responses=error_responses((404, 'No process running')))
 def cancel_process() -> StatusResponse:
     """Cancel the currently running process; it aborts at its next checkpoint and frees the worker."""
     if worker.tracker is None or not worker.is_running:
