@@ -33,7 +33,7 @@ class InfoResponse(BaseModel):
     status: str
     host: str
     port: int
-    debug: str
+    debug: bool
     log_level: str
 
 

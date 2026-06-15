@@ -34,7 +34,7 @@ def get_progress() -> ProgressResponse:
     """Return the progress of the current process."""
     if worker.tracker is None:
         raise HTTPException(status_code=404, detail='No process submitted')
-    return ProgressResponse(**worker.tracker.get_progress())
+    return ProgressResponse.model_validate(worker.tracker.get_progress())
 
 
 @router.get(
