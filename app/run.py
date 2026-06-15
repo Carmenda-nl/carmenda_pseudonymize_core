@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-    """Wipe stale jobs at startup; on shutdown, properly cancel any running job."""
+    """Wipe stale data at startup; on shutdown, properly cancel any running process."""
     cleanup_output()
     cleanup_temp()
     yield

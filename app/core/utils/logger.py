@@ -18,7 +18,7 @@ load_dotenv()
 
 
 def setup_logging() -> logging.Logger:
-    """Set up the deidentify logger. The log file itself is only open while a job runs."""
+    """Set up the deidentify logger. The log file itself is only open while a process runs."""
     level: int = logging.getLevelName(os.environ.get('LOG_LEVEL', 'INFO').upper())
 
     # Silence asyncio debug log
@@ -38,7 +38,7 @@ def setup_logging() -> logging.Logger:
 
 
 def attach_job_log() -> logging.FileHandler | None:
-    """Open the job log file and attach it to the deidentify logger for the duration of a job."""
+    """Open the process log file and attach it to the deidentify logger for the duration of a process."""
     log_path = Path(__file__).resolve().parent.parent.parent / 'data/output'
     log_file_path = log_path / 'deidentification.log'
 
@@ -56,7 +56,7 @@ def attach_job_log() -> logging.FileHandler | None:
 
 
 def detach_job_log(file_handler: logging.FileHandler | None) -> None:
-    """Detach and close the job log file, so it is no longer locked between jobs."""
+    """Detach and close the process log file, so it is no longer locked between processes."""
     if file_handler is None:
         return
 

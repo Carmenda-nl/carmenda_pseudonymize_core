@@ -6,8 +6,8 @@
 """Output endpoints.
 
 Provides API endpoints for:
-    - Polling the progress of the running job
-    - Retrieving the result of a completed job
+    - Polling the progress of the running process
+    - Retrieving the result of a completed process
     - Downloading output files (result, datakey or log)
 """
 
@@ -28,12 +28,12 @@ router = APIRouter(tags=['Output'])
 @router.get(
     '/api/progress',
     response_model=ProgressResponse,
-    responses={404: {'model': ErrorResponse, 'description': 'No job submitted'}},
+    responses={404: {'model': ErrorResponse, 'description': 'No process submitted'}},
 )
 def get_progress() -> JSONResponse:
-    """Return the progress of the current job."""
+    """Return the progress of the current process."""
     if worker.tracker is None:
-        raise HTTPException(status_code=404, detail='No job submitted')
+        raise HTTPException(status_code=404, detail='No process submitted')
     return JSONResponse(content=worker.tracker.get_progress())
 
 
@@ -41,17 +41,17 @@ def get_progress() -> JSONResponse:
     '/api/process',
     response_model=ProcessResponse,
     responses={
-        404: {'model': ErrorResponse, 'description': 'No job submitted'},
-        409: {'model': ErrorResponse, 'description': 'Job still running'},
-        500: {'model': ErrorResponse, 'description': 'Job failed'},
+        404: {'model': ErrorResponse, 'description': 'No process submitted'},
+        409: {'model': ErrorResponse, 'description': 'Process still running'},
+        500: {'model': ErrorResponse, 'description': 'Process failed'},
     },
 )
 def get_result() -> JSONResponse:
-    """Return the result of the current job once it has completed."""
+    """Return the result of the current process once it has completed."""
     if worker.tracker is None:
-        raise HTTPException(status_code=404, detail='No job submitted')
+        raise HTTPException(status_code=404, detail='No process submitted')
     if worker.result is None:
-        raise HTTPException(status_code=409, detail='Job still running')
+        raise HTTPException(status_code=409, detail='Process still running')
 
     if 'error' in worker.result:
         raise HTTPException(status_code=500, detail=worker.result['error'])

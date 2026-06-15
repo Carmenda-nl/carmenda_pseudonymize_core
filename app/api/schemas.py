@@ -60,7 +60,7 @@ class MetricsSchema(BaseModel):
 
 
 class ProcessResponse(BaseModel):
-    """Result payload returned after a completed pseudonymization job."""
+    """Result payload returned after a completed pseudonymization process."""
 
     preview: list[dict[str, Any]]
     metrics: MetricsSchema
@@ -70,7 +70,7 @@ class ProcessResponse(BaseModel):
 
 
 class ProgressResponse(BaseModel):
-    """Progress payload reporting the current state of an ongoing pseudonymization job."""
+    """Progress payload reporting the current state of an ongoing pseudonymization process."""
 
     stage: str | None
     percentage: int

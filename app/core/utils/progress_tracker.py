@@ -35,13 +35,13 @@ logger = setup_logging()
 
 
 class JobCancelledError(Exception):
-    """Raised inside the processing thread when the job has been cancelled.
+    """Raised inside the processing thread when the process has been cancelled.
 
     The message parameter is required because polars re-creates the exception
     with a message argument when it propagates out of a map_batches UDF.
     """
 
-    def __init__(self, message: str = 'Job was cancelled') -> None:
+    def __init__(self, message: str = 'Process was cancelled') -> None:
         """Initialize the exception with a default message."""
         super().__init__(message)
 

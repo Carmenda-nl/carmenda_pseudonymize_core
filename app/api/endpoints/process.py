@@ -5,10 +5,10 @@
 
 """Process engine endpoints.
 
-The engine is a worker that processes a single job at a time.
+The engine is a worker that processes a single process at a time.
 
 Provides API endpoints for:
-    - Submitting a pseudonymization job (rejected with 409 while one is running)
+    - Submitting a pseudonymization process (rejected with 409 while one is running)
 """
 
 from __future__ import annotations
@@ -37,35 +37,35 @@ router = APIRouter(tags=['Process engine'])
 
 @dataclasses.dataclass
 class Worker:
-    """State of this single-job worker — the gateway polls progress and fetches the result."""
+    """State of this single-process worker — the gateway polls progress and fetches the result."""
 
     tracker: ProgressTracker | None = None
     result: dict[str, Any] | None = None
 
     @property
     def is_running(self) -> bool:
-        """Whether a job is currently being processed (started but no result yet)."""
+        """Whether a process is currently being processed (started but no result yet)."""
         return self.tracker is not None and self.result is None
 
 
 worker = Worker()
 
 # Dedicated worker thread, independent of the HTTP request/response cycle.
-# max_workers=1 also enforces the single-job principle at execution level.
-executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='job')
+# max_workers=1 also enforces the single-process principle at execution level.
+executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='process')
 
-# All job input files live under one dedicated temp root, so leftovers
+# All process input files live under one dedicated temp root, so leftovers
 # from a hard-killed process can be wiped safely at the next startup.
 TEMP_ROOT = Path(tempfile.gettempdir()) / 'carmenda_deduce'
 
 
 def cleanup_temp() -> None:
-    """Remove input files left behind when a previous process was killed mid-job."""
+    """Remove input files left behind when a previous process was killed mid-process."""
     shutil.rmtree(TEMP_ROOT, ignore_errors=True)
 
 
 def cleanup_output() -> None:
-    """Remove job artifacts from the output folder; the gateway downloads them right after each job."""
+    """Remove artifacts from the output folder; the gateway downloads them right after each process."""
     _, output_folder = get_environment()
     output_root = Path(output_folder)
 
@@ -85,11 +85,11 @@ def _run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey
             tracker=tracker,
             datakey=datakey,
         )
-    except Exception as exc:  # noqa: BLE001 — a failed or cancelled job must free the worker, not crash it
+    except Exception as exc:  # noqa: BLE001 — a failed or cancelled process must free the worker, not crash it
         # Polars wraps exceptions from the row loop, so use our own message for cancellations
-        result = {'error': 'Job was cancelled' if tracker.cancel_requested else str(exc)}
+        result = {'error': 'Process was cancelled' if tracker.cancel_requested else str(exc)}
     finally:
-        # Clean up first, then publish the result — setting worker.result marks the job as done
+        # Clean up first, then publish the result — setting worker.result marks the process as done
         with contextlib.suppress(Exception):
             tracker.clean_progress_bar()
         detach_job_log(log_handler)
@@ -102,7 +102,7 @@ def _run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey
 
 
 def shutdown_worker() -> None:
-    """Cancel the running job (if any) and wait until its cleanup has finished."""
+    """Cancel the running process (if any) and wait until its cleanup has finished."""
     if worker.tracker is not None:
         worker.tracker.cancel()
 
@@ -115,12 +115,12 @@ def shutdown_worker() -> None:
     '/api/process',
     status_code=HTTP_202_ACCEPTED,
     response_model=StatusResponse,
-    responses={409: {'model': ErrorResponse, 'description': 'A job is already running'}},
+    responses={409: {'model': ErrorResponse, 'description': 'A process is already running'}},
 )
 async def process_file(input_file: FileField, input_cols: InputCols, datakey: OptionalFileField = None) -> JSONResponse:
-    """Accept a pseudonymization job and run in it."""
+    """Accept a pseudonymization process and run in it."""
     if worker.is_running:
-        raise HTTPException(status_code=409, detail='A job is already running')
+        raise HTTPException(status_code=409, detail='A process is already running')
 
     cleanup_output()
 
@@ -159,12 +159,12 @@ async def process_file(input_file: FileField, input_cols: InputCols, datakey: Op
     '/api/process',
     status_code=HTTP_202_ACCEPTED,
     response_model=StatusResponse,
-    responses={404: {'model': ErrorResponse, 'description': 'No job running'}},
+    responses={404: {'model': ErrorResponse, 'description': 'No process running'}},
 )
 async def cancel_process() -> JSONResponse:
-    """Cancel the currently running job; it aborts at its next checkpoint and frees the worker."""
+    """Cancel the currently running process; it aborts at its next checkpoint and frees the worker."""
     if worker.tracker is None or not worker.is_running:
-        raise HTTPException(status_code=404, detail='No job running')
+        raise HTTPException(status_code=404, detail='No process running')
 
     worker.tracker.cancel()
     return JSONResponse(content={'status': 'cancelling'}, status_code=HTTP_202_ACCEPTED)
