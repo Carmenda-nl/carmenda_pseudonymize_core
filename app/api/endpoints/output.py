@@ -45,12 +45,12 @@ async def get_result() -> JSONResponse:
     response: dict = {
         'preview': worker.result['preview'],
         'metrics': worker.result['metrics'],
-        'output_url': f'/api/download/{Path(worker.result["output_path"]).name}',
+        'output_url': f'/api/download/{Path(worker.result["output_file"]).name}',
     }
-    if worker.result.get('datakey_path'):
-        response['datakey_url'] = f'/api/download/{Path(worker.result["datakey_path"]).name}'
-    if worker.result.get('log_path'):
-        response['log_url'] = f'/api/download/{Path(worker.result["log_path"]).name}'
+    if worker.result.get('datakey'):
+        response['datakey_url'] = f'/api/download/{Path(worker.result["datakey"]).name}'
+    if worker.result.get('log'):
+        response['log_url'] = f'/api/download/{Path(worker.result["log"]).name}'
 
     return JSONResponse(content=response)
 
