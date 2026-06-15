@@ -90,9 +90,6 @@ def _run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey
         detach_job_log(log_handler)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-        if 'error' in result:
-            cleanup_output()
-
         worker.result = result
 
 
