@@ -110,7 +110,8 @@ def detect_csv_properties(file_path: Path) -> dict[str, str]:
 def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> None:
     """Collect encoding errors and write them to a separate CSV file."""
     error_file = Path(error_temp)
-    error_count = sum(1 for _ in error_file.open(encoding='utf-8')) - 1
+    with error_file.open(encoding='utf-8') as file:
+        error_count = sum(1 for _ in file) - 1
 
     if error_count > 0:
         try:
