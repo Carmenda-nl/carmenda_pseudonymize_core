@@ -19,22 +19,34 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.endpoints.process import worker
-from api.schemas import ProcessResponse, ProgressResponse
+from api.schemas import ErrorResponse, ProcessResponse, ProgressResponse
 from core.utils.file_handling import get_environment
 
 router = APIRouter(tags=['Output'])
 
 
-@router.get('/api/progress', response_model=ProgressResponse)
-async def get_progress() -> JSONResponse:
+@router.get(
+    '/api/progress',
+    response_model=ProgressResponse,
+    responses={404: {'model': ErrorResponse, 'description': 'No job submitted'}},
+)
+def get_progress() -> JSONResponse:
     """Return the progress of the current job."""
     if worker.tracker is None:
         raise HTTPException(status_code=404, detail='No job submitted')
     return JSONResponse(content=worker.tracker.get_progress())
 
 
-@router.get('/api/process', response_model=ProcessResponse)
-async def get_result() -> JSONResponse:
+@router.get(
+    '/api/process',
+    response_model=ProcessResponse,
+    responses={
+        404: {'model': ErrorResponse, 'description': 'No job submitted'},
+        409: {'model': ErrorResponse, 'description': 'Job still running'},
+        500: {'model': ErrorResponse, 'description': 'Job failed'},
+    },
+)
+def get_result() -> JSONResponse:
     """Return the result of the current job once it has completed."""
     if worker.tracker is None:
         raise HTTPException(status_code=404, detail='No job submitted')
@@ -57,7 +69,13 @@ async def get_result() -> JSONResponse:
     return JSONResponse(content=response)
 
 
-@router.get('/api/download/{filename}')
+@router.get(
+    '/api/download/{filename}',
+    responses={
+        400: {'model': ErrorResponse, 'description': 'Invalid filename'},
+        404: {'model': ErrorResponse, 'description': 'File not found'},
+    },
+)
 def download_file(filename: str) -> FileResponse:
     """Download a processed output file by filename (output, datakey or log)."""
     output_folder = get_environment()[1]

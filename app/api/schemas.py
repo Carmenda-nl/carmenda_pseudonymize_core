@@ -43,6 +43,12 @@ class StatusResponse(BaseModel):
     status: str
 
 
+class ErrorResponse(BaseModel):
+    """Error detail payload returned for non-2xx responses."""
+
+    detail: str
+
+
 class MetricsSchema(BaseModel):
     """Timing and row-count metrics for a completed pseudonymization run."""
 

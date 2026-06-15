@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_202_ACCEPTED
 
-from api.schemas import FileField, InputCols, OptionalFileField, StatusResponse
+from api.schemas import ErrorResponse, FileField, InputCols, OptionalFileField, StatusResponse
 from core.processor import process_data
 from core.utils.file_handling import get_environment
 from core.utils.logger import attach_job_log, detach_job_log
@@ -94,6 +94,10 @@ def _run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey
             tracker.clean_progress_bar()
         detach_job_log(log_handler)
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+        if 'error' in result:
+            cleanup_output()
+
         worker.result = result
 
 
@@ -107,7 +111,12 @@ def shutdown_worker() -> None:
         time.sleep(0.1)
 
 
-@router.post('/api/process', status_code=HTTP_202_ACCEPTED, response_model=StatusResponse)
+@router.post(
+    '/api/process',
+    status_code=HTTP_202_ACCEPTED,
+    response_model=StatusResponse,
+    responses={409: {'model': ErrorResponse, 'description': 'A job is already running'}},
+)
 async def process_file(input_file: FileField, input_cols: InputCols, datakey: OptionalFileField = None) -> JSONResponse:
     """Accept a pseudonymization job and run in it."""
     if worker.is_running:
@@ -146,7 +155,12 @@ async def process_file(input_file: FileField, input_cols: InputCols, datakey: Op
     return JSONResponse(content={'status': 'accepted'}, status_code=HTTP_202_ACCEPTED)
 
 
-@router.delete('/api/process', status_code=HTTP_202_ACCEPTED, response_model=StatusResponse)
+@router.delete(
+    '/api/process',
+    status_code=HTTP_202_ACCEPTED,
+    response_model=StatusResponse,
+    responses={404: {'model': ErrorResponse, 'description': 'No job running'}},
+)
 async def cancel_process() -> JSONResponse:
     """Cancel the currently running job; it aborts at its next checkpoint and frees the worker."""
     if worker.tracker is None or not worker.is_running:
