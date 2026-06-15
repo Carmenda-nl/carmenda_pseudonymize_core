@@ -3,7 +3,7 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""FastAPI form and file field type aliases for the pseudonymization API."""
+"""Request and response schemas for the pseudonymization API."""
 
 from typing import Annotated, Any
 
@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 FileField = Annotated[
     UploadFile,
-    File(description='The report file to pseudonymize. Supported formats: .xlsx, .csv'),
+    File(description='The report file to process in the supported formats.'),
 ]
 OptionalFileField = Annotated[
     UploadFile | None,
@@ -27,6 +27,22 @@ InputCols = Annotated[
 ]
 
 
+class InfoResponse(BaseModel):
+    """Health check & app info response."""
+
+    status: str
+    host: str
+    port: int
+    debug: str
+    log_level: str
+
+
+class StatusResponse(BaseModel):
+    """Simple status response."""
+
+    status: str
+
+
 class MetricsSchema(BaseModel):
     """Timing and row-count metrics for a completed pseudonymization run."""
 
@@ -38,7 +54,7 @@ class MetricsSchema(BaseModel):
 
 
 class ProcessResponse(BaseModel):
-    """Response payload returned after a successful pseudonymization request."""
+    """Result payload returned after a completed pseudonymization job."""
 
     preview: list[dict[str, Any]]
     metrics: MetricsSchema
@@ -48,7 +64,7 @@ class ProcessResponse(BaseModel):
 
 
 class ProgressResponse(BaseModel):
-    """SSE payload reporting the current progress of an ongoing pseudonymization job."""
+    """Progress payload reporting the current state of an ongoing pseudonymization job."""
 
     stage: str | None
     percentage: int
