@@ -5,8 +5,10 @@
 
 """Output endpoints.
 
-The engine is a worker that processes a single job at a time.
-
+Provides API endpoints for:
+    - Polling the progress of the running job
+    - Retrieving the result of a completed job
+    - Downloading output files (result, datakey or log)
 """
 
 from __future__ import annotations
