@@ -69,7 +69,7 @@ def cleanup_output() -> None:
     output_root = Path(output_folder)
 
     with contextlib.suppress(OSError):
-        for pattern in ('input_pseudonymised*', 'input_key*', '*.log'):
+        for pattern in ('*_pseudonymised*', '*_key*', '*.log'):
             for artifact in output_root.glob(pattern):
                 artifact.unlink(missing_ok=True)
 
@@ -105,9 +105,16 @@ def shutdown_worker() -> None:
         time.sleep(0.1)
 
 
-@router.post('/api/process', status_code=HTTP_202_ACCEPTED, responses=error_responses((409, 'A process is running')))
+@router.post(
+    '/api/process',
+    status_code=HTTP_202_ACCEPTED,
+    responses=error_responses((400, 'Missing filename'), (409, 'A process is running')),
+)
 async def process_file(file: FileField, input_cols: InputCols, datakey: OptionalFileField = None) -> StatusResponse:
     """Run a pseudonymization process session."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail='Missing filename')
+
     if worker.is_running:
         raise HTTPException(status_code=409, detail='A process is already running')
 
@@ -117,8 +124,8 @@ async def process_file(file: FileField, input_cols: InputCols, datakey: Optional
     temp_dir = tempfile.mkdtemp(prefix='input_', dir=TEMP_ROOT)
     work_dir = Path(temp_dir)
 
-    input_suffix = Path(file.filename).suffix if file.filename else ''
-    input_path = work_dir / f'input{input_suffix}'
+    input_filename = Path(file.filename).name
+    input_path = work_dir / input_filename
     with input_path.open('wb') as f:
         shutil.copyfileobj(file.file, f)
 
