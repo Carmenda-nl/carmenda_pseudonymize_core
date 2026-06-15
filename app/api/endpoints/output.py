@@ -37,7 +37,7 @@ def get_progress() -> ProgressResponse:
     '/api/process',
     responses=error_responses(
         (404, 'No process submitted'),
-        (409, 'Process still running'),
+        (409, 'Process is still running'),
         (500, 'Process failed'),
     ),
 )
@@ -46,7 +46,7 @@ def get_result() -> ProcessResponse:
     if worker.tracker is None:
         raise HTTPException(status_code=404, detail='No process submitted')
     if worker.result is None:
-        raise HTTPException(status_code=409, detail='Process still running')
+        raise HTTPException(status_code=409, detail='Process is still running')
 
     if 'error' in worker.result:
         raise HTTPException(status_code=500, detail=worker.result['error'])

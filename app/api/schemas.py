@@ -22,7 +22,7 @@ InputCols = Annotated[
     str,
     Form(
         description="Comma-separated column mappings in key=value format. At least one 'report' key is required.",
-        json_schema_extra={'example': 'report=Report, clientname=Patient'},
+        json_schema_extra={'example': 'clientname=Patient, report=Report'},
     ),
 ]
 
