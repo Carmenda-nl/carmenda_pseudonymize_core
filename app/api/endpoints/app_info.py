@@ -3,7 +3,11 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""Health check & application info endpoint."""
+"""Health check & application info endpoint.
+
+Provides API endpoints for:
+    - Health check and current base settings (`GET /api/info`)
+"""
 
 from fastapi import APIRouter
 
