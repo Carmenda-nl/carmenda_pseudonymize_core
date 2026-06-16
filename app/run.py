@@ -5,14 +5,18 @@
 
 """FastAPI base and Swagger config."""
 
+import shutil
+import tempfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import uvicorn
 from fastapi import FastAPI
 
 from api import router
-from api.endpoints.process import cleanup_output, cleanup_temp, shutdown_worker
+from api.endpoints.process import cleanup_output
+from api.utils.worker import shutdown_worker
 from main._version import __version__ as app_version
 from main.config import settings
 
@@ -24,7 +28,9 @@ if TYPE_CHECKING:
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Wipe stale data at startup; on shutdown, properly cancel any running process."""
     cleanup_output()
-    cleanup_temp()
+    temp_root = Path(tempfile.gettempdir()) / 'Carmenda'
+    shutil.rmtree(temp_root, ignore_errors=True)
+
     yield
     shutdown_worker()
 

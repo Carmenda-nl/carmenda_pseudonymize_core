@@ -8,151 +8,68 @@
 The engine is a worker that processes a single process at a time.
 
 Provides API endpoints for:
-    - Submitting a pseudonymization process (rejected with 409 while one is running)
+   - Submitting a pseudonymization process (rejected with 409 while one is running)
+   - cancel a pseudonymization process (404 if none is running)
 """
 
 from __future__ import annotations
 
-import contextlib
-import dataclasses
 import shutil
 import tempfile
-import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_202_ACCEPTED
 
 from api.schemas import FileField, InputCols, OptionalFileField, StatusResponse, error_responses
-from core.processor import process_data
-from core.utils.file_handling import get_environment
-from core.utils.logger import attach_job_log, detach_job_log
+from api.utils.file_handling import cleanup_output
+from api.utils.worker import run_job, worker
 from core.utils.progress_tracker import ProgressTracker
 
 router = APIRouter(tags=['Process engine'])
-
-
-@dataclasses.dataclass
-class Worker:
-    """State of this single-process worker — the gateway polls progress and fetches the result."""
-
-    tracker: ProgressTracker | None = None
-    result: dict[str, Any] | None = None
-
-    @property
-    def is_running(self) -> bool:
-        """Whether a process is currently being processed (started but no result yet)."""
-        return self.tracker is not None and self.result is None
-
-
-worker = Worker()
-
-# Dedicated worker thread, independent of the HTTP request/response cycle.
-# max_workers=1 also enforces the single-process principle at execution level.
 executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='process')
 
-# All process input files live under one dedicated temp root, so leftovers
-# from a hard-killed process can be wiped safely at the next startup.
-TEMP_ROOT = Path(tempfile.gettempdir()) / 'carmenda_deduce'
 
-
-def cleanup_temp() -> None:
-    """Remove input files left behind when a previous process was killed mid-process."""
-    shutil.rmtree(TEMP_ROOT, ignore_errors=True)
-
-
-def cleanup_output() -> None:
-    """Remove artifacts from the output folder; the gateway downloads them right after each process."""
-    _, output_folder = get_environment()
-    output_root = Path(output_folder)
-
-    with contextlib.suppress(OSError):
-        for pattern in ('*_pseudonymised*', '*_key*', '*.log'):
-            for artifact in output_root.glob(pattern):
-                artifact.unlink(missing_ok=True)
-
-
-def _run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey: str | None, temp_dir: str) -> None:
-    """Runs process_data on the worker thread and stores the result on the worker state."""
-    log_handler = attach_job_log()
-    try:
-        result = process_data(file=input_file, input_cols=input_cols, tracker=tracker, datakey=datakey)
-    except Exception as exc:  # noqa: BLE001 — a failed or cancelled process must free the worker, not crash it
-        # Polars wraps exceptions from the row loop, so use our own message for cancellations
-        result = {'error': 'Process was cancelled' if tracker.cancel_requested else str(exc)}
-    finally:
-        # Clean up first, then publish the result — setting worker.result marks the process as done
-        with contextlib.suppress(Exception):
-            tracker.clean_progress_bar()
-        tracker.mark_done()
-        detach_job_log(log_handler)
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-        worker.result = result
-
-
-def shutdown_worker() -> None:
-    """Cancel the running process (if any) and wait until its cleanup has finished."""
-    if worker.tracker is not None:
-        worker.tracker.cancel()
-
-    deadline = time.time() + 30
-    while worker.is_running and time.time() < deadline:
-        time.sleep(0.1)
-
-
-@router.post(
-    '/api/process',
-    status_code=HTTP_202_ACCEPTED,
-    responses=error_responses((400, 'Missing filename'), (409, 'A process is running')),
-)
+@router.post('/api/process', status_code=HTTP_202_ACCEPTED, responses=error_responses((409, 'A process is running')))
 async def process_file(file: FileField, input_cols: InputCols, datakey: OptionalFileField = None) -> StatusResponse:
-    """Run a pseudonymization process session."""
-    if not file.filename:
-        raise HTTPException(status_code=400, detail='Missing filename')
-
+    """Submit a pseudonymization process session."""
     if worker.is_running:
         raise HTTPException(status_code=409, detail='A process is already running')
 
     cleanup_output()
 
-    TEMP_ROOT.mkdir(exist_ok=True)
-    temp_dir = tempfile.mkdtemp(prefix='input_', dir=TEMP_ROOT)
-    work_dir = Path(temp_dir)
+    temp_root = Path(tempfile.gettempdir()) / 'Carmenda'
+    temp_root.mkdir(exist_ok=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix='input_', dir=temp_root))
 
-    input_filename = Path(file.filename).name
-    input_path = work_dir / input_filename
-    with input_path.open('wb') as f:
-        shutil.copyfileobj(file.file, f)
+    input_filename = Path(cast('str', file.filename)).name
+    temp_path = temp_dir / input_filename
 
-    datakey_path = None
-    if datakey and datakey.filename:
-        datakey_suffix = Path(datakey.filename).suffix
-        datakey_path = work_dir / f'datakey{datakey_suffix}'
-        with datakey_path.open('wb') as f:
-            shutil.copyfileobj(datakey.file, f)
+    with temp_path.open('wb') as process_file:
+        shutil.copyfileobj(file.file, process_file)
+
+    if datakey:
+        datakey_suffix = Path(cast('str', datakey.filename)).suffix
+        datakey_path = temp_dir / f'datakey{datakey_suffix}'
+
+        with datakey_path.open('wb') as datakey_file:
+            shutil.copyfileobj(datakey.file, datakey_file)
+    else:
+        datakey_path = None
 
     worker.tracker = ProgressTracker()
     worker.result = None
 
-    executor.submit(
-        _run_job,
-        worker.tracker,
-        str(input_path),
-        input_cols,
-        str(datakey_path) if datakey_path else None,
-        temp_dir,
-    )
-
+    executor.submit(run_job, worker.tracker, str(temp_path), input_cols, str(datakey_path), str(temp_dir))
     return StatusResponse(status='accepted')
 
 
 @router.delete('/api/process', status_code=HTTP_202_ACCEPTED, responses=error_responses((404, 'No process running')))
 def cancel_process() -> StatusResponse:
-    """Cancel the currently running process; it aborts at its next checkpoint and frees the worker."""
-    if worker.tracker is None or not worker.is_running:
+    """Cancel the running process (if any) and wait until its cleanup has finished."""
+    if worker.tracker is None:
         raise HTTPException(status_code=404, detail='No process running')
 
     worker.tracker.cancel()
