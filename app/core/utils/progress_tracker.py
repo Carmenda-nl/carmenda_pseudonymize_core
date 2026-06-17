@@ -57,7 +57,6 @@ class ProgressTracker:
 
     def __init__(self) -> None:
         """Initialize the progress tracker."""
-        self.status: str = 'running'
         self.stage: str | None = None
         self.percentage: int = 0
         self.rows_total: int | None = None
@@ -174,13 +173,11 @@ class ProgressTracker:
         """
         self.rows_processed = None
         self.rows_total = None
-        self.status = status
         self.stage = status
 
     def get_progress(self) -> dict[str, int | str | None]:
         """Retrieve the overall progress percentage and stage description for real-time reporting."""
         return {
-            'status': self.status,
             'stage': self.stage,
             'percentage': self.percentage,
             'rows_total': self.rows_total,
