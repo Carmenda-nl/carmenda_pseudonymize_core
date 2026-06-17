@@ -57,6 +57,7 @@ class ProgressTracker:
 
     def __init__(self) -> None:
         """Initialize the progress tracker."""
+        self.status: str = 'running'
         self.stage: str | None = None
         self.percentage: int = 0
         self.rows_total: int | None = None
@@ -165,20 +166,21 @@ class ProgressTracker:
 
         logger.debug('Overall progress: %s (%d%%)\n', current_stage[0], self.percentage)
 
-    def mark_done(self) -> None:
-        """Force progress to the terminal 'done' state, even if cancellation was requested.
+    def mark_done(self, status: str = 'done') -> None:
+        """Mark the process as terminal with the given status.
 
-        Ensures the gateway's progress polling always reaches 100%, regardless of
-        whether processing finished normally, returned an error early, or was cancelled.
+        Valid values: 'done', 'cancelled', 'error'.
+        percentage is left at its current value so the gateway sees real progress.
         """
         self.rows_processed = None
         self.rows_total = None
-        self.percentage = 100
-        self.stage = 'done'
+        self.status = status
+        self.stage = status
 
     def get_progress(self) -> dict[str, int | str | None]:
         """Retrieve the overall progress percentage and stage description for real-time reporting."""
         return {
+            'status': self.status,
             'stage': self.stage,
             'percentage': self.percentage,
             'rows_total': self.rows_total,

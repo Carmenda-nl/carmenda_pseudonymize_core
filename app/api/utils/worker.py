@@ -44,16 +44,18 @@ worker = Worker()
 def run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey: str | None, temp_dir: str) -> None:
     """Runs process_data on the worker thread and stores the result on the worker state."""
     log_handler = attach_job_log()
+    status = 'done'
 
     try:
         result = process_data(file=input_file, input_cols=input_cols, tracker=tracker, datakey=datakey)
     except Exception as exc:  # noqa: BLE001 — a failed or cancelled process must free the worker, not crash it.
+        status = 'cancelled' if tracker.cancel_requested else 'error'
         result = {'error': 'Process was cancelled' if tracker.cancel_requested else str(exc)}
     finally:
         with contextlib.suppress(Exception):
             tracker.clean_progress_bar()
 
-        tracker.mark_done()
+        tracker.mark_done(status)
         detach_job_log(log_handler)
         shutil.rmtree(temp_dir, ignore_errors=True)
 

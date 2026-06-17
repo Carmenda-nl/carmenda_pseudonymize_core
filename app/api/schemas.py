@@ -80,6 +80,7 @@ class ProcessResponse(BaseModel):
 class ProgressResponse(BaseModel):
     """Progress payload reporting the current state of an ongoing pseudonymization process."""
 
+    status: str
     stage: str | None
     percentage: int
     rows_total: int | None = None
