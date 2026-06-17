@@ -6,6 +6,4 @@
 """Core package.
 
 This package provides core functionality for pseudonymizing data.
-The main modules include de-identification handlers, Deduce instance management,
-extended name detection, and utility functions for logging and process control.
 """
