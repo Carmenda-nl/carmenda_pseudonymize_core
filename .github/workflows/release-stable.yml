@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
 
@@ -81,7 +81,7 @@ jobs:
 
       - name: Get release notes
         id: release_notes
-        uses: orhun/git-cliff-action@v4.7.1
+        uses: orhun/git-cliff-action@v4.8.0
         with:
           config: cliff.toml
           args: --tag ${{ steps.set_tag.outputs.tag }} --unreleased --strip header
@@ -184,12 +184,3 @@ jobs:
           git add CHANGELOG.md
           git diff --cached --quiet || git commit -m "chore(release): update CHANGELOG.md for ${{ steps.set_tag.outputs.tag }}"
           git push origin HEAD:main
-
-      - name: Trigger frontend build
-        if: steps.create_stable_from_beta.outputs.success == 'true' || steps.create_stable_from_develop.outputs.success == 'true'
-        run: |
-          curl -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: Bearer ${{ secrets.FRONTEND_TRIGGER_TOKEN }}" \
-            https://api.github.com/repos/Carmenda-nl/carmenda_pseudonymize_frontend/dispatches \
-            -d '{"event_type":"backend-release"}'
