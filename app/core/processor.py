@@ -22,9 +22,10 @@ import polars as pl
 
 from core.datakey import process_datakey
 from core.deduce import DeidentifyHandler
-from core.utils.file_handling import get_environment, load_datafile, save_datafile, save_datakey
+from core.utils.file_handling import load_datafile, save_datafile, save_datakey
 from core.utils.logger import setup_logging
 from core.utils.progress_tracker import ProgressTracker, performance_metrics
+from main.config import settings
 
 logger = setup_logging()
 
@@ -43,7 +44,7 @@ def process_data(file: str, input_cols: str, tracker: ProgressTracker, datakey: 
         'Parsed arguments:\n |-- input_file=%s\n |-- input_cols=%s\n |-- datakey=%s\n', file, input_cols, datakey
     )
 
-    input_folder, output_folder = get_environment()
+    input_folder, output_folder = settings.input_folder, settings.output_folder
     json_output: dict[str, Any] = {'datakey_path': None, 'log_path': None}
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #

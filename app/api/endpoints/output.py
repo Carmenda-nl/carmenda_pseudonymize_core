@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse
 
 from api.endpoints.process import worker
 from api.schemas import ProcessResponse, ProgressResponse, error_responses
-from core.utils.file_handling import get_environment
+from main.config import settings
 
 router = APIRouter(tags=['Output'])
 
@@ -67,7 +67,7 @@ def get_result() -> ProcessResponse:
 @router.get('/api/download/{filename}', responses=error_responses((400, 'Invalid filename'), (404, 'File not found')))
 def download_file(filename: str) -> FileResponse:
     """Download a processed output file by filename (output, datakey or log)."""
-    output_folder = get_environment()[1]
+    output_folder = settings.output_folder
     file_path = (Path(output_folder) / filename).resolve()
     output_root = Path(output_folder).resolve()
 

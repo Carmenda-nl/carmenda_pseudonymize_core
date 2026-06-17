@@ -35,6 +35,9 @@ class InfoResponse(BaseModel):
     port: int
     debug: bool
     log_level: str
+    environment: str
+    input_folder: str
+    output_folder: str
 
 
 class StatusResponse(BaseModel):

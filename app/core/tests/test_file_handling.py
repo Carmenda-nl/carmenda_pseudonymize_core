@@ -8,20 +8,13 @@
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 
 import polars as pl
 import pytest
 
 from core.utils import csv_handler, file_handling
-from core.utils.file_handling import (
-    get_environment,
-    load_datafile,
-    load_datakey,
-    save_datafile,
-    save_datakey,
-)
+from core.utils.file_handling import load_datafile, load_datakey, save_datafile, save_datakey
 from core.utils.progress_tracker import ProgressTracker
 
 # ----------------------------------- FIXTURES ------------------------------------ #
@@ -41,48 +34,6 @@ def output_dir(tmp_path: Path) -> Path:
     out = tmp_path / 'output'
     out.mkdir(parents=True, exist_ok=True)
     return out
-
-
-# ----------------------------- GET ENVIRONMENT TESTS ----------------------------- #
-
-
-class TestGetEnvironment:
-    """Tests for get_environment function."""
-
-    @pytest.fixture(autouse=True)
-    def _mock_mkdir(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Mock Path.mkdir for all tests in this class."""
-        monkeypatch.setattr(Path, 'mkdir', lambda _self, **_kwargs: None)
-
-    def test_docker_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Docker environment returns Docker-specific paths."""
-        monkeypatch.setenv('DOCKER_ENV', 'true')
-
-        input_folder, output_folder = get_environment()
-
-        assert input_folder == '/app/data/input'
-        assert output_folder == '/app/data/output'
-
-    def test_script_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Script environment returns relative paths."""
-        monkeypatch.delenv('DOCKER_ENV', raising=False)
-        monkeypatch.delattr(sys, 'frozen', raising=False)
-
-        input_folder, output_folder = get_environment()
-
-        assert input_folder == 'data/input'
-        assert output_folder == 'data/output'
-
-    def test_pyinstaller_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """PyInstaller environment returns _MEIPASS-based paths."""
-        monkeypatch.delenv('DOCKER_ENV', raising=False)
-        monkeypatch.setattr(sys, 'frozen', True, raising=False)
-        monkeypatch.setattr(sys, '_MEIPASS', '/fake/meipass', raising=False)
-
-        input_folder, output_folder = get_environment()
-
-        assert input_folder == str(Path('/fake/meipass') / 'data' / 'input')
-        assert output_folder == str(Path('/fake/meipass') / 'data' / 'output')
 
 
 # ------------------------------ LOAD DATAFILE TESTS ------------------------------ #

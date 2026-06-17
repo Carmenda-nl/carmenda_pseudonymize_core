@@ -49,4 +49,10 @@ app = FastAPI(
 app.include_router(router)
 
 if __name__ == '__main__':
-    uvicorn.run('run:app', host=settings.host, port=settings.port, reload=settings.debug, log_level=settings.log_level)
+    uvicorn.run(
+        app if settings.environment == 'pyinstaller' else 'run:app',
+        reload=settings.debug and settings.environment == 'development',
+        host=settings.host,
+        port=settings.port,
+        log_level=settings.log_level,
+    )

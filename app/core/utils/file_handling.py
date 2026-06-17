@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,26 +20,6 @@ if TYPE_CHECKING:
     from core.utils.progress_tracker import ProgressTracker
 
 logger = setup_logging()
-
-
-def get_environment() -> tuple[str, str]:
-    """Get input and output folder paths based on the current environment."""
-    if os.environ.get('DOCKER_ENV') == 'true':
-        # Docker environment
-        input_folder = '/app/data/input'
-        output_folder = '/app/data/output'
-    elif getattr(sys, 'frozen', False):
-        # PyInstaller environment
-        base_path = Path(getattr(sys, '_MEIPASS', '.'))
-        input_folder = str(base_path / 'data' / 'input')
-        output_folder = str(base_path / 'data' / 'output')
-    else:
-        # Script environment
-        input_folder = 'data/input'
-        output_folder = 'data/output'
-
-    Path(output_folder).mkdir(parents=True, exist_ok=True)
-    return input_folder, output_folder
 
 
 def load_datafile(input_file: str, output_folder: str, tracker: ProgressTracker) -> pl.DataFrame | None:

@@ -10,12 +10,12 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-from core.utils.file_handling import get_environment
+from main.config import settings
 
 
 def cleanup_output() -> None:
     """Remove all files from the output folder."""
-    output_root = Path(get_environment()[1])
+    output_root = Path(settings.output_folder)
 
     with contextlib.suppress(OSError):
         for artifact in output_root.iterdir():
