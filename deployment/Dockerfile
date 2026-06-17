@@ -15,6 +15,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
+
 # Install py packages
 COPY ./app/pyproject.toml ./app/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
