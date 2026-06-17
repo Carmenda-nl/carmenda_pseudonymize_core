@@ -1,0 +1,32 @@
+meta {
+  name: submit
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/process
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  file: @file()
+  input_cols: report=Report
+  ~datakey: @file()
+}
+
+docs {
+  Submit a pseudonymization job.
+
+  Required:
+  - `file`: the report file to process (CSV or Excel)
+  - `input_cols`: comma-separated column mappings, at least one `report` key required
+    Example: `clientname=Patient, report=Report`
+
+  Optional:
+  - `datakey`: datakey file for consistent pseudonymization across sessions
+
+  Returns 202 `{status: 'accepted'}` on success.
+  Returns 409 if a process is already running.
+}

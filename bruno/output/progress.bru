@@ -1,0 +1,18 @@
+meta {
+  name: progress
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/progress
+  body: none
+  auth: none
+}
+
+docs {
+  Poll the progress of the current process.
+  Returns `status` (`running` | `done` | `cancelled` | `error`), `stage`, `percentage`,
+  `rows_total`, and `rows_processed`.
+  Returns 404 if no process has been submitted yet.
+}

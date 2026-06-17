@@ -153,7 +153,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='backend',
+    name='carmenda-deduce-engine',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
@@ -168,4 +168,4 @@ exe = EXE(
     entitlements_file=None,
 )
 
-coll = COLLECT(exe, a.binaries, a.datas, a.scripts, strip=False, upx=True, upx_exclude=[], name='backend')
+coll = COLLECT(exe, a.binaries, a.datas, a.scripts, strip=False, upx=True, upx_exclude=[], name='carmenda-deduce-engine')

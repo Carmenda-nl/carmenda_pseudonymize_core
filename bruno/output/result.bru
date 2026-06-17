@@ -1,0 +1,33 @@
+meta {
+  name: result
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/process
+  body: none
+  auth: none
+}
+
+script:post-response {
+  const data = res.getBody();
+  const outputUrl = data?.output_url;
+
+  if (outputUrl) {
+    const filename = outputUrl.split('/').pop();
+    bru.setEnvVar('outputFile', filename);
+  }
+}
+
+docs {
+  Retrieve the result of a completed process.
+  Returns `preview` (list of rows), `metrics` (`total_rows`, `hours`, `minutes`, `seconds`,
+  `time_per_row`), `output_url`, and optionally `datakey_url` and `log_url`.
+
+  Returns 404 if no process has been submitted.
+  Returns 409 if the process is still running.
+  Returns 500 if the process failed.
+
+  The output filename is automatically saved to the `outputFile` environment variable.
+}
