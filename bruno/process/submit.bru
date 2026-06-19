@@ -6,27 +6,32 @@ meta {
 
 post {
   url: {{baseUrl}}/api/process
-  body: multipartForm
+  body: form-urlencoded
   auth: none
 }
 
-body:multipart-form {
-  file: @file()
-  input_cols: report=Report
-  ~datakey: @file()
+body:form-urlencoded {
+  file: data/input/report.csv
+  cols: report=Report
+  job_id: job-001
+  datakey:
 }
 
 docs {
-  Submit a pseudonymization job.
+  Submit a pseudonymization job for a file already on the shared volume.
 
   Required:
-  - `file`: the report file to process (CSV or Excel)
-  - `input_cols`: comma-separated column mappings, at least one `report` key required
+  - `file`: path to the report file (CSV or Excel); must resolve inside `input_folder`
+  - `cols`: comma-separated column mappings, at least one `report` key required
     Example: `clientname=Patient, report=Report`
+  - `job_id`: gateway job identifier; the engine writes its output into
+    `output_folder/{job_id}` and tags the run so progress/result polls can be matched to it
 
   Optional:
-  - `datakey`: datakey file for consistent pseudonymization across sessions
+  - `datakey`: path to a datakey file for consistent pseudonymization across sessions
 
   Returns 202 `{status: 'accepted'}` on success.
+  Returns 400 if `file_path` resolves outside `input_folder`, or `job_id` escapes `output_folder`.
+  Returns 404 if `file_path` does not exist.
   Returns 409 if a process is already running.
 }

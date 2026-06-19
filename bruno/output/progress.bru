@@ -5,14 +5,18 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/api/progress
+  url: {{baseUrl}}/api/progress?job_id=job-001
   body: none
   auth: none
 }
 
+params:query {
+  job_id: job-001
+}
+
 docs {
-  Poll the progress of the current process.
+  Poll the progress of the process submitted under `job_id`.
   Returns `stage` (`running stage label` | `done` | `cancelled` | `error`), `percentage`,
   `rows_total`, and `rows_processed`.
-  Returns 404 if no process has been submitted yet.
+  Returns 404 if no process has been submitted under this `job_id`.
 }
