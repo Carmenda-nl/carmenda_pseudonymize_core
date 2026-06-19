@@ -14,55 +14,72 @@ Provides API endpoints for:
 
 from __future__ import annotations
 
-import shutil
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import cast
 
 from fastapi import APIRouter, HTTPException
 from starlette.status import HTTP_202_ACCEPTED
 
-from api.schemas import FileField, InputCols, OptionalFileField, StatusResponse, error_responses
+from api.schemas import DatakeyPath, FilePath, InputCols, JobId, StatusResponse, error_responses
 from api.utils.file_handling import cleanup_output
 from api.utils.worker import run_job, worker
 from core.utils.progress_tracker import ProgressTracker
+from main.config import settings
 
 router = APIRouter(tags=['Process engine'])
 executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='process')
 
 
-@router.post('/api/process', status_code=HTTP_202_ACCEPTED, responses=error_responses((409, 'A process is running')))
-async def process_file(file: FileField, input_cols: InputCols, datakey: OptionalFileField = None) -> StatusResponse:
+@router.post(
+    '/api/process',
+    status_code=HTTP_202_ACCEPTED,
+    responses=error_responses(
+        (409, 'A process is running'),
+        (400, 'Invalid file path'),
+        (404, 'File not found'),
+    ),
+)
+def process_file(file: FilePath, cols: InputCols, job_id: JobId, datakey: DatakeyPath = '') -> StatusResponse:
     """Submit a pseudonymization process session."""
     if worker.is_running:
         raise HTTPException(status_code=409, detail='A process is already running')
 
-    cleanup_output()
+    input_root = Path(settings.input_folder).resolve()
+    file_path = Path(file)
+    input_path = (input_root / job_id / file_path).resolve() if not file_path.is_absolute() else file_path.resolve()
 
-    temp_root = Path(tempfile.gettempdir()) / 'Carmenda'
-    temp_root.mkdir(exist_ok=True)
-    temp_dir = Path(tempfile.mkdtemp(prefix='input_', dir=temp_root))
+    if not input_path.is_relative_to(input_root):
+        raise HTTPException(status_code=400, detail='Invalid file path')
+    if not input_path.exists():
+        raise HTTPException(status_code=404, detail='File not found')
 
-    input_filename = Path(cast('str', file.filename)).name
-    temp_path = temp_dir / input_filename
+    output_root = Path(settings.output_folder).resolve()
+    output_path = (output_root / job_id).resolve()
 
-    with temp_path.open('wb') as process_file:
-        shutil.copyfileobj(file.file, process_file)
+    if not output_path.is_relative_to(output_root):
+        raise HTTPException(status_code=400, detail='Invalid job id')
+
+    output_path.mkdir(parents=True, exist_ok=True)
 
     if datakey:
-        datakey_suffix = Path(cast('str', datakey.filename)).suffix
-        datakey_path = temp_dir / f'datakey{datakey_suffix}'
-
-        with datakey_path.open('wb') as datakey_file:
-            shutil.copyfileobj(datakey.file, datakey_file)
+        datakey_file_path = Path(datakey)
+        datakey_input_path = str(
+            (input_root / job_id / datakey_file_path).resolve()
+            if not datakey_file_path.is_absolute()
+            else datakey_file_path.resolve()
+        )
+        if not Path(datakey_input_path).is_relative_to(input_root):
+            raise HTTPException(status_code=400, detail='Invalid datakey path')
     else:
-        datakey_path = None
+        datakey_input_path = ''
 
+    cleanup_output()
+
+    worker.job_id = job_id
     worker.tracker = ProgressTracker()
     worker.result = None
 
-    executor.submit(run_job, worker.tracker, str(temp_path), input_cols, str(datakey_path), str(temp_dir))
+    executor.submit(run_job, str(input_path), cols, datakey_input_path, worker.tracker, str(output_path))
     return StatusResponse(status='accepted')
 
 

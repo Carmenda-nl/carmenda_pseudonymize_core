@@ -34,7 +34,7 @@ MAX_LAST_PREVIEW_ROWS = 3
 MINIMUM_ROWS = 6
 
 
-def process_data(file: str, input_cols: str, tracker: ProgressTracker, datakey: str | None = None) -> dict[str, Any]:
+def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTracker, output_dir: str) -> dict[str, Any]:
     """Process and pseudonymize data from input file and return the first 10 rows in Json."""
     start_time = time.time()
     tracker.set_progress('start')
@@ -44,12 +44,12 @@ def process_data(file: str, input_cols: str, tracker: ProgressTracker, datakey: 
         'Parsed arguments:\n |-- input_file=%s\n |-- input_cols=%s\n |-- datakey=%s\n', file, input_cols, datakey
     )
 
-    input_folder, output_folder = settings.input_folder, settings.output_folder
+    input_folder, output_folder = settings.input_folder, output_dir
     json_output: dict[str, Any] = {'datakey_path': None, 'log_path': None}
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
-    input_file_path = file if Path(file).is_absolute() else f'{input_folder}/{file}'
+    input_file_path = file
     df = load_datafile(input_file_path, output_folder, tracker=tracker)
 
     if df is not None:

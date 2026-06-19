@@ -7,23 +7,21 @@
 
 from typing import Annotated, Any
 
-from fastapi import File, Form, UploadFile
+from fastapi import Form
 from pydantic import BaseModel
 
-FileField = Annotated[
-    UploadFile,
-    File(description='The report file to process in the supported formats.'),
-]
-OptionalFileField = Annotated[
-    UploadFile | None,
-    File(description='Optional datakey for consistent pseudonymization across sessions.'),
-]
+JobId = Annotated[str, Form(description='Job ID based identifier for subfolder')]
+FilePath = Annotated[str, Form(description='Path to the report file that needs to be processed')]
 InputCols = Annotated[
     str,
     Form(
-        description="Comma-separated column mappings in key=value format. At least one 'report' key is required.",
+        description="Comma-separated column mappings in key=value format. At least one 'report' key is required",
         json_schema_extra={'example': 'clientname=Patient, report=Report'},
     ),
+]
+DatakeyPath = Annotated[
+    str,
+    Form(description='Optional path to a datakey for consistent pseudonymization across sessions'),
 ]
 
 
@@ -72,9 +70,6 @@ class ProcessResponse(BaseModel):
 
     preview: list[dict[str, Any]]
     metrics: MetricsSchema
-    output_url: str
-    datakey_url: str | None = None
-    log_url: str | None = None
 
 
 class ProgressResponse(BaseModel):

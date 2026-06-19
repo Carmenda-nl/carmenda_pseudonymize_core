@@ -37,9 +37,9 @@ def setup_logging() -> logging.Logger:
     return logger
 
 
-def attach_job_log() -> logging.FileHandler | None:
+def attach_job_log(output_dir: str) -> logging.FileHandler | None:
     """Open the process log file and attach it to the deidentify logger for the duration of a process."""
-    log_path = Path(__file__).resolve().parent.parent.parent / 'data/output'
+    log_path = Path(output_dir)
     log_file_path = log_path / 'deidentification.log'
 
     try:

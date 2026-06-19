@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
-import shutil
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +28,7 @@ if TYPE_CHECKING:
 class Worker:
     """State of this single-process worker."""
 
+    job_id: str | None = None
     tracker: ProgressTracker | None = None
     result: dict[str, Any] | None = None
 
@@ -41,13 +41,13 @@ class Worker:
 worker = Worker()
 
 
-def run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey: str | None, temp_dir: str) -> None:
+def run_job(file: str, input_cols: str, datakey: str, tracker: ProgressTracker, output_dir: str) -> None:
     """Runs process_data on the worker thread and stores the result on the worker state."""
-    log_handler = attach_job_log()
+    log_handler = attach_job_log(output_dir)
     status = 'done'
 
     try:
-        result = process_data(file=input_file, input_cols=input_cols, tracker=tracker, datakey=datakey)
+        result = process_data(file=file, input_cols=input_cols, datakey=datakey, tracker=tracker, output_dir=output_dir)
     except Exception as exc:  # noqa: BLE001 — a failed or cancelled process must free the worker, not crash it.
         status = 'cancelled' if tracker.cancel_requested else 'error'
         result = {'error': 'Process was cancelled' if tracker.cancel_requested else str(exc)}
@@ -57,7 +57,6 @@ def run_job(tracker: ProgressTracker, input_file: str, input_cols: str, datakey:
 
         tracker.mark_done(status)
         detach_job_log(log_handler)
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
         worker.result = result
 
