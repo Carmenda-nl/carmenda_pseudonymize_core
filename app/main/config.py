@@ -12,7 +12,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def _detect_env() -> tuple[str, Path, str, str]:
+def _detect_environment() -> tuple[str, Path, str, str]:
     """Get proper folder & file paths based on the current environment."""
     if os.environ.get('DOCKER_ENV') == 'true':
         return 'docker', Path('/app/.env'), '/app/data/input', '/app/data/output'
@@ -22,8 +22,7 @@ def _detect_env() -> tuple[str, Path, str, str]:
     return 'development', Path(__file__).parent.parent / '.env', 'data/input', 'data/output'
 
 
-env, env_file, input_folder, output_folder = _detect_env()
-Path(output_folder).mkdir(parents=True, exist_ok=True)
+env, env_file, input_folder, output_folder = _detect_environment()
 
 
 class Settings(BaseSettings):
