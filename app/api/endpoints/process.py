@@ -39,14 +39,15 @@ executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='process')
         (404, 'File not found'),
     ),
 )
-def process_file(file: FilePath, cols: InputCols, job_id: JobId, datakey: DatakeyPath = '') -> StatusResponse:
+def process_file(file: FilePath, cols: InputCols, job_id: JobId = '', datakey: DatakeyPath = '') -> StatusResponse:
     """Submit a pseudonymization process session."""
     if worker.is_running:
         raise HTTPException(status_code=409, detail='A process is already running')
 
     input_root = Path(settings.input_folder).resolve()
+    base_input = (input_root / job_id).resolve() if job_id else input_root
     file_path = Path(file)
-    input_path = (input_root / job_id / file_path).resolve() if not file_path.is_absolute() else file_path.resolve()
+    input_path = (base_input / file_path).resolve() if not file_path.is_absolute() else file_path.resolve()
 
     if not input_path.is_relative_to(input_root):
         raise HTTPException(status_code=400, detail='Invalid file path')
@@ -54,7 +55,7 @@ def process_file(file: FilePath, cols: InputCols, job_id: JobId, datakey: Datake
         raise HTTPException(status_code=404, detail='File not found')
 
     output_root = Path(settings.output_folder).resolve()
-    output_path = (output_root / job_id).resolve()
+    output_path = (output_root / job_id).resolve() if job_id else output_root
 
     if not output_path.is_relative_to(output_root):
         raise HTTPException(status_code=400, detail='Invalid job id')
@@ -64,7 +65,7 @@ def process_file(file: FilePath, cols: InputCols, job_id: JobId, datakey: Datake
     if datakey:
         datakey_file_path = Path(datakey)
         datakey_input_path = str(
-            (input_root / job_id / datakey_file_path).resolve()
+            (base_input / datakey_file_path).resolve()
             if not datakey_file_path.is_absolute()
             else datakey_file_path.resolve()
         )

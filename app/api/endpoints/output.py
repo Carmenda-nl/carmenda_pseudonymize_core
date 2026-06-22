@@ -21,7 +21,7 @@ router = APIRouter(tags=['Output'])
 
 
 @router.get('/api/progress', responses=error_responses((404, 'No process submitted')))
-def get_progress(job_id: str) -> ProgressResponse:
+def get_progress(job_id: str = '') -> ProgressResponse:
     """Return the progress of the current process."""
     if worker.tracker is None or worker.job_id != job_id:
         raise HTTPException(status_code=404, detail='No process submitted')
@@ -36,7 +36,7 @@ def get_progress(job_id: str) -> ProgressResponse:
         (500, 'Process failed'),
     ),
 )
-def get_result(job_id: str) -> ProcessResponse:
+def get_result(job_id: str = '') -> ProcessResponse:
     """Return the result of the current process once it has completed."""
     if worker.tracker is None or worker.job_id != job_id:
         raise HTTPException(status_code=404, detail='No process submitted')
