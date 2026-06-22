@@ -16,6 +16,7 @@ from main.config import settings
 def cleanup_output() -> None:
     """Remove all files from the output folder."""
     output_root = Path(settings.output_folder)
+    output_root.mkdir(parents=True, exist_ok=True)
 
     for artifact in output_root.iterdir():
         shutil.rmtree(artifact, ignore_errors=True)
