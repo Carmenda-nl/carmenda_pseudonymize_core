@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import anyio
 import uvicorn
 from fastapi import FastAPI
 
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Wipe stale data at startup; on shutdown, properly cancel any running process."""
+    await anyio.Path(settings.input_folder).mkdir(parents=True, exist_ok=True)
     cleanup_output()
     temp_root = Path(tempfile.gettempdir()) / 'Carmenda'
     shutil.rmtree(temp_root, ignore_errors=True)
@@ -52,6 +54,8 @@ if __name__ == '__main__':
     uvicorn.run(
         app if settings.environment == 'pyinstaller' else 'run:app',
         reload=settings.debug and settings.environment == 'development',
+        reload_dirs=[str(Path(__file__).parent)] if settings.debug and settings.environment == 'development' else None,
+        reload_excludes=['data/*'],
         host=settings.host,
         port=settings.port,
         log_level=settings.log_level,
