@@ -13,15 +13,14 @@ from pydantic import BaseModel
 JobId = Annotated[
     str,
     Form(
-        description='Job ID based identifier for subfolder',
-        json_schema_extra={'example': 'job id'}
+        description='Optional Job ID based identifier for creating & isolating a subfolder',
+        json_schema_extra={'example': 'job id'},
     ),
 ]
 FilePath = Annotated[
     str,
     Form(
-        description='Path to the report file that needs to be processed',
-        json_schema_extra={'example': 'path/to/file'}
+        description='Path to the report file that needs to be processed', json_schema_extra={'example': 'path/to/file'}
     ),
 ]
 InputCols = Annotated[
