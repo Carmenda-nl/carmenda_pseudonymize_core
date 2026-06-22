@@ -13,12 +13,15 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 from charset_normalizer import from_bytes
 
 from .logger import setup_logging
-from .progress_tracker import tracker
+
+if TYPE_CHECKING:
+    from .progress_tracker import ProgressTracker
 
 logger = setup_logging()
 
@@ -62,7 +65,7 @@ def _detect_encoding(data_sample: bytes) -> str:
         if encoding.lower() == 'ascii':
             encoding = 'utf-8'
 
-    except (LookupError, ValueError, TypeError, OSError):
+    except LookupError, ValueError, TypeError, OSError:
         logger.warning('Encoding detection failed, defaults to UTF-8 encoding.')
         encoding = 'utf-8'
 
@@ -107,7 +110,8 @@ def detect_csv_properties(file_path: Path) -> dict[str, str]:
 def _collect_errors(file_path: Path, error_temp: str, output_folder: str) -> None:
     """Collect encoding errors and write them to a separate CSV file."""
     error_file = Path(error_temp)
-    error_count = sum(1 for _ in error_file.open(encoding='utf-8')) - 1
+    with error_file.open(encoding='utf-8') as file:
+        error_count = sum(1 for _ in file) - 1
 
     if error_count > 0:
         try:
@@ -155,12 +159,12 @@ def _sanitize_csv(file_path: Path, properties: dict[str, str], output_folder: st
 
             try:
                 text = buffer.decode(encoding)
-            except (UnicodeDecodeError, LookupError):
+            except UnicodeDecodeError, LookupError:
                 for raw_line in buffer.split(b'\n'):
                     try:
                         # handle errors line by line if the chunk contains invalid sequences
                         line = raw_line.decode(encoding)
-                    except (UnicodeDecodeError, LookupError):
+                    except UnicodeDecodeError, LookupError:
                         error_line = raw_line.decode(encoding, errors='replace')
                         error_line = error_line.replace(delimiter, ',')
                         error_temp.write(error_line + '\n')
@@ -211,7 +215,7 @@ def _normalize_csv(file_path: Path, properties: dict[str, str]) -> str:
     return csv_temp.name
 
 
-def load_csv(file_path: Path, output_folder: str) -> pl.DataFrame:
+def load_csv(file_path: Path, output_folder: str, tracker: ProgressTracker) -> pl.DataFrame:
     """Load a CSV file, sanitize and normalize it, and return as a DataFrame."""
     properties = detect_csv_properties(file_path)
 

@@ -34,26 +34,37 @@ from .logger import setup_logging
 logger = setup_logging()
 
 
+class JobCancelledError(Exception):
+    """Raised inside the processing thread when the process has been cancelled.
+
+    The message parameter is required because polars re-creates the exception
+    with a message argument when it propagates out of a map_batches UDF.
+    """
+
+    def __init__(self, message: str = 'Process was cancelled') -> None:
+        """Initialize the exception with a default message."""
+        super().__init__(message)
+
+
 class ProgressTracker:
-    """Track progress for data transformation using Rich."""
+    """Track progress for data transformation using Rich.
+
+    Instance variables are read by the FastAPI event loop and written by
+    the processing thread. Python's GIL makes simple reads/writes safe.
+    The cancel flag works the other way around: the event loop sets it and
+    the processing thread raises JobCancelledError at its next checkpoint.
+    """
 
     def __init__(self) -> None:
         """Initialize the progress tracker."""
-        self._default_state()
-
-    def _default_state(self) -> None:
-        """Set/reset the default progress tracking state values.
-
-        Collects row progress & stage for the terminal pseudonymization progress bar
-        and overall progress & stage for real-time frontend updates.
-        """
+        self.stage: str | None = None
+        self.percentage: int = 0
+        self.rows_total: int | None = None
+        self.rows_processed: int | None = None
+        self.cancel_requested = False
         self.task_id: TaskID | None = None
         self.rich_progress: Progress | None = None
         self.rows_progress = 0
-        self.rows_processed: int | None = None
-        self.rows_total: int | None = None
-        self.overall_progress: int = 0
-        self.overall_stage: str | None = None
 
     def _progress_bar(self) -> Progress:
         """Create a Rich progress bar with spinner."""
@@ -92,8 +103,18 @@ class ProgressTracker:
         self.rich_progress = None
         self.task_id = None
 
+    def cancel(self) -> None:
+        """Request cancellation; the processing thread aborts at its next checkpoint."""
+        self.cancel_requested = True
+
+    def check_cancelled(self) -> None:
+        """Raise JobCancelledError when cancellation was requested. Called from the processing thread."""
+        if self.cancel_requested:
+            raise JobCancelledError
+
     def set_row_progress(self, stage: str, processed: int, total: int, progress: int, overall: tuple[int, int]) -> int:
         """Update row based progress to rich progress bar."""
+        self.check_cancelled()
         if self.rich_progress is None:
             self.rows_progress = 0
             self.rich_progress = self._progress_bar()
@@ -102,7 +123,6 @@ class ProgressTracker:
         self.rows_total = total
 
         progress_percentage = max(self.rows_progress, min(int(progress), 100))
-
         self.rows_progress = progress_percentage
         self.rich_progress.start()
 
@@ -117,12 +137,14 @@ class ProgressTracker:
 
         if overall is not None:
             start, end = overall
-            self.overall_progress = start + int(progress_percentage / 100 * (end - start))
-            self.overall_stage = stage
+            self.percentage = start + int(progress_percentage / 100 * (end - start))
+            self.stage = stage
+
         return progress_percentage
 
     def set_progress(self, stage: str) -> None:
         """Set overall progress using predefined stages with fixed percentages."""
+        self.check_cancelled()
         progress_stages: dict[str, tuple] = {
             'start': ('start', 0),
             'sanitize_csv': ('processing csv', 3),
@@ -134,27 +156,33 @@ class ProgressTracker:
             'done': ('done', 100),
         }
 
-        # reset row progress when setting overall stages (mostly on re-runs)
         self.rows_processed = None
         self.rows_total = None
 
         current_stage = progress_stages[stage]
-        self.overall_progress = max(0, min(current_stage[1], 100))
-        self.overall_stage = current_stage[0]
-        logger.debug('Overall progress: %s (%d%%)\n', current_stage[0], self.overall_progress)
+        self.percentage = max(0, min(current_stage[1], 100))
+        self.stage = current_stage[0]
+
+        logger.debug('Overall progress: %s (%d%%)\n', current_stage[0], self.percentage)
+
+    def mark_done(self, status: str = 'done') -> None:
+        """Mark the process as terminal with the given status.
+
+        Valid values: 'done', 'cancelled', 'error'.
+        percentage is left at its current value so the gateway sees real progress.
+        """
+        self.rows_processed = None
+        self.rows_total = None
+        self.stage = status
 
     def get_progress(self) -> dict[str, int | str | None]:
         """Retrieve the overall progress percentage and stage description for real-time reporting."""
         return {
-            'stage': self.overall_stage,
-            'percentage': self.overall_progress,
+            'stage': self.stage,
+            'percentage': self.percentage,
             'rows_total': self.rows_total,
             'rows_processed': self.rows_processed,
         }
-
-
-# Singleton instance (only one instance needed)
-tracker = ProgressTracker()
 
 
 def performance_metrics(start_time: float, df_rowcount: int) -> dict[str, int | float]:

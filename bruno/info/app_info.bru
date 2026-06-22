@@ -1,0 +1,16 @@
+meta {
+  name: app_info
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/info
+  body: none
+  auth: none
+}
+
+docs {
+  Health check. Returns current server settings:
+  `status`, `host`, `port`, `debug`, `log_level`, `environment`, `input_folder`, `output_folder`.
+}

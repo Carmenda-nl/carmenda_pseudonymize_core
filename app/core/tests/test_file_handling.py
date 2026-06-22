@@ -8,20 +8,14 @@
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 
 import polars as pl
 import pytest
 
 from core.utils import csv_handler, file_handling
-from core.utils.file_handling import (
-    get_environment,
-    load_datafile,
-    load_datakey,
-    save_datafile,
-    save_datakey,
-)
+from core.utils.file_handling import load_datafile, load_datakey, save_datafile, save_datakey
+from core.utils.progress_tracker import ProgressTracker
 
 # ----------------------------------- FIXTURES ------------------------------------ #
 
@@ -42,48 +36,6 @@ def output_dir(tmp_path: Path) -> Path:
     return out
 
 
-# ----------------------------- GET ENVIRONMENT TESTS ----------------------------- #
-
-
-class TestGetEnvironment:
-    """Tests for get_environment function."""
-
-    @pytest.fixture(autouse=True)
-    def _mock_mkdir(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Mock Path.mkdir for all tests in this class."""
-        monkeypatch.setattr(Path, 'mkdir', lambda _self, **_kwargs: None)
-
-    def test_docker_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Docker environment returns Docker-specific paths."""
-        monkeypatch.setenv('DOCKER_ENV', 'true')
-
-        input_folder, output_folder = get_environment()
-
-        assert input_folder == '/app/data/input'
-        assert output_folder == '/app/data/output'
-
-    def test_script_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Script environment returns relative paths."""
-        monkeypatch.delenv('DOCKER_ENV', raising=False)
-        monkeypatch.delattr(sys, 'frozen', raising=False)
-
-        input_folder, output_folder = get_environment()
-
-        assert input_folder == 'data/input'
-        assert output_folder == 'data/output'
-
-    def test_pyinstaller_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """PyInstaller environment returns _MEIPASS-based paths."""
-        monkeypatch.delenv('DOCKER_ENV', raising=False)
-        monkeypatch.setattr(sys, 'frozen', True, raising=False)
-        monkeypatch.setattr(sys, '_MEIPASS', '/fake/meipass', raising=False)
-
-        input_folder, output_folder = get_environment()
-
-        assert input_folder == str(Path('/fake/meipass') / 'data' / 'input')
-        assert output_folder == str(Path('/fake/meipass') / 'data' / 'output')
-
-
 # ------------------------------ LOAD DATAFILE TESTS ------------------------------ #
 
 
@@ -92,7 +44,7 @@ class TestLoadDatafile:
 
     def test_file_not_exists_returns_none(self, tmp_path: Path) -> None:
         """Non-existent file returns None."""
-        assert load_datafile(str(tmp_path / 'nonexistent.csv'), str(tmp_path)) is None
+        assert load_datafile(str(tmp_path / 'nonexistent.csv'), str(tmp_path), ProgressTracker()) is None
 
     def test_basic_csv_loads_correctly(self, csv_file: Path, output_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Basic CSV file returns a Polars DataFrame with correct structure."""
@@ -111,7 +63,7 @@ class TestLoadDatafile:
         monkeypatch.setattr(csv_handler, '_sanitize_csv', mock_sanitize)
         monkeypatch.setattr(csv_handler, '_normalize_csv', mock_normalize)
 
-        result = load_datafile(str(csv_file), str(output_dir))
+        result = load_datafile(str(csv_file), str(output_dir), ProgressTracker())
 
         assert isinstance(result, pl.DataFrame)
         assert result.columns == ['name', 'age', 'city']
@@ -123,7 +75,7 @@ class TestLoadDatafile:
         txt_file.write_text('some text', encoding='utf-8')
 
         with caplog.at_level(logging.WARNING):
-            result = load_datafile(str(txt_file), str(tmp_path))
+            result = load_datafile(str(txt_file), str(tmp_path), ProgressTracker())
 
         assert result is None
         assert 'Unsupported file type' in caplog.text
@@ -158,13 +110,14 @@ class TestSaveDatafile:
 
         assert (output_folder / 'test_pseudonymised.csv').exists()
 
-    def test_with_parent_creates_subfolder(self, tmp_path: Path) -> None:
-        """Filename with parent path creates subfolder in output."""
+    def test_ignores_parent_writes_flat_into_output(self, tmp_path: Path) -> None:
+        """Filename with a parent path is written flat into the output folder, ignoring the parent."""
         df = pl.DataFrame({'name': ['Alice']})
 
         save_datafile(df, 'job123/data.csv', str(tmp_path / 'output'))
 
-        assert (tmp_path / 'output' / 'job123' / 'data_pseudonymised.csv').exists()
+        assert (tmp_path / 'output' / 'data_pseudonymised.csv').exists()
+        assert not (tmp_path / 'output' / 'job123').exists()
 
     def test_oserror_logs_warning(
         self,
@@ -273,10 +226,10 @@ class TestSaveDatakey:
         assert 'Jan,J,C001' in content
 
     def test_custom_datakey_name(self, tmp_path: Path) -> None:
-        """Custom datakey_name is used as output filename."""
+        """Custom key_name is used as output filename."""
         df = pl.DataFrame({'clientname': ['Jan'], 'synonyms': ['J'], 'code': ['C001']})
 
-        save_datakey(df, 'test.csv', str(tmp_path), datakey_name='custom.csv')
+        save_datakey(df, 'test.csv', str(tmp_path), key_name='custom.csv')
 
         assert (tmp_path / 'custom.csv').exists()
         assert not (tmp_path / 'test_key.csv').exists()

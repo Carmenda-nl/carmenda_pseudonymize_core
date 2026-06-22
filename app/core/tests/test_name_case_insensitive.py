@@ -12,8 +12,9 @@ For complete results, run with arguments.
 import sys
 from pathlib import Path
 
-from core.deidentify import DeidentifyHandler
+from core.deduce import DeidentifyHandler
 from core.utils.logger import setup_test_logging
+from core.utils.progress_tracker import ProgressTracker
 from core.utils.terminal import get_separator_line
 
 # Add the source directory to the Python path
@@ -23,7 +24,7 @@ sys.path.insert(0, str(source_dir))
 
 def test_case_insensitive() -> None:
     """Test the case-insensitive name detection."""
-    handler = DeidentifyHandler()
+    handler = DeidentifyHandler(tracker=ProgressTracker())
     logger = setup_test_logging()
 
     test_sentences = [

@@ -17,8 +17,8 @@ from pathlib import Path
 
 import polars as pl
 
-from .utils.file_handling import load_datakey
-from .utils.logger import setup_logging
+from core.utils.file_handling import load_datakey
+from core.utils.logger import setup_logging
 
 logger = setup_logging()
 
