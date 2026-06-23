@@ -12,6 +12,7 @@ Provides API endpoints for:
 from fastapi import APIRouter
 
 from api.schemas import InfoResponse
+from main._version import __version__
 from main.config import settings
 
 router = APIRouter(tags=['Info'])
@@ -22,6 +23,7 @@ def app_info() -> InfoResponse:
     """Returns if the api is healthy with status and current base settings."""
     return InfoResponse(
         status='ok',
+        engine_version=__version__,
         host=settings.host,
         port=settings.port,
         debug=settings.debug,
