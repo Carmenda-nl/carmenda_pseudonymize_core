@@ -23,6 +23,7 @@ def app_info() -> InfoResponse:
     """Returns if the api is healthy with status and current base settings."""
     return InfoResponse(
         status='ok',
+        app_title=settings.app_title,
         engine_version=__version__,
         host=settings.host,
         port=settings.port,

@@ -40,6 +40,7 @@ class InfoResponse(BaseModel):
     """Health check & app info response."""
 
     status: str
+    app_title: str
     engine_version: str
     host: str
     port: int

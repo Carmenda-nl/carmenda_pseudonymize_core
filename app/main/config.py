@@ -28,6 +28,7 @@ env, env_file, input_folder, output_folder = _detect_environment()
 class Settings(BaseSettings):
     """Settings to configure the API."""
 
+    app_title: str = 'unknown engine'
     host: str = 'localhost'
     port: int = 8001
     debug: bool = False

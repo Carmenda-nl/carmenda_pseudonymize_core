@@ -29,16 +29,17 @@ if TYPE_CHECKING:
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Wipe stale data at startup; on shutdown, properly cancel any running process."""
     await anyio.Path(settings.input_folder).mkdir(parents=True, exist_ok=True)
-    cleanup_output()
     temp_root = Path(tempfile.gettempdir()) / 'Carmenda'
     shutil.rmtree(temp_root, ignore_errors=True)
+
+    cleanup_output()
 
     yield
     shutdown_worker()
 
 
 app = FastAPI(
-    title='Carmenda deduce',
+    title=settings.app_title,
     version=app_version,
     lifespan=lifespan,
     swagger_ui_parameters={'defaultModelsExpandDepth': -1},
