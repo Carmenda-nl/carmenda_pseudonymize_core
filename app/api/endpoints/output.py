@@ -31,6 +31,7 @@ def get_progress(job_id: str = '') -> ProgressResponse:
 
 @router.get(
     '/api/process',
+    response_model=ProcessResponse,
     responses={
         **error_responses(
             (404, 'No active process found'),
