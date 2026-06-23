@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from core.utils.csv_handler import detect_csv_properties, load_csv
-
 from .logger import setup_logging
 
 if TYPE_CHECKING:
@@ -22,7 +20,7 @@ if TYPE_CHECKING:
 logger = setup_logging()
 
 
-def load_datafile(input_file: str, output_folder: str, tracker: ProgressTracker) -> pl.DataFrame | None:
+def load_datafile(input_file: str, tracker: ProgressTracker) -> pl.DataFrame | None:
     """Load datafile and return as a DataFrame."""
     file_path = Path(input_file)
     if not file_path.is_file():
@@ -33,15 +31,14 @@ def load_datafile(input_file: str, output_folder: str, tracker: ProgressTracker)
     logger.info('%s file of size: %s bytes', input_extension, file_size)
 
     if input_extension.lower() == '.csv':
-        df = load_csv(file_path, output_folder, tracker=tracker)
-    elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
+        df = pl.read_csv(input_file, encoding='utf-8', separator=',')
+    elif input_extension.lower() in ('.xls', '.xlsx'):
         df = pl.read_excel(source=input_file, raise_if_empty=False)
     else:
         logger.error('Unsupported file type: %s', input_extension)
         return None
 
     tracker.set_progress('file_loaded')
-
     return df
 
 
@@ -68,18 +65,8 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> str | 
 
 def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     """Grab valid names from file and return as a Polars DataFrame."""
-    properties = detect_csv_properties(Path(datakey_path))
-    encoding, delimiter = properties['encoding'], properties['delimiter']
-
-    accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')
-
-    if encoding not in accepted_encodings:
-        logger.warning('Datakey encoding not supported, provided: %s.', encoding)
-        return None
-
-    df = pl.read_csv(datakey_path, encoding=encoding, separator=delimiter, eol_char='\n')
+    df = pl.read_csv(datakey_path, encoding='utf-8', separator=',', eol_char='\n')
     df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
-
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 

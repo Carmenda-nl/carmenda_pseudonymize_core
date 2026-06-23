@@ -50,7 +50,7 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
     input_file_path = file
-    df = load_datafile(input_file_path, output_folder, tracker=tracker)
+    df = load_datafile(input_file_path, tracker=tracker)
 
     if df is not None:
         input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
