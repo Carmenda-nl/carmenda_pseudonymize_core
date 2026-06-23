@@ -90,12 +90,18 @@ The API will be available at `http://localhost:8001/`
 
 To process files from your local machine, mount local folders into the container:
 
+**Linux / Mac:**
 ```bash
 docker run -it --rm -p 8001:8001 \
   -e DEBUG=False \
   -v /path/to/your/input:/app/data/input \
   -v /path/to/your/output:/app/data/output \
   carmenda-deduce-engine:latest
+```
+
+**Windows — use forward slashes in the path:**
+```cmd
+docker run -it --rm -p 8001:8001 -e DEBUG=False -v C:/Users/YourName/input:/app/data/input -v C:/Users/YourName/output:/app/data/output carmenda-deduce-engine:latest
 ```
 
 Place your input files in the local input folder and retrieve the results from the local output folder after processing.
