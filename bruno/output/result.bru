@@ -5,24 +5,24 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/api/process?job_id=job-001
+  url: {{baseUrl}}/api/process?job_id
   body: none
   auth: none
 }
 
 params:query {
-  job_id: job-001
+  job_id: 
 }
 
 docs {
   Retrieve the result of the completed process submitted under `job_id`.
   Returns `preview` (list of rows) and `metrics` (`total_rows`, `hours`, `minutes`,
   `seconds`, `time_per_row`).
-
+  
   Returns 404 if no process has been submitted under this `job_id`.
   Returns 409 if the process is still running.
   Returns 500 if the process failed.
-
+  
   Output files are written to `output_folder/{job_id}`; the gateway reads them
   directly from the shared volume.
 }
