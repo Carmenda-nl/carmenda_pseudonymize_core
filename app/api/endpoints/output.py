@@ -39,7 +39,7 @@ def get_progress(job_id: str = '') -> ProgressResponse:
         409: {'model': RunningResponse, 'description': 'Process is still running'},
     },
 )
-def get_result(job_id: str = '') -> ProcessResponse:
+def get_result(job_id: str = '') -> ProcessResponse | JSONResponse:
     """Return the result of the current process once it has completed."""
     if worker.tracker is None or worker.job_id != job_id:
         raise HTTPException(status_code=404, detail='No active process found')
