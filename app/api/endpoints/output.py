@@ -13,35 +13,41 @@ Provides API endpoints for:
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from starlette.responses import JSONResponse
 
 from api.endpoints.process import worker
-from api.schemas import ProcessResponse, ProgressResponse, error_responses
+from api.schemas import ProcessResponse, ProgressResponse, RunningResponse, error_responses
 
 router = APIRouter(tags=['Output'])
 
 
-@router.get('/api/progress', responses=error_responses((404, 'No process submitted')))
+@router.get('/api/progress', responses=error_responses((404, 'No active process found')))
 def get_progress(job_id: str = '') -> ProgressResponse:
     """Return the progress of the current process."""
     if worker.tracker is None or worker.job_id != job_id:
-        raise HTTPException(status_code=404, detail='No process submitted')
+        raise HTTPException(status_code=404, detail='No active process found')
     return ProgressResponse.model_validate(worker.tracker.get_progress())
 
 
 @router.get(
     '/api/process',
-    responses=error_responses(
-        (404, 'No process submitted'),
-        (409, 'Process is still running'),
-        (500, 'Process failed'),
-    ),
+    responses={
+        **error_responses(
+            (404, 'No active process found'),
+            (500, 'Process failed'),
+        ),
+        409: {'model': RunningResponse, 'description': 'Process is still running'},
+    },
 )
 def get_result(job_id: str = '') -> ProcessResponse:
     """Return the result of the current process once it has completed."""
     if worker.tracker is None or worker.job_id != job_id:
-        raise HTTPException(status_code=404, detail='No process submitted')
+        raise HTTPException(status_code=404, detail='No active process found')
     if worker.result is None:
-        raise HTTPException(status_code=409, detail='Process is still running')
+        return JSONResponse(
+            status_code=409,
+            content={'detail': 'Process is still running', 'percentage': worker.tracker.percentage},
+        )
 
     if 'error' in worker.result:
         raise HTTPException(status_code=500, detail=worker.result['error'])

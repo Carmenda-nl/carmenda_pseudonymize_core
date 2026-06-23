@@ -91,3 +91,10 @@ class ProgressResponse(BaseModel):
     percentage: int
     rows_total: int | None = None
     rows_processed: int | None = None
+
+
+class RunningResponse(BaseModel):
+    """Response returned when a process is still running."""
+
+    detail: str
+    percentage: int

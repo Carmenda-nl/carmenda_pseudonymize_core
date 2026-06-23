@@ -5,6 +5,6 @@
 
 """API endpoints.
 
-This module defines the REST API endpoints for the Carmenda platform.
+This module defines the REST API endpoints for the engine.
 It handles the proper routing and request validation.
 """
