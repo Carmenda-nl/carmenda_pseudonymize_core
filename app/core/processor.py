@@ -25,7 +25,6 @@ from core.deduce import DeidentifyHandler
 from core.utils.file_handling import load_datafile, save_datafile, save_datakey
 from core.utils.logger import setup_logging
 from core.utils.progress_tracker import ProgressTracker, performance_metrics
-from main.config import settings
 
 logger = setup_logging()
 
@@ -44,13 +43,11 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
         'Parsed arguments:\n |-- input_file=%s\n |-- input_cols=%s\n |-- datakey=%s\n', file, input_cols, datakey
     )
 
-    input_folder, output_folder = settings.input_folder, output_dir
     json_output: dict[str, Any] = {'datakey_path': None, 'log_path': None}
 
     # ----------------------------- STEP 1: LOADING DATA ------------------------------ #
 
-    input_file_path = file
-    df = load_datafile(input_file_path, tracker=tracker)
+    df = load_datafile(file, tracker=tracker)
 
     if df is not None:
         input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
@@ -62,7 +59,7 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
         report_cols = [value.strip() for key, value in input_cols_dict.items() if key.startswith('report')]
         missing_reports = [col for col in report_cols if col and col not in df.columns]
     else:
-        message = f'Input file "{input_file_path}" could not be loaded.'
+        message = f'Input file "{file}" could not be loaded.'
         logger.error(message)
         return {'error': message}
 
@@ -77,9 +74,9 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
         # Strip whitespace from clientnames
         df = df.with_columns(pl.col(clientname_col).str.strip_chars())
 
-        processed_datakey = process_datakey(df, input_cols_dict, datakey, input_folder)
+        processed_datakey = process_datakey(df, input_cols_dict, datakey)
         datakey_filename = f'{Path(file).stem}_key.csv'
-        json_output['datakey'] = save_datakey(processed_datakey, file, output_folder, datakey_filename)
+        json_output['datakey'] = save_datakey(processed_datakey, file, output_dir, datakey_filename)
     else:
         logger.info('Clientname not provided, skipping datakey creation.\n')
 
@@ -118,7 +115,7 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
 
     # ----------------------------- STEP 4: WRITE OUTPUT ------------------------------ #
 
-    json_output['output_file'] = save_datafile(df, file, output_folder)
+    json_output['output_file'] = save_datafile(df, file, output_dir)
     json_output['metrics'] = performance_metrics(start_time, df.height)
     tracker.set_progress('done')
 
