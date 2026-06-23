@@ -31,7 +31,7 @@ docs {
   - `datakey`: path to a datakey file for consistent pseudonymization across sessions
 
   Returns 202 `{status: 'accepted'}` on success.
-  Returns 400 if `file_path` resolves outside `input_folder`, or `job_id` escapes `output_folder`.
+  Returns 400 if `file` resolves outside `input_folder`, or `job_id` escapes `output_folder`.
   Returns 404 if `file_path` does not exist.
   Returns 409 if a process is already running.
 }
