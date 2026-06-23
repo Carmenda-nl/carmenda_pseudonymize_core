@@ -96,6 +96,7 @@ When running with `DEBUG=True`, you can access:
 ### Important Notes
 
 - **Port**: The backend runs on port `8001` by default (configurable via `PORT` environment variable)
+- **Input/Output folders**: Override the default file locations via `INPUT_FOLDER` and `OUTPUT_FOLDER` environment variables (e.g. `-e INPUT_FOLDER=/data/input -e OUTPUT_FOLDER=/data/output`)
 - **Logs**: Container logs will show Uvicorn server output and any errors in the terminal
 
 ### Troubleshooting
@@ -141,9 +142,13 @@ DEBUG=False
 LOG_LEVEL=INFO
 HOST=localhost
 PORT=8001
+INPUT_FOLDER=/path/to/input
+OUTPUT_FOLDER=/path/to/output
 ```
 
 > **Note:** Set `DEBUG=True` to enable the Swagger UI at `/docs`.
+
+> **Note:** `INPUT_FOLDER` and `OUTPUT_FOLDER` are optional. When omitted, the engine uses the default folders configured in the API gateway.
 
 ### Step 4: Run the Server
 
