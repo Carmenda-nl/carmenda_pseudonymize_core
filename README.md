@@ -74,7 +74,7 @@ Build the backend image from the Dockerfile:
 docker build -f deployment/Dockerfile -t carmenda-deduce-engine:latest .
 ```
 
-### Run the Carmende deduce engine
+### Run the Carmenda deduce engine
 
 Use the following command to run the Carmenda Deduce engine:
 
@@ -85,6 +85,20 @@ docker run -it --rm -p 8001:8001 -e DEBUG=False carmenda-deduce-engine:latest
 The API will be available at `http://localhost:8001/`
 
 > **Note:** Set `DEBUG=False` for production environments. The Swagger UI is only available when `DEBUG=True`.
+
+### Using local input/output folders
+
+To process files from your local machine, mount local folders into the container:
+
+```bash
+docker run -it --rm -p 8001:8001 \
+  -e DEBUG=False \
+  -v /path/to/your/input:/app/data/input \
+  -v /path/to/your/output:/app/data/output \
+  carmenda-deduce-engine:latest
+```
+
+Place your input files in the local input folder and retrieve the results from the local output folder after processing.
 
 ### API Documentation
 
