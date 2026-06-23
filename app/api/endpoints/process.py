@@ -5,11 +5,9 @@
 
 """Process engine endpoints.
 
-The engine is a worker that processes a single process at a time.
-
 Provides API endpoints for:
-   - Submitting a pseudonymization process (rejected with 409 while one is running)
-   - cancel a pseudonymization process (404 if none is running)
+    - Submitting a pseudonymization process (`POST /api/process`) — rejected with 409 while one is running.
+    - Cancelling a running process (`DELETE /api/process`) — 404 if none is running.
 """
 
 from __future__ import annotations
@@ -40,21 +38,31 @@ executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='process')
     ),
 )
 def process_file(file: FilePath, cols: InputCols, job_id: JobId = '', datakey: DatakeyPath = '') -> StatusResponse:
-    """Submit a pseudonymization process session."""
+    """Submit a pseudonymization process session.
+
+    `file` accepts a relative or absolute path:
+        - Relative: resolved against `settings.input_folder / job_id`.
+        - Absolute: roots are derived from the path itself (from PyInstaller or Docker).
+    """
     if worker.is_running:
         raise HTTPException(status_code=409, detail='A process is already running')
 
-    input_root = Path(settings.input_folder).resolve()
-    base_input = (input_root / job_id).resolve() if job_id else input_root
     file_path = Path(file)
-    input_path = (base_input / file_path).resolve() if not file_path.is_absolute() else file_path.resolve()
+
+    if file_path.is_absolute():
+        input_path = file_path.resolve()
+        input_root = input_path.parent.parent if job_id else input_path.parent
+        output_root = input_root.parent / 'output'
+    else:
+        input_root = Path(settings.input_folder).resolve()
+        input_path = (input_root / job_id / file_path if job_id else input_root / file_path).resolve()
+        output_root = Path(settings.output_folder).resolve()
 
     if not input_path.is_relative_to(input_root):
         raise HTTPException(status_code=400, detail='Invalid file path')
     if not input_path.exists():
         raise HTTPException(status_code=404, detail='File not found')
 
-    output_root = Path(settings.output_folder).resolve()
     output_path = (output_root / job_id).resolve() if job_id else output_root
 
     if not output_path.is_relative_to(output_root):
@@ -65,7 +73,7 @@ def process_file(file: FilePath, cols: InputCols, job_id: JobId = '', datakey: D
     if datakey:
         datakey_file_path = Path(datakey)
         datakey_input_path = str(
-            (base_input / datakey_file_path).resolve()
+            (input_root / job_id / datakey_file_path).resolve()
             if not datakey_file_path.is_absolute()
             else datakey_file_path.resolve()
         )
