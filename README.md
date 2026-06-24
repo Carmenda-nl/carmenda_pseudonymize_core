@@ -162,13 +162,9 @@ DEBUG=False
 LOG_LEVEL=INFO
 HOST=localhost
 PORT=8001
-INPUT_FOLDER=/path/to/input
-OUTPUT_FOLDER=/path/to/output
 ```
 
 > **Note:** Set `DEBUG=True` to enable the Swagger UI at `/docs`.
-
-> **Note:** `INPUT_FOLDER` and `OUTPUT_FOLDER` are optional. When omitted, the engine uses the default folders configured in the API gateway.
 
 ### Step 4: Run the Server
 
