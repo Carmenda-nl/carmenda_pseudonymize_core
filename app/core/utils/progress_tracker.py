@@ -150,7 +150,7 @@ class ProgressTracker:
             'sanitize_csv': ('processing csv', 3),
             'normalize_csv': ('normalizing csv', 6),
             'file_loaded': ('file loaded', 8),
-            'init_deduce': ('initializing deduce', 10),
+            'init_model': ('initializing model', 10),
             'init_tables': ('initializing tables', 15),
             'init_names': ('initializing name detection', 18),
             'done': ('done', 100),

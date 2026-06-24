@@ -22,7 +22,7 @@ def _detect_environment() -> tuple[str, Path, str, str]:
     return 'development', Path(__file__).parent.parent / '.env', 'data/input', 'data/output'
 
 
-env, env_file, input_folder, output_folder = _detect_environment()
+environment, env_file, input_folder, output_folder = _detect_environment()
 
 
 class Settings(BaseSettings):
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     port: int = 8001
     debug: bool = False
     log_level: str = 'INFO'
-    environment: str = env
+    environment: str = environment
     input_folder: str = input_folder
     output_folder: str = output_folder
     model_config = SettingsConfigDict(env_file=env_file)

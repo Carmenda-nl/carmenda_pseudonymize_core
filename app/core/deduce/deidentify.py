@@ -34,7 +34,7 @@ class DeidentifyHandler:
         self.tracker = tracker
         self.deduce_manager = DeduceInstanceManager()
 
-        self.tracker.set_progress('init_deduce')
+        self.tracker.set_progress('init_model')
         self.deduce_instance = self.deduce_manager.create_instance()
 
         self.tracker.set_progress('init_tables')
