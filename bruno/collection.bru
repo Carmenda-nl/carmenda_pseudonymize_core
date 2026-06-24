@@ -16,7 +16,6 @@ docs {
   1. **info/app_info** — verify the API is reachable and check settings
   2. **process/submit** — upload an input file, column mapping, and optional datakey
   3. **output/progress** — poll until `percentage` reaches 100
-  4. **output/result** — retrieve preview, metrics, and download URLs; `outputFile` is saved automatically
-  5. **output/download** — download the output file (or datakey/log by replacing the filename)
-  6. **process/cancel** — cancel a running process if needed
+  4. **output/result** — retrieve preview and metrics; output files are written to the shared volume
+  5. **process/cancel** — cancel a running process if needed
 }
