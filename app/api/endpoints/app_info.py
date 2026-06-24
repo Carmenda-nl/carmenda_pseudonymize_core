@@ -30,6 +30,4 @@ def app_info() -> InfoResponse:
         debug=settings.debug,
         log_level=settings.log_level,
         environment=settings.environment,
-        input_folder=settings.input_folder,
-        output_folder=settings.output_folder,
     )

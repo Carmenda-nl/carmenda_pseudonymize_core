@@ -16,7 +16,6 @@ import uvicorn
 from fastapi import FastAPI
 
 from api import router
-from api.endpoints.process import cleanup_output
 from api.utils.worker import shutdown_worker
 from main._version import __version__ as app_version
 from main.config import settings
@@ -27,12 +26,12 @@ if TYPE_CHECKING:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-    """Wipe stale data at startup; on shutdown, properly cancel any running process."""
+    """Build data folders at startup; on shutdown, properly cancel any running process."""
     await anyio.Path(settings.input_folder).mkdir(parents=True, exist_ok=True)
+    await anyio.Path(settings.output_folder).mkdir(parents=True, exist_ok=True)
+
     temp_root = Path(tempfile.gettempdir()) / 'Carmenda'
     shutil.rmtree(temp_root, ignore_errors=True)
-
-    cleanup_output()
 
     yield
     shutdown_worker()
@@ -56,7 +55,6 @@ if __name__ == '__main__':
         app if settings.environment == 'pyinstaller' else 'run:app',
         reload=settings.debug and settings.environment == 'development',
         reload_dirs=[str(Path(__file__).parent)] if settings.debug and settings.environment == 'development' else None,
-        reload_excludes=['data/*'],
         host=settings.host,
         port=settings.port,
         log_level=settings.log_level,

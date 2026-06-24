@@ -82,7 +82,7 @@ def process_file(file: FilePath, cols: InputCols, job_id: JobId = '', datakey: D
     else:
         datakey_input_path = ''
 
-    cleanup_output()
+    cleanup_output(output_path)
 
     worker.job_id = job_id
     worker.tracker = ProgressTracker()
