@@ -6,12 +6,12 @@ import sysconfig
 from pathlib import Path
 
 import deduce
-from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 sys.path.insert(0, str(Path(SPECPATH) / 'app'))
 from main._version import __version__
 
-print(f'\nCore build: {__version__}\n')
+print(f'\nEngine build: {__version__}\n')
 
 # Check build OS
 windows = sys.platform == 'win32'
@@ -26,11 +26,6 @@ datas += copy_metadata('uvicorn')
 datas += copy_metadata('pydantic')
 datas += copy_metadata('pydantic-settings')
 datas += copy_metadata('polars')
-
-datas += collect_data_files('deduce')
-datas += collect_data_files('polars')
-datas += collect_data_files('fastapi')
-datas += collect_data_files('uvicorn')
 
 # Add the app directory selectively
 excluded_items = {
@@ -89,14 +84,6 @@ if windows:
             binaries.append((str(dll), '.'))
 
 hiddenimports = ['_ssl', '_hashlib']
-hiddenimports += collect_submodules('deduce')
-hiddenimports += collect_submodules('polars')
-hiddenimports += collect_submodules('uvicorn')
-hiddenimports += collect_submodules('fastapi')
-hiddenimports += collect_submodules('starlette')
-hiddenimports += collect_submodules('pydantic')
-hiddenimports += collect_submodules('pydantic_settings')
-hiddenimports += collect_submodules('anyio')
 
 tmp_ret = collect_all('deduce')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
@@ -113,10 +100,6 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('pydantic_settings')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('anyio')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('fastexcel')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('xlsxwriter')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 a = Analysis(
@@ -146,6 +129,26 @@ a = Analysis(
     optimize=1,
 )
 
+# Drop test/dev-only modules that the package hooks ship as loose source.
+_excluded_modules = {
+    'pydantic.mypy',
+    'pydantic.v1.mypy',
+    'pydantic.v1._hypothesis_plugin',
+    'anyio.pytest_plugin',
+    'fastapi.testclient',
+    'starlette.testclient',
+}
+_excluded_dests = {name.replace('.', '/') + '.py' for name in _excluded_modules}
+
+a.datas = [
+    (dest, source, kind)
+    for dest, source, kind in a.datas
+    if dest.replace('\\', '/') not in _excluded_dests
+]
+a.pure = [
+    (name, path, kind) for name, path, kind in a.pure if name not in _excluded_modules
+]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -156,8 +159,8 @@ exe = EXE(
     name='carmenda-deduce-engine',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    strip=False,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
@@ -168,4 +171,4 @@ exe = EXE(
     entitlements_file=None,
 )
 
-coll = COLLECT(exe, a.binaries, a.datas, a.scripts, strip=False, upx=True, upx_exclude=[], name='carmenda-deduce-engine')
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, upx_exclude=[], name='carmenda-deduce-engine')
