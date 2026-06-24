@@ -18,7 +18,7 @@ def _detect_environment() -> tuple[str, Path, str, str]:
         return 'docker', Path('/app/.env'), '/app/data/input', '/app/data/output'
     if getattr(sys, 'frozen', False):
         base = Path(getattr(sys, '_MEIPASS', '.'))
-        return 'pyinstaller', base / 'app' / '.env', str(base / 'data' / 'input'), str(base / 'data' / 'output')
+        return 'frozen', base / 'app' / '.env', str(base / 'data' / 'input'), str(base / 'data' / 'output')
     return 'development', Path(__file__).parent.parent / '.env', 'data/input', 'data/output'
 
 

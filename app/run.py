@@ -52,7 +52,7 @@ app.include_router(router)
 
 if __name__ == '__main__':
     uvicorn.run(
-        app if settings.environment == 'pyinstaller' else 'run:app',
+        app if settings.environment == 'frozen' else 'run:app',
         reload=settings.debug and settings.environment == 'development',
         reload_dirs=[str(Path(__file__).parent)] if settings.debug and settings.environment == 'development' else None,
         host=settings.host,
