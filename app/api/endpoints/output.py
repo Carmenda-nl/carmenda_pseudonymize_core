@@ -12,11 +12,18 @@ Provides API endpoints for:
 
 from __future__ import annotations
 
+import asyncio
+import json
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, HTTPException
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
 from api.endpoints.process import worker
 from api.schemas import ProcessResponse, ProgressResponse, RunningResponse, error_responses
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 router = APIRouter(tags=['Output'])
 
@@ -54,3 +61,36 @@ def get_result(job_id: str = '') -> ProcessResponse | JSONResponse:
         raise HTTPException(status_code=500, detail=worker.result['error'])
 
     return ProcessResponse(preview=worker.result['preview'], metrics=worker.result['metrics'])
+
+
+@router.get('/api/progress/stream', responses=error_responses((404, 'No active process found')))
+async def stream_progress(job_id: str) -> StreamingResponse:
+    """Stream the result of the current process as Server-Sent-Event."""
+    if worker.tracker is None or worker.job_id != job_id:
+        raise HTTPException(status_code=404, detail='No active process found')
+
+    async def event_stream() -> AsyncGenerator[str]:
+        last: str | None = None
+
+        while True:
+            if worker.tracker is None or worker.job_id != job_id:
+                break
+
+            done = worker.result is not None
+            payload = {**worker.tracker.get_progress(), 'done': done}
+            snapshot = json.dumps(payload, sort_keys=True)
+
+            if snapshot != last:
+                yield f'data: {snapshot}\n\n'
+                last = snapshot
+
+            if done:
+                break
+
+            await asyncio.sleep(0.2)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
