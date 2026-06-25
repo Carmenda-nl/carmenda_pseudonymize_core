@@ -7,6 +7,7 @@
 
 Provides API endpoints for:
     - Polling the progress of the running process
+    - Streaming the progress of the running process as SSE
     - Retrieving the result of a completed process
 """
 
@@ -65,7 +66,7 @@ def get_result(job_id: str = '') -> ProcessResponse | JSONResponse:
 
 @router.get('/api/progress/stream', responses=error_responses((404, 'No active process found')))
 async def stream_progress(job_id: str) -> StreamingResponse:
-    """Stream the result of the current process as Server-Sent-Event."""
+    """Stream the progress of the current process as Server-Sent Events."""
     if worker.tracker is None or worker.job_id != job_id:
         raise HTTPException(status_code=404, detail='No active process found')
 
