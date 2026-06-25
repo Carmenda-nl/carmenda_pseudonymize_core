@@ -45,6 +45,7 @@ class InfoResponse(BaseModel):
     debug: bool
     log_level: str
     environment: str
+    gateway_mode: bool
 
 
 class StatusResponse(BaseModel):

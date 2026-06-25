@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = 'INFO'
     environment: str = environment
+    m2m_hash: str = ''
     input_folder: str = input_folder
     output_folder: str = output_folder
     model_config = SettingsConfigDict(env_file=env_file)

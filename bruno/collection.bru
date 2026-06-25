@@ -1,3 +1,7 @@
+headers {
+  X-M2M-Key: {{m2mKey}}
+}
+
 docs {
   # Carmenda Deduce engine
 
@@ -7,10 +11,11 @@ docs {
   `http://localhost:8001`
 
   ## Environment variables
-  | Variable     | Description                                                      |
-  |--------------|------------------------------------------------------------------|
-  | `baseUrl`    | Base URL of the running server                                   |
-  | `outputFile` | Output filename — set automatically after a successful result    |
+  | Variable     | Description                                                            |
+  |--------------|------------------------------------------------------------------------|
+  | `baseUrl`    | Base URL of the running server                                         |
+  | `outputFile` | Output filename — set automatically after a successful result          |
+  | `m2mKey`     | Shared M2M secret; sent as `X-M2M-Key` on every request (gateway mode) |
 
   ## Typical workflow
   1. **info/app_info** — verify the API is reachable and check settings

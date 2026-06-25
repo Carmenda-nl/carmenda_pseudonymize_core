@@ -30,4 +30,5 @@ def app_info() -> InfoResponse:
         debug=settings.debug,
         log_level=settings.log_level,
         environment=settings.environment,
+        gateway_mode=bool(settings.m2m_hash),
     )

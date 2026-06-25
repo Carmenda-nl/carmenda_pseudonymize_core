@@ -162,9 +162,16 @@ DEBUG=False
 LOG_LEVEL=INFO
 HOST=localhost
 PORT=8001
+M2M_HASH=
 ```
 
 > **Note:** Set `DEBUG=True` to enable the Swagger UI at `/docs`.
+
+> **Note:** `M2M_HASH` is the shared machine-to-machine secret. Leave it empty to run the
+> engine standalone: it creates its own input/output folders and the connection check is
+> disabled. Set it (matching the gateway's `ENGINE_M2M_HASH`) to run behind the gateway:
+> the gateway then owns file I/O, and every request must carry a matching `X-M2M-Key`
+> header or it is rejected with `401`. The active mode is logged at startup.
 
 ### Step 4: Run the Server
 
