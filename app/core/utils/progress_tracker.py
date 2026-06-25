@@ -147,8 +147,6 @@ class ProgressTracker:
         self.check_cancelled()
         progress_stages: dict[str, tuple] = {
             'start': ('start', 0),
-            'sanitize_csv': ('processing csv', 3),
-            'normalize_csv': ('normalizing csv', 6),
             'file_loaded': ('file loaded', 8),
             'init_model': ('initializing model', 10),
             'init_tables': ('initializing tables', 15),
