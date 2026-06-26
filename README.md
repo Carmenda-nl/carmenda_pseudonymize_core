@@ -158,6 +158,7 @@ uv sync --group dev
 Create an `.env` file in the `app` folder with the following configuration:
 
 ```env
+APP_TITLE=carmenda-deduce-engine
 DEBUG=False
 LOG_LEVEL=INFO
 HOST=localhost
