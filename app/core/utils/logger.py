@@ -24,6 +24,11 @@ def setup_logging() -> logging.Logger:
     # Silence asyncio debug log
     logging.getLogger('asyncio').setLevel(logging.WARNING)
 
+    # Filter out polling noise from GET endpoints: progress & process
+    if level != logging.DEBUG:
+        logging.getLogger('uvicorn.access').addFilter(lambda record: 'GET /api/progress' not in record.getMessage())
+        logging.getLogger('uvicorn.access').addFilter(lambda record: 'GET /api/process' not in record.getMessage())
+
     logger = logging.getLogger('deidentify')
     logger.setLevel(level)
     logger.propagate = True

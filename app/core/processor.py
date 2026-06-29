@@ -78,7 +78,7 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
         datakey_filename = f'{Path(file).stem}_key.csv'
         json_output['datakey'] = save_datakey(processed_datakey, file, output_dir, datakey_filename)
     else:
-        logger.info('Clientname not provided, skipping datakey creation.\n')
+        logger.info('Clientname not provided, skipping datakey creation.')
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
