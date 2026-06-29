@@ -194,24 +194,19 @@ class DeidentifyHandler:
         self.processed_count = 0
         self.total_count = total_rows * len(reports_cols)
 
-        df = df.with_row_index('_idx')
-        other_columns = [column for column in df.columns if column not in reports_cols]
+        slice_size = 50_000
+        for col_number, report_col in enumerate(reports_cols, start=1):
+            struct_fields = [pl.col(report_col).str.strip_chars().alias('report')]
+            if has_clientname:
+                struct_fields.append(pl.col(input_cols['clientname']).alias('clientname'))
 
-        melted = df.unpivot(index=other_columns, on=reports_cols, variable_name='_col', value_name='report')
-
-        struct_fields = [pl.col('report').str.strip_chars().alias('report')]
-        if has_clientname:
-            struct_fields.append(pl.col(input_cols['clientname']).alias('clientname'))
-
-        melted = melted.with_columns(
-            pl.struct(struct_fields).map_batches(self._deidentify_batch, return_dtype=pl.Utf8).alias('processed'),
-        )
-
-        pivoted = melted.pivot(values='processed', index='_idx', on='_col')
-
-        rename_map = {col: f'processed_report_{number}' for number, col in enumerate(reports_cols, start=1)}
-        pivoted = pivoted.select(['_idx', *reports_cols]).rename(rename_map)
-        df_result = df.join(pivoted, on='_idx').drop('_idx')
+            result_parts = [
+                df.slice(offset, slice_size)
+                .select(pl.struct(struct_fields).map_batches(self._deidentify_batch, return_dtype=pl.Utf8))
+                .to_series()
+                for offset in range(0, total_rows, slice_size)
+            ]
+            df_result = df.with_columns(pl.concat(result_parts).alias(f'processed_report_{col_number}'))
 
         self.tracker.clean_progress_bar()
 
