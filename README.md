@@ -124,7 +124,8 @@ When running with `DEBUG=True`, you can access:
 If you encounter issues:
 
 1. Check that port 8001 is not already in use
-2. Verify that Docker has sufficient resources allocated
+2. Verify that Docker has sufficient resources allocated (at least 6 GB for large files)
+3. **Progress bar not visible**: make sure you include the `-t` flag
 
 ---
 
