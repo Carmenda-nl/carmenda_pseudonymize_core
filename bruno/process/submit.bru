@@ -10,6 +10,10 @@ post {
   auth: none
 }
 
+headers {
+  X-M2M-Key: {{m2mKey}}
+}
+
 body:form-urlencoded {
   file: dummy_input.csv
   cols: report=rapport

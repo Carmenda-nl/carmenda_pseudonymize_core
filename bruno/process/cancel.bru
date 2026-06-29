@@ -10,6 +10,10 @@ delete {
   auth: none
 }
 
+headers {
+  X-M2M-Key: {{m2mKey}}
+}
+
 docs {
   Cancel the running process.
   The cancellation is picked up at the next checkpoint in the processing thread.
