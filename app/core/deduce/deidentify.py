@@ -195,6 +195,8 @@ class DeidentifyHandler:
         self.total_count = total_rows * len(reports_cols)
 
         slice_size = 50_000
+        df_result = df
+
         for col_number, report_col in enumerate(reports_cols, start=1):
             struct_fields = [pl.col(report_col).str.strip_chars().alias('report')]
             if has_clientname:
@@ -206,7 +208,7 @@ class DeidentifyHandler:
                 .to_series()
                 for offset in range(0, total_rows, slice_size)
             ]
-            df_result = df.with_columns(pl.concat(result_parts).alias(f'processed_report_{col_number}'))
+            df_result = df_result.with_columns(pl.concat(result_parts).alias(f'processed_report_{col_number}'))
 
         self.tracker.clean_progress_bar()
 

@@ -51,12 +51,20 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
 
     if df is not None:
         input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
-        report_keys = [key for key in input_cols_dict if key.startswith('report')]
-        output_cols_list = ['clientcode'] + [f'processed_report_{num}' for num, _ in enumerate(report_keys, start=1)]
+        report_cols = [value.strip() for key, value in input_cols_dict.items() if key.startswith('report')]
+        unmapped_cols = [
+            value.strip()
+            for key, value in input_cols_dict.items()
+            if not key.startswith('report') and key != 'clientname'
+        ]
+        output_cols = (
+            unmapped_cols
+            + ['clientcode']
+            + [f'processed_report_{report_index}' for report_index in range(1, len(report_cols) + 1)]
+        )
 
         clientname_col = input_cols_dict.get('clientname')
         has_clientname = clientname_col in df.columns
-        report_cols = [value.strip() for key, value in input_cols_dict.items() if key.startswith('report')]
         missing_reports = [col for col in report_cols if col and col not in df.columns]
     else:
         message = f'Input file "{file}" could not be loaded.'
@@ -92,7 +100,7 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
         df = handler.deidentify_text(df, input_cols_dict)
 
     # Prepare output data
-    df = df.select(pl.selectors.by_name(*output_cols_list, require_all=False))
+    df = df.select(pl.selectors.by_name(*output_cols, require_all=False))
 
     rename_headers = {}
 
