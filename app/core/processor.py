@@ -52,16 +52,18 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
     if df is not None:
         input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
         report_cols = [value.strip() for key, value in input_cols_dict.items() if key.startswith('report')]
-        unmapped_cols = [
-            value.strip()
-            for key, value in input_cols_dict.items()
-            if not key.startswith('report') and key != 'clientname'
-        ]
-        output_cols = (
-            unmapped_cols
-            + ['clientcode']
-            + [f'processed_report_{report_index}' for report_index in range(1, len(report_cols) + 1)]
-        )
+
+        output_cols = []
+        report_index = 0
+
+        for key, value in input_cols_dict.items():
+            if key == 'clientname':
+                output_cols.append('clientcode')
+            elif key.startswith('report'):
+                report_index += 1
+                output_cols.append(f'processed_report_{report_index}')
+            else:
+                output_cols.append(value.strip())
 
         clientname_col = input_cols_dict.get('clientname')
         has_clientname = clientname_col in df.columns
