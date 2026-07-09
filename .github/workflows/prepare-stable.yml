@@ -4,22 +4,23 @@
 # so that main receives the correct stable version after merge.
 #
 # Triggered on:
-#   - PULL REQUEST from develop to main is opened or updated
+#   - PULL REQUEST from develop to main is approved
 
 name: Prepare stable version
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    branches:
-      - main
+  pull_request_review:
+    types: [submitted]
 
 permissions:
   contents: write
 
 jobs:
   prepare-stable-version:
-    if: github.event.pull_request.head.ref == 'develop'
+    if: >
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'develop'
     runs-on: ubuntu-latest
 
     steps:
