@@ -67,6 +67,14 @@ For questions or support, please contact us at [support@carmenda.nl](mailto:supp
 
 ### Build the Docker Image
 
+Create an `.env` file in the `app` folder with the following configuration:
+
+```env
+LOG_LEVEL=INFO
+HOST=127.0.0.1
+PORT=8001
+```
+
 Build the backend image from the Dockerfile:
 
 ```bash
