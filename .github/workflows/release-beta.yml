@@ -87,8 +87,6 @@ jobs:
         with:
           config: cliff.toml
           args: --latest --strip header
-        env:
-          GITHUB_REPO: ${{ github.repository }}
 
       - name: Create beta release
         uses: softprops/action-gh-release@v3.0.1
@@ -110,7 +108,6 @@ jobs:
           config: cliff.toml
           args: --latest --strip header
         env:
-          GITHUB_REPO: ${{ github.repository }}
           OUTPUT: /tmp/changelog_entry.md
 
       - name: Update CHANGELOG.md

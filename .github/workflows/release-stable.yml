@@ -86,7 +86,6 @@ jobs:
           config: cliff.toml
           args: --tag ${{ steps.set_tag.outputs.tag }} --unreleased --strip header
         env:
-          GITHUB_REPO: ${{ github.repository }}
           OUTPUT: release_notes.md
 
       - name: Download beta release assets
