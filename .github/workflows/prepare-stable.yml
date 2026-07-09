@@ -33,7 +33,7 @@ jobs:
       - name: Determine stable version
         id: version
         run: |
-          VERSION=$(cat app/main/_version.py | grep -oP '(?<=").*(?=")')
+          VERSION=$(cat app/main/_version.py | grep -oP "(?<=').*(?=')")
           STABLE="${VERSION%-beta}"
           echo "stable=$STABLE" >> $GITHUB_OUTPUT
 

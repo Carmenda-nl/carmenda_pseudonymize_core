@@ -134,7 +134,7 @@ jobs:
 
       - name: Update _version.py
         run: |
-          echo '__version__ = "${{ github.ref_name }}"' > app/main/_version.py
+          echo "__version__ = '${{ github.ref_name }}'" > app/main/_version.py
 
       - name: Commit CHANGELOG.md and _version.py
         run: |
