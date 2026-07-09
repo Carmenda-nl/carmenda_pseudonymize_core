@@ -27,16 +27,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.0
 
-      - name: Create .env file for build
-        run: |
-          @"
-          HOST=127.0.0.1
-          PORT=8001
-          DEBUG=False
-          LOG_LEVEL=INFO
-          "@ | Out-File -FilePath "app\.env" -Encoding utf8
-        shell: pwsh
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v8.3.2
         with:
