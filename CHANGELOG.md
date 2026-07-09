@@ -96,6 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update all packages
 - Update readme
 - Downgrade changelog
+- Update pipelines to latest
+- Ruff lint error double quotes in version
 
 ### Fixed
 
@@ -119,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix column order got corrupt in output
 - Fix rich progress bar hangs on 99%
 - Open PR activates prepare stable pipeline
+- Pipelines not properly finished (403)
 
 ## [1.6.3-beta] - 2026-06-10
 
