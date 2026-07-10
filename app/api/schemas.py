@@ -3,176 +3,96 @@
 # This program is distributed under the terms of the GNU General Public License: GPL-3.0-or-later  #
 # ------------------------------------------------------------------------------------------------ #
 
-"""OpenAPI schema definitions for the API views."""
+"""Request and response schemas for the pseudonymization API."""
 
-from drf_spectacular.utils import extend_schema
-from rest_framework import serializers
+from typing import Annotated, Any
 
-from api.serializers import JobSerializer
+from fastapi import Form
+from pydantic import BaseModel
 
-
-class APIRootResponseSerializer(serializers.Serializer):
-    """Response serializer for API root view."""
-
-    v1_jobs = serializers.URLField(source='v1/jobs', help_text='URL to the jobs list endpoint')
-    v1_version = serializers.URLField(source='v1/version', help_text='URL to the version endpoint')
-    v2_settings = serializers.URLField(source='v2/settings', help_text='URL to the settings endpoint')
-    v1_docs = serializers.URLField(
-        source='v1/docs',
-        required=False,
-        help_text='URL to the API documentation (only available in debug mode)',
-    )
-    v1_schema = serializers.URLField(
-        source='v1/schema',
-        required=False,
-        help_text='URL to the API schema (only available in debug mode)',
-    )
-
-
-class JobCreatedResponseSerializer(serializers.Serializer):
-    """Response serializer for job creation."""
-
-    message = serializers.CharField(default='Job created successfully and is ready to be processed')
-    job_id = serializers.CharField()
-    process_url = serializers.CharField()
+JobId = Annotated[
+    str,
+    Form(description='Optional Job ID based identifier for creating & isolating a subfolder'),
+]
+FilePath = Annotated[
+    str,
+    Form(
+        description='Path to the report file that needs to be processed',
+        json_schema_extra={'example': 'path/to/file'},
+    ),
+]
+InputCols = Annotated[
+    str,
+    Form(
+        description="Comma-separated column mappings in key=value format. At least one 'report' key is required",
+        json_schema_extra={'example': 'clientname=patient, report=rapport'},
+    ),
+]
+DatakeyPath = Annotated[
+    str,
+    Form(description='Optional path to a datakey for consistent pseudonymization across sessions'),
+]
 
 
-class JobProcessingResponseSerializer(serializers.Serializer):
-    """Response serializer for successful job processing."""
+class InfoResponse(BaseModel):
+    """Health check & app info response."""
 
-    message = serializers.CharField(default='Job processing started in background')
-    job_id = serializers.CharField()
-    status = serializers.CharField(default='processing')
-
-
-class JobProcessingErrorResponseSerializer(serializers.Serializer):
-    """Response serializer for job processing errors."""
-
-    error = serializers.CharField(default='Job processing failed')
-    details = serializers.CharField()
-
-
-class JobStatusResponseSerializer(serializers.Serializer):
-    """Response serializer for job status."""
-
-    job_id = serializers.CharField()
-    endpoint = serializers.CharField()
-    current_status = serializers.CharField()
-    progress = serializers.IntegerField()
-    stage = serializers.CharField()
-    error_message = serializers.CharField()
+    status: str
+    app_title: str
+    engine_version: str
+    host: str
+    port: int
+    debug: bool
+    log_level: str
+    environment: str
+    gateway_mode: bool
 
 
-class JobCancellationResponseSerializer(serializers.Serializer):
-    """Response serializer for job cancellation request."""
+class StatusResponse(BaseModel):
+    """Simple status response."""
 
-    message = serializers.CharField(default='Cancellation requested')
-    job_id = serializers.CharField()
-
-
-class JobNotRunningResponseSerializer(serializers.Serializer):
-    """Response serializer when trying to cancel a job that's not running."""
-
-    message = serializers.CharField(default='Job not running')
-    status = serializers.CharField()
+    status: str
 
 
-class JobCancellationErrorSerializer(serializers.Serializer):
-    """Response serializer for job cancellation errors."""
+class ErrorResponse(BaseModel):
+    """Error detail payload returned for non-2xx responses."""
 
-    error = serializers.CharField()
-
-
-class JobProcessErrorSerializer(serializers.Serializer):
-    """Response serializer for job processing validation errors."""
-
-    error = serializers.CharField()
-    message = serializers.CharField()
+    detail: str
 
 
-class ZipFileMetaSerializer(serializers.Serializer):
-    """Metadata for a single output file."""
-
-    url = serializers.CharField()
-    filesize = serializers.IntegerField()
-    build_date = serializers.DateTimeField()
+def error_responses(*responses: tuple[int, str]) -> dict[int | str, dict[str, Any]]:
+    """Build an OpenAPI `responses` dict mapping status codes to ErrorResponse descriptions."""
+    return {status_code: {'model': ErrorResponse, 'description': description} for status_code, description in responses}
 
 
-class ZipFilesStatusSerializer(serializers.Serializer):
-    """Response serializer for packaging a job (GET)."""
+class MetricsSchema(BaseModel):
+    """Timing and row-count metrics for a completed pseudonymization run."""
 
-    zip_file = serializers.CharField()
-    files = serializers.DictField(child=ZipFileMetaSerializer())
-
-
-class ZipFilesNotReadySerializer(serializers.Serializer):
-    """Response serializer when the job is not ready for packaging."""
-
-    error = serializers.CharField(default='Job not ready for packaging')
-    message = serializers.CharField()
+    total_rows: int
+    hours: int
+    minutes: int
+    seconds: int
+    time_per_row: float
 
 
-class VersionResponseSerializer(serializers.Serializer):
-    """Response serializer for the version endpoint."""
+class ProcessResponse(BaseModel):
+    """Result payload returned after a completed pseudonymization process."""
 
-    version = serializers.CharField(help_text='Application version')
+    preview: list[dict[str, Any]]
+    metrics: MetricsSchema
 
 
-VERSION_SCHEMA = extend_schema(
-    responses={
-        200: VersionResponseSerializer,
-    },
-)
+class ProgressResponse(BaseModel):
+    """Progress payload reporting the current state of an ongoing pseudonymization process."""
 
-API_ROOT_SCHEMA = extend_schema(
-    responses={
-        200: APIRootResponseSerializer,
-    },
-)
+    stage: str | None
+    percentage: int
+    rows_total: int | None = None
+    rows_processed: int | None = None
 
-CREATE_JOB_SCHEMA = extend_schema(
-    responses={
-        201: JobSerializer,
-    },
-)
 
-PROCESS_JOB_POST_SCHEMA = extend_schema(
-    methods=['post'],
-    responses={
-        202: JobProcessingResponseSerializer,
-        400: JobProcessErrorSerializer,
-        500: JobProcessingErrorResponseSerializer,
-    },
-)
+class RunningResponse(BaseModel):
+    """Response returned when a process is still running."""
 
-PROCESS_JOB_GET_SCHEMA = extend_schema(
-    methods=['get'],
-    responses={
-        200: JobStatusResponseSerializer,
-    },
-)
-
-CANCEL_JOB_POST_SCHEMA = extend_schema(
-    methods=['post'],
-    responses={
-        200: JobNotRunningResponseSerializer,
-        202: JobCancellationResponseSerializer,
-        500: JobCancellationErrorSerializer,
-    },
-)
-
-ZIP_FILES_POST_SCHEMA = extend_schema(
-    methods=['post'],
-    responses={
-        200: JobSerializer,
-        400: ZipFilesNotReadySerializer,
-    },
-)
-
-ZIP_FILES_GET_SCHEMA = extend_schema(
-    methods=['get'],
-    responses={
-        200: ZipFilesStatusSerializer,
-        400: ZipFilesNotReadySerializer,
-    },
-)
+    detail: str
+    percentage: int

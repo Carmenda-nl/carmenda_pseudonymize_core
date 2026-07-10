@@ -7,41 +7,20 @@
 
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 
-from core.utils.csv_handler import detect_csv_properties, load_csv
-from core.utils.progress_tracker import tracker
-
 from .logger import setup_logging
+
+if TYPE_CHECKING:
+    from core.utils.progress_tracker import ProgressTracker
 
 logger = setup_logging()
 
 
-def get_environment() -> tuple[str, str]:
-    """Get input and output folder paths based on the current environment."""
-    if os.environ.get('DOCKER_ENV') == 'true':
-        # Docker environment
-        input_folder = '/app/data/input'
-        output_folder = '/app/data/output'
-    elif getattr(sys, 'frozen', False):
-        # PyInstaller environment
-        base_path = Path(getattr(sys, '_MEIPASS', '.'))
-        input_folder = str(base_path / 'data' / 'input')
-        output_folder = str(base_path / 'data' / 'output')
-    else:
-        # Script environment
-        input_folder = 'data/input'
-        output_folder = 'data/output'
-
-    Path(output_folder).mkdir(parents=True, exist_ok=True)
-    return input_folder, output_folder
-
-
-def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
+def load_datafile(input_file: str, tracker: ProgressTracker) -> pl.DataFrame | None:
     """Load datafile and return as a DataFrame."""
     file_path = Path(input_file)
     if not file_path.is_file():
@@ -52,26 +31,22 @@ def load_datafile(input_file: str, output_folder: str) -> pl.DataFrame | None:
     logger.info('%s file of size: %s bytes', input_extension, file_size)
 
     if input_extension.lower() == '.csv':
-        df = load_csv(file_path, output_folder)
-    elif input_extension.lower() == '.xls' or input_extension.lower() == '.xlsx':
+        df = pl.read_csv(input_file, encoding='utf-8', separator=',')
+    elif input_extension.lower() in ('.xls', '.xlsx'):
         df = pl.read_excel(source=input_file, raise_if_empty=False)
     else:
         logger.error('Unsupported file type: %s', input_extension)
         return None
 
     tracker.set_progress('file_loaded')
-
     return df
 
 
-def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
+def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> str | None:
     """Save processed DataFrame to file in the specified output folder."""
     filepath = Path(filename)
     stem = filepath.stem
-    parent = filepath.parent
-
-    # If filename included a parent (like job_id), write into that subfolder under output.
-    target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
+    target_dir = Path(output_folder)
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -82,36 +57,25 @@ def save_datafile(df: pl.DataFrame, filename: str, output_folder: str) -> None:
             df.write_csv(str(filepath))
         elif input_extension.lower() in ('.xls', '.xlsx'):
             df.write_excel(str(filepath))
+        return str(filepath)
     except OSError:
         logger.warning('Cannot write %s to "%s".', filename, target_dir)
+        return None
 
 
 def load_datakey(datakey_path: str) -> pl.DataFrame | None:
     """Grab valid names from file and return as a Polars DataFrame."""
-    properties = detect_csv_properties(Path(datakey_path))
-    encoding, delimiter = properties['encoding'], properties['delimiter']
-
-    accepted_encodings = ('utf-8', 'ascii', 'cp1252', 'windows-1252', 'ISO-8859-1', 'latin1')
-
-    if encoding not in accepted_encodings:
-        logger.warning('Datakey encoding not supported, provided: %s.', encoding)
-        return None
-
-    df = pl.read_csv(datakey_path, encoding=encoding, separator=delimiter, eol_char='\n')
+    df = pl.read_csv(datakey_path, encoding='utf-8', separator=',', eol_char='\n')
     df = df.rename({'Clientnaam': 'clientname', 'Synoniemen': 'synonyms', 'Code': 'code'})
-
     return df.with_columns(pl.col('clientname').str.strip_chars()).filter(pl.col('clientname') != '')
 
 
-def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datakey_name: str | None = None) -> None:
+def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, key_name: str | None = None) -> str | None:
     """Save the processed datakey to a CSV file for future use."""
     filepath = Path(filename)
-    parent = filepath.parent
+    output_filename = key_name or f'{filepath.stem}_key.csv'
 
-    output_filename = datakey_name or f'{filepath.stem}_key.csv'
-
-    # If filename included a parent (like job_id), write into that subfolder under output.
-    target_dir = Path(output_folder) / parent if str(parent) and str(parent) != '.' else Path(output_folder)
+    target_dir = Path(output_folder)
     file_path = target_dir / output_filename
 
     try:
@@ -119,5 +83,7 @@ def save_datakey(datakey: pl.DataFrame, filename: str, output_folder: str, datak
         datakey = datakey.rename({'clientname': 'Clientnaam', 'synonyms': 'Synoniemen', 'code': 'Code'})
         datakey.write_csv(file_path, separator=',')
         logger.debug('Saving datakey: %s\n%s\n', output_filename, datakey)
+        return str(file_path)
     except OSError:
         logger.warning('Cannot write datakey to "%s".', file_path)
+        return None

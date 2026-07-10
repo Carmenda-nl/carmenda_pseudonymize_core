@@ -17,8 +17,8 @@ from pathlib import Path
 
 import polars as pl
 
-from .utils.file_handling import load_datakey
-from .utils.logger import setup_logging
+from core.utils.file_handling import load_datakey
+from core.utils.logger import setup_logging
 
 logger = setup_logging()
 
@@ -89,12 +89,12 @@ def _check_existing_key(datakey_df: pl.DataFrame, missing_names_df: pl.Series | 
     )
 
 
-def process_datakey(df: pl.DataFrame, input_cols: dict, datakey_file: str | None, input_folder: str) -> pl.DataFrame:
+def process_datakey(df: pl.DataFrame, input_cols: dict, datakey_file: str | None) -> pl.DataFrame:
     """Create a new datakey or update an existing one."""
     unique_names_df = df[input_cols['clientname']].drop_nulls().unique()
 
     if datakey_file:
-        datakey_path = Path(input_folder) / datakey_file
+        datakey_path = Path(datakey_file)
 
         if Path(datakey_path).is_file():
             datakey_df = load_datakey(str(datakey_path))

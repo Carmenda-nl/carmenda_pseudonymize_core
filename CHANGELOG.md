@@ -3,6 +3,128 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta] - 2026-07-09
+
+### Added
+
+- Install fastapi [LVD-296]
+- Extend json response from processor
+- Add a pydantic model to schema & extend route logic
+- Pydantic based settings & .env support
+- Fastapi base & swagger config
+- Api info & health endpoint
+- Lifespan cleanup & shutdown
+- Process API endpoint
+- Extend error responses & file cleanup on cancel
+- Extend tracker status with cancel & running
+- Extra description to schemas
+- Create input folder when not available
+- Engine version to info endpoint
+- Improve output endpoints response
+- App title to .env, endpoint & settings
+- SSE endpoint stream
+- Machine to machine (m2m) secure connection
+
+### Changed
+
+- Remove django's main & settings
+- Update environment files to fastAPI & python 3.14
+- Replace old django api with a new fastAPI
+- Remove output_cols from core.py + minor lint fixes
+- Update packages & cleanup pyproject.toml
+- Update make-file & remove old core script
+- Makefile & packages
+- Relocate lookup tables
+- Update info endpoint url
+- Reorganise core
+- Cleanup output from lifespan
+- Relocate deduce based code
+- Remove old progress control
+- Add progress tracker as argument
+- Log file only created when job is running
+- Cleanup logger & fix log_level not from .env
+- Worker progress tracker accepts cancel
+- Naming fixes & minor refactor in processor pipeline
+- API schema's update & add info response
+- Rename info to app_info & add extra routes
+- Restructure endpoints
+- Improve docstring
+- Combine & add a `check` make command
+- Ruff lint fixes
+- Remove refs to job to improve code readability
+- Replace JSONResponse with response models
+- Mypy lint error fixes
+- Refactor code & cleanup
+- Typo fixes
+- Fix tracker not done when error in pipeline
+- Ruff lint fixes
+- Update docstrings
+- Refactor process.py
+- Move .env & folder settings to one config in main
+- Minor code typo fixes
+- Update deployment files to work with fastapi
+- Update bruno collections
+- Github action scripts updated
+- Remove old naming
+- Id based process with paths instead of downloads
+- Update bruno files
+- Make job_id optional
+- Field explanation extended
+- Upgrade packages
+- Move file checks to api-gateway
+- Update readme
+- Update bruno project files
+- Update bruno environments
+- Readme add path mount for docker env
+- Minor bugfix unknown model
+- Update readme
+- Update bruno files
+- Cleanup unused packages
+- Improve naming & docstrings
+- Update readme & bruno files
+- Update readme
+- Build.spec cleanup
+- Rename pyinstaller naming to frozen
+- Remove old unused stages
+- Update docstring & bruno files
+- Enforce LF
+- Update readme
+- Update bruno files with headers
+- Update readme
+- Filter & clean info log
+- Refactor to fix ruff lint errors
+- Update all packages
+- Update readme
+- Downgrade changelog
+- Update pipelines to latest
+- Ruff lint error double quotes in version
+- Worflows writes version with double quotes
+- Pre release v2.0.0
+
+### Fixed
+
+- Fix older core tests
+- Naming missmatch fixed
+- Ruff lint error fixes
+- Update output location (used old logic)
+- Fix error_file not properly closed
+- Fix output files were not properly renamed
+- Fix log got cleaned on an error
+- Fix gcc requires build-essentials in python 3.14
+- Remove dublicate status|stage
+- Fix output folder created when not needed
+- Create a folder when not available
+- Fix files not properly loading
+- Fix lint error
+- Accept a relative or absolute path:
+- Fix file handling removes output subfolders
+- Fix memory overload in docker env
+- Fix unmapped_cols not parsed to df & missing in output
+- Fix column order got corrupt in output
+- Fix rich progress bar hangs on 99%
+- Open PR activates prepare stable pipeline
+- Pipelines not properly finished (403)
+
 ## [1.6.3-beta] - 2026-06-10
 
 ### Changed

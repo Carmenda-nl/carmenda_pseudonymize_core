@@ -14,8 +14,9 @@ from pathlib import Path
 
 import polars as pl
 
-from core.deidentify import DeidentifyHandler
+from core.deduce import DeidentifyHandler
 from core.utils.logger import setup_test_logging
+from core.utils.progress_tracker import ProgressTracker
 from core.utils.terminal import get_separator_line
 
 # Add the source directory to the Python path
@@ -25,7 +26,7 @@ sys.path.insert(0, str(source_dir))
 
 def test_name_detection_pipeline() -> None:
     """Test the full extended pipeline on different sentences."""
-    handler = DeidentifyHandler()
+    handler = DeidentifyHandler(tracker=ProgressTracker())
     logger = setup_test_logging()
 
     test_data = [
@@ -55,14 +56,11 @@ def test_name_detection_pipeline() -> None:
     # Create DataFrame from test data
     df = pl.DataFrame(test_data)
 
-    # Create an empty datakey (not needed for this test)
-    datakey = pl.DataFrame()
-
     logger.info('(start test)')
     logger.info(get_separator_line())
 
     # Process the dataframe
-    result_df = handler.deidentify_text(df, datakey, input_cols)
+    result_df = handler.deidentify_text(df, input_cols)
 
     # Iterate through results and log them
     for case_number, row in enumerate(result_df.iter_rows(named=True), 1):

@@ -22,12 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.0
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v8.3.2
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           working-directory: app
 
       - name: Install dependencies
@@ -52,12 +52,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.0
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v8.3.2
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           enable-cache: true
           working-directory: app
 
@@ -65,20 +65,10 @@ jobs:
         working-directory: app
         run: uv sync --group dev
 
-      - name: Run database migrations
-        working-directory: app
-        run: uv run python manage.py migrate --noinput
-        env:
-          DJANGO_SETTINGS_MODULE: main.settings
-          SECRET_KEY: secret-key-for-ci
-          DEBUG: "False"
-
       - name: Run pytest
         working-directory: app
         run: uv run pytest -s -v
         env:
-          DJANGO_SETTINGS_MODULE: main.settings
-          SECRET_KEY: secret-key-for-ci
           DEBUG: "False"
 
       - name: Upload coverage reports

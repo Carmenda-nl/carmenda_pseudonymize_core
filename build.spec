@@ -1,45 +1,31 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
-import site
 import sys
+import sysconfig
 from pathlib import Path
 
 import deduce
-from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 sys.path.insert(0, str(Path(SPECPATH) / 'app'))
-from main.version import get_version
+from main._version import __version__
 
-print(f'\nCore build: {get_version()}\n')
+print(f'\nEngine build: {__version__}\n')
 
 # Check build OS
 windows = sys.platform == 'win32'
-site_packages = site.getsitepackages()[1] if windows else site.getsitepackages()[0]
-
-rest_framework_path = Path(site_packages) / 'rest_framework'
-drf_spectacular_path = Path(site_packages) / 'drf_spectacular'
 
 # Update paths to match current project structure
 app_path = Path(SPECPATH) / 'app'
 
 datas = []
 datas += copy_metadata('deduce')
-datas += copy_metadata('drf-spectacular')
+datas += copy_metadata('fastapi')
+datas += copy_metadata('uvicorn')
+datas += copy_metadata('pydantic')
+datas += copy_metadata('pydantic-settings')
 datas += copy_metadata('polars')
-
-# Ensure daphne/autobahn (and their native extensions) are collected by PyInstaller
-datas += copy_metadata('daphne')
-datas += copy_metadata('autobahn')
-datas += copy_metadata('twisted')
-
-datas += collect_data_files('deduce')
-datas += collect_data_files('rest_framework')
-datas += collect_data_files('drf_spectacular')
-datas += collect_data_files('polars')
-datas += collect_data_files('daphne')
-datas += collect_data_files('autobahn')
-datas += collect_data_files('twisted')
 
 # Add the app directory selectively
 excluded_items = {
@@ -50,8 +36,8 @@ excluded_items = {
     'data',
     'tests',
     'pytest',
-    'core.py',
     'pyproject.toml',
+    'Makefile',
 }
 
 env_file = app_path / '.env'
@@ -77,7 +63,7 @@ datas = [
 ]
 
 # Bundle the lookup tables in the application
-lookup_tables_path = app_path / 'core' / 'lookup_tables'
+lookup_tables_path = app_path / 'core' / 'deduce' / 'lookup_tables'
 if lookup_tables_path.exists():
     datas.append((lookup_tables_path, 'lookup_tables'))
     cache_path = lookup_tables_path
@@ -88,37 +74,36 @@ if lookup_tables_path.exists():
     else:
         deduce_instance = deduce.Deduce(lookup_data_path=lookup_tables_path, cache_path=cache_path)
 
-rest_framework_imports = collect_submodules('rest_framework')
-drf_spectacular_imports = collect_submodules('drf_spectacular')
-
-datas.append((str(rest_framework_path), 'rest_framework'))
-datas.append((str(drf_spectacular_path), 'drf_spectacular'))
-
 binaries = []
-hiddenimports = []
-hiddenimports += collect_submodules('deduce')
-hiddenimports += collect_submodules('polars')
-hiddenimports += collect_submodules('daphne')
-hiddenimports += collect_submodules('autobahn')
-hiddenimports += collect_submodules('twisted')
+
+# Windows: explicitly bundle OpenSSL DLLs required by uvicorn/ssl
+if windows:
+    dlls_dir = Path(sysconfig.get_paths()['stdlib']).parent / 'DLLs'
+    for pattern in ['libssl*.dll', 'libcrypto*.dll']:
+        for dll in dlls_dir.glob(pattern):
+            binaries.append((str(dll), '.'))
+
+hiddenimports = ['_ssl', '_hashlib']
 
 tmp_ret = collect_all('deduce')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('rest_framework')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('drf_spectacular')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('polars')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('daphne')
+tmp_ret = collect_all('fastapi')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('autobahn')
+tmp_ret = collect_all('uvicorn')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('twisted')
+tmp_ret = collect_all('starlette')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('pydantic')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('pydantic_settings')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('anyio')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 a = Analysis(
-    [str(app_path / 'manage.py')],
+    [str(app_path / 'run.py')],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -144,6 +129,26 @@ a = Analysis(
     optimize=1,
 )
 
+# Drop test/dev-only modules that the package hooks ship as loose source.
+_excluded_modules = {
+    'pydantic.mypy',
+    'pydantic.v1.mypy',
+    'pydantic.v1._hypothesis_plugin',
+    'anyio.pytest_plugin',
+    'fastapi.testclient',
+    'starlette.testclient',
+}
+_excluded_dests = {name.replace('.', '/') + '.py' for name in _excluded_modules}
+
+a.datas = [
+    (dest, source, kind)
+    for dest, source, kind in a.datas
+    if dest.replace('\\', '/') not in _excluded_dests
+]
+a.pure = [
+    (name, path, kind) for name, path, kind in a.pure if name not in _excluded_modules
+]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -151,11 +156,11 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='backend',
+    name='carmenda-deduce-engine',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    strip=False,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
@@ -166,4 +171,4 @@ exe = EXE(
     entitlements_file=None,
 )
 
-coll = COLLECT(exe, a.binaries, a.datas, a.scripts, strip=False, upx=True, upx_exclude=[], name='backend')
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, upx_exclude=[], name='carmenda-deduce-engine')
