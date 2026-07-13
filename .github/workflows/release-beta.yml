@@ -15,7 +15,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   build-beta-windows:
@@ -92,20 +91,12 @@ jobs:
           generate_release_notes: false
           files: "*.zip"
 
-      - name: Generate changelog entry
-        uses: orhun/git-cliff-action@v4.8.0
-        with:
-          config: cliff.toml
-          args: --latest --strip header
-        env:
-          OUTPUT: /tmp/changelog_entry.md
-
       - name: Update CHANGELOG.md
         run: |
           python3 << 'EOF'
           import re
           version_no_v = '${{ github.ref_name }}'.lstrip('v')
-          with open('/tmp/changelog_entry.md', 'r') as f:
+          with open('git-cliff/CHANGELOG.md', 'r') as f:
               new_entry = f.read().strip()
           with open('CHANGELOG.md', 'r') as f:
               content = f.read()
