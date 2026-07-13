@@ -90,7 +90,7 @@ Use the following command to run the Carmenda Deduce engine:
 docker run -it --rm -p 8001:8001 -e DEBUG=False carmenda-deduce-engine:latest
 ```
 
-The API will be available at `http://localhost:8001/`
+The API will be available at `http://127.0.0.1:8001/`
 
 > **Note:** Set `DEBUG=False` for production environments. The Swagger UI is only available when `DEBUG=True`.
 
@@ -118,8 +118,8 @@ Place your input files in the local input folder and retrieve the results from t
 
 When running with `DEBUG=True`, you can access:
 
-- **API Documentation**: `http://localhost:8001/docs` (Swagger UI)
-- **API Schema**: `http://localhost:8001/openapi.json` (OpenAPI schema)
+- **API Documentation**: `http://127.0.0.1:8001/docs` (Swagger UI)
+- **API Schema**: `http://127.0.0.1:8001/openapi.json` (OpenAPI schema)
 
 ### Important Notes
 
@@ -170,7 +170,7 @@ Create an `.env` file in the `app` folder with the following configuration:
 APP_TITLE=carmenda-deduce-engine
 DEBUG=False
 LOG_LEVEL=INFO
-HOST=localhost
+HOST=127.0.0.1
 PORT=8001
 M2M_HASH=
 ```
