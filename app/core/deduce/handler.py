@@ -56,7 +56,7 @@ class DeduceHandler:
         """Replace all synonyms in the report text with their main names."""
         synonym_df = (
             datakey.with_columns(pl.col('synonyms').str.split(','))
-            .explode('synonyms')
+            .explode('synonyms', empty_as_null=True)
             .with_columns(pl.col('synonyms').str.strip_chars())
             .filter(pl.col('synonyms') != '')
             .select([pl.col('clientname'), pl.col('synonyms')])
