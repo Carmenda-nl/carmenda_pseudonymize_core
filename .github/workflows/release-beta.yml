@@ -1,7 +1,6 @@
 # GitHub Actions workflow
 # This workflow builds a pre-release when a new beta tag is pushed.
 # The build artifact is uploaded to the created beta release.
-# Windows based build is currently supported.
 #
 # Triggered on:
 #   - PUSH of tags matching v*-beta
@@ -17,110 +16,12 @@ permissions:
   contents: write
 
 jobs:
-  build-beta-windows:
-    runs-on: windows-latest
-    outputs:
-      tag: ${{ github.ref_name }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.0
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v8.3.2
-        with:
-          python-version: "3.14"
-          working-directory: app
-
-      - name: Install dependencies
-        working-directory: app
-        run: uv sync --group build
-
-      - name: Build windows executable
-        working-directory: app
-        run: uv run pyinstaller ../build.spec
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: carmenda-deduce-engine
-          path: app/dist/carmenda-deduce-engine/
-          include-hidden-files: true
-
-  create-beta-release:
-    needs: build-beta-windows
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.0
-        with:
-          fetch-depth: 0
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v8.0.1
-        with:
-          name: carmenda-deduce-engine
-          path: carmenda-deduce-engine
-
-      - name: Create zip archive
-        run: |
-          cd carmenda-deduce-engine
-          zip -r ../Carmenda_deduce_engine_win_${{ github.ref_name }}.zip *
-          cd ..
-          ls -lh *.zip
-
-      - name: Get release notes
-        id: release_notes
-        uses: orhun/git-cliff-action@v4.8.0
-        with:
-          config: cliff.toml
-          args: --latest --strip header
-
-      - name: Create beta release
-        uses: softprops/action-gh-release@v3.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "Beta release ${{ github.ref_name }}"
-          body: ${{ steps.release_notes.outputs.content }}
-          prerelease: true
-          draft: false
-          fail_on_unmatched_files: false
-          generate_release_notes: false
-          files: "*.zip"
-
-      - name: Update CHANGELOG.md
-        run: |
-          python3 << 'EOF'
-          import re
-          version_no_v = '${{ github.ref_name }}'.lstrip('v')
-          with open('git-cliff/CHANGELOG.md', 'r') as f:
-              new_entry = f.read().strip()
-          with open('CHANGELOG.md', 'r') as f:
-              content = f.read()
-          pattern = r'## \[' + re.escape(version_no_v) + r'\].*?(?=\n## \[|\Z)'
-          content = re.sub(pattern, '', content, flags=re.DOTALL)
-          match = re.search(r'\n(## \[)', content)
-          if match:
-              pos = match.start() + 1
-              content = content[:pos] + new_entry + '\n\n' + content[pos:]
-          else:
-              content = content.rstrip() + '\n\n' + new_entry + '\n'
-          content = re.sub(r'\n{3,}', '\n\n', content)
-          with open('CHANGELOG.md', 'w') as f:
-              f.write(content)
-          EOF
-
-      - name: Update _version.py
-        run: |
-          echo "__version__ = '${{ github.ref_name }}'" > app/main/_version.py
-
-      - name: Commit CHANGELOG.md and _version.py
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md app/main/_version.py
-          git diff --cached --quiet || git commit -m "chore(release): update CHANGELOG.md for ${{ github.ref_name }}"
-          git push origin HEAD:develop
+  release:
+    uses: Carmenda-nl/carmenda-workflows/.github/workflows/python-release-beta.yml@main
+    with:
+      working-directory: app
+      build-output-name: carmenda-deduce-engine
+      artifact-name: carmenda-deduce-engine
+      zip-prefix: carmenda_deduce_engine_win
+      version-file: app/main/_version.py
+    secrets: inherit
