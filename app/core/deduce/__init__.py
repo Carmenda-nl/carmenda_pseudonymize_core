@@ -5,6 +5,6 @@
 
 """Deduce subpackage for de-identification of medical text."""
 
-from core.deduce.deidentify import DeidentifyHandler
+from core.deduce.handler import DeduceHandler
 
-__all__ = ['DeidentifyHandler']
+__all__ = ['DeduceHandler']

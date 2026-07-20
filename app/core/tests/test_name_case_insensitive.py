@@ -12,7 +12,7 @@ For complete results, run with arguments.
 import sys
 from pathlib import Path
 
-from core.deduce import DeidentifyHandler
+from core.deduce import DeduceHandler
 from core.utils.logger import setup_test_logging
 from core.utils.progress_tracker import ProgressTracker
 from core.utils.terminal import get_separator_line
@@ -24,7 +24,7 @@ sys.path.insert(0, str(source_dir))
 
 def test_case_insensitive() -> None:
     """Test the case-insensitive name detection."""
-    handler = DeidentifyHandler(tracker=ProgressTracker())
+    handler = DeduceHandler(tracker=ProgressTracker())
     logger = setup_test_logging()
 
     test_sentences = [

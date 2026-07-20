@@ -49,7 +49,7 @@ def run_job(file: str, input_cols: str, datakey: str, tracker: ProgressTracker, 
 
     try:
         result = process_data(file=file, input_cols=input_cols, datakey=datakey, tracker=tracker, output_dir=output_dir)
-    except Exception as exc:  # noqa: BLE001 — a failed or cancelled process must free the worker, not crash it.
+    except Exception as exc:  # a failed or cancelled process must free the worker, not crash it.
         status = 'cancelled' if tracker.cancel_requested else 'error'
         result = {'error': 'Process was cancelled' if tracker.cancel_requested else str(exc)}
         if not tracker.cancel_requested:

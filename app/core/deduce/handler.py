@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 logger = setup_logging()
 
 
-class DeidentifyHandler:
+class DeduceHandler:
     """Handler class for de-identification operations."""
 
     def __init__(self, tracker: ProgressTracker) -> None:
