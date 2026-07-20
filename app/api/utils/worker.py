@@ -18,7 +18,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from core.processor import process_data
-from core.utils.logger import attach_job_log, detach_job_log
+from core.utils.logger import attach_job_log, detach_job_log, setup_logging
 
 if TYPE_CHECKING:
     from core.utils.progress_tracker import ProgressTracker
@@ -39,6 +39,7 @@ class Worker:
 
 
 worker = Worker()
+logger = setup_logging()
 
 
 def run_job(file: str, input_cols: str, datakey: str, tracker: ProgressTracker, output_dir: str) -> None:
@@ -51,6 +52,8 @@ def run_job(file: str, input_cols: str, datakey: str, tracker: ProgressTracker, 
     except Exception as exc:  # noqa: BLE001 — a failed or cancelled process must free the worker, not crash it.
         status = 'cancelled' if tracker.cancel_requested else 'error'
         result = {'error': 'Process was cancelled' if tracker.cancel_requested else str(exc)}
+        if not tracker.cancel_requested:
+            logger.exception('Job failed')
     finally:
         with contextlib.suppress(Exception):
             tracker.clean_progress_bar()
