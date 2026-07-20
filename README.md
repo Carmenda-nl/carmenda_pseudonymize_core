@@ -1,9 +1,8 @@
 # Carmenda Deduce engine
 
 [![Python](https://img.shields.io/badge/python-3.14-blue)](https://www.python.org/downloads/)
-[![API](https://img.shields.io/badge/api-REST-orange)](https://fastapi.tiangolo.com/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.136-009688)](https://fastapi.tiangolo.com/)
-[![Polars](https://img.shields.io/badge/polars-1.38-9cf)](https://pola.rs/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688)](https://fastapi.tiangolo.com/)
+[![Polars](https://img.shields.io/badge/polars-1.42-9cf)](https://pola.rs/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Tests](https://github.com/Carmenda-nl/carmenda-deduce-engine/actions/workflows/test-develop.yml/badge.svg?branch=develop)](https://github.com/Carmenda-nl/carmenda-deduce-engine/actions/workflows/test-develop.yml)
@@ -192,3 +191,10 @@ python run.py
 ```
 
 The API will be available at `http://localhost:8001/`
+
+### Step 5: Testing with Bruno
+
+There is no committed [Bruno](https://www.usebruno.com/) collection — generate one via
+**Import Collection → OpenAPI**, using the running server's `/openapi.json` (requires `DEBUG=True`,
+e.g. `http://127.0.0.1:8001/openapi.json`). Afterwards, add a `local` environment with a `baseUrl`
+variable pointing at `http://127.0.0.1:8001`.
