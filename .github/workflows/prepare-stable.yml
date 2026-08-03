@@ -9,7 +9,7 @@ name: Prepare stable version
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
 
 permissions:
   contents: write
