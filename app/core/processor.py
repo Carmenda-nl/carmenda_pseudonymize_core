@@ -21,7 +21,7 @@ from typing import Any
 import polars as pl
 
 from core.datakey import process_datakey
-from core.deduce import DeidentifyHandler
+from core.deduce import DeduceHandler
 from core.utils.file_handling import load_datafile, save_datafile, save_datakey
 from core.utils.logger import setup_logging
 from core.utils.progress_tracker import ProgressTracker, performance_metrics
@@ -93,7 +93,7 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
 
     # -------------------------- STEP 3: DATA TRANSFORMATION -------------------------- #
 
-    handler = DeidentifyHandler(tracker=tracker)
+    handler = DeduceHandler(tracker=tracker)
 
     if has_clientname:
         df = handler.replace_synonym(df, processed_datakey, report_cols)

@@ -68,5 +68,5 @@ if __name__ == '__main__':
         reload_dirs=[str(Path(__file__).parent)] if settings.debug and settings.environment == 'development' else None,
         host=settings.host,
         port=settings.port,
-        log_level=settings.log_level,
+        log_level=settings.log_level.lower(),
     )

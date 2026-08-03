@@ -3,7 +3,31 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-beta] - 2026-07-09
+## [2.0.1] - 2026-08-03
+
+### Added
+
+- Log exception details when a job fails
+- Track python version file
+
+### Changed
+
+- Cleanup workflows
+- Update changelog
+- Cleanup workflows
+- Addres to new repo in cliff.toml
+- Readme & remove bruno files
+- Workflows to use shared workflows
+- Old refs in build files
+- Readme & remove bruno files
+- Update packages & fix polars decrement
+
+### Fixed
+
+- Lowercase log_level before passing to uvicorn
+- Version file not properly promoted to stable
+
+## [2.0.0] - 2026-07-10
 
 ### Added
 
@@ -125,7 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Open PR activates prepare stable pipeline
 - Pipelines not properly finished (403)
 
-## [1.6.3-beta] - 2026-06-10
+## [1.6.3] - 2026-06-10
 
 ### Changed
 
@@ -139,7 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Serializer had a max of 100 characters
 - Bugfix workflows
 
-## [1.6.2-beta] - 2026-05-18
+## [1.6.2] - 2026-05-18
 
 ### Added
 
@@ -150,14 +174,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix single report not processed [LVD-299]
 
-## [1.6.1-beta] - 2026-05-11
+## [1.6.1] - 2026-05-11
 
 ### Fixed
 
 - Closing thread fails when file stil in use
 - Wait for background thread to finish before garbage collection
 
-## [1.6.0-beta] - 2026-05-08
+## [1.6.0] - 2026-05-08
 
 ### Added
 
@@ -188,7 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workflow generates dublicate releases in changelog.md
 - Do not remove older changelogs
 
-## [1.5.0-beta] - 2026-04-28
+## [1.5.0] - 2026-04-28
 
 ### Added
 

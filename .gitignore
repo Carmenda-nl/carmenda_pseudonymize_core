@@ -30,4 +30,3 @@ pytest
 
 build
 dist
-version.txt

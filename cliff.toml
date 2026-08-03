@@ -24,7 +24,7 @@ conventional_commits = true
 filter_unconventional = false
 split_commits = false
 commit_preprocessors = [
-  { pattern = '\(#(\d+)\)', replace = "([#$1](https://github.com/Carmenda-nl/carmenda_pseudonymize_core/issues/$1))" },
+  { pattern = '\(#(\d+)\)', replace = "([#$1](https://github.com/Carmenda-nl/carmenda-deduce-engine/issues/$1))" },
   { pattern = '\n[\s\S]*', replace = "" },
 ]
 commit_parsers = [
