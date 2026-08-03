@@ -3,6 +3,30 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1-beta] - 2026-08-03
+
+### Added
+
+- Log exception details when a job fails
+- Track python version file
+
+### Changed
+
+- Cleanup workflows
+- Update changelog
+- Cleanup workflows
+- Addres to new repo in cliff.toml
+- Readme & remove bruno files
+- Workflows to use shared workflows
+- Old refs in build files
+- Readme & remove bruno files
+- Update packages & fix polars decrement
+
+### Fixed
+
+- Lowercase log_level before passing to uvicorn
+- Version file not properly promoted to stable
+
 ## [2.0.0] - 2026-07-10
 
 ### Added
