@@ -3,13 +3,13 @@
 # It strips the -beta suffix from _version.py and CHANGELOG.md on develop.
 #
 # Triggered on:
-#   - PULL REQUEST from develop to main is approved
+#   - PR from develop to main is opened/updated -> prepare changelog & version file
 
 name: Prepare stable version
 
 on:
-  pull_request_review:
-    types: [submitted]
+  pull_request:
+    types: [opened, synchronize]
 
 permissions:
   contents: write
@@ -17,7 +17,6 @@ permissions:
 jobs:
   prepare-stable-version:
     if: >
-      github.event.review.state == 'approved' &&
       github.event.pull_request.base.ref == 'main' &&
       github.event.pull_request.head.ref == 'develop'
     uses: Carmenda-nl/carmenda-workflows/.github/workflows/python-prepare-stable.yml@main
