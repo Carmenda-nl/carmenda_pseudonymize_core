@@ -14,12 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Cleanup workflows
 - Update changelog
-- Cleanup workflows
 - Addres to new repo in cliff.toml
 - Readme & remove bruno files
 - Workflows to use shared workflows
 - Old refs in build files
-- Readme & remove bruno files
 - Update packages & fix polars decrement
 
 ### Fixed

@@ -17,9 +17,9 @@ permissions:
 
 jobs:
   release:
-    uses: Carmenda-nl/carmenda-workflows/.github/workflows/python-release-beta.yml@main
+    uses: Carmenda-nl/carmenda-workflows/.github/workflows/python/release-beta.yml@main
     with:
       working-directory: app
       build-name: carmenda-deduce-engine
-      version-file: app/main/_version.py
+      version-file: app/main/VERSION
     secrets: inherit
