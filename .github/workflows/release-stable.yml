@@ -24,5 +24,5 @@ jobs:
       github.event.pull_request.head.ref == 'develop'
     uses: Carmenda-nl/carmenda-workflows/.github/workflows/python-release-stable.yml@main
     with:
-      version-file: app/main/_version.py
+      version-file: app/main/VERSION
     secrets: inherit
