@@ -3,6 +3,19 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2-beta] - 2026-08-04
+
+### Changed
+
+- Cleanup dublicates
+- Update workflow paths
+
+### Fixed
+
+- Regex build wheels not loaded
+- Version still reports beta after promoting to stable
+- Shared workflows must be defined at the top level
+
 ## [2.0.1] - 2026-08-03
 
 ### Added
