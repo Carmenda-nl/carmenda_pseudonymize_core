@@ -19,7 +19,6 @@ from fastapi import FastAPI
 from api import router
 from api.utils.worker import shutdown_worker
 from core.utils.logger import setup_logging
-from main._version import __version__ as app_version
 from main.config import settings
 
 if TYPE_CHECKING:
@@ -50,7 +49,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(
     title=settings.app_title,
-    version=app_version,
+    version=settings.app_version,
     lifespan=lifespan,
     swagger_ui_parameters={'defaultModelsExpandDepth': -1},
     docs_url='/docs' if settings.debug else None,

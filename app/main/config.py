@@ -13,22 +13,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _detect_environment() -> tuple[str, Path, str, str]:
-    """Get proper folder & file paths based on the current environment."""
+    """Get proper app base, folder & file paths based on the current environment."""
     if os.environ.get('DOCKER_ENV') == 'true':
-        return 'docker', Path('/app/.env'), '/app/data/input', '/app/data/output'
+        return 'docker', Path('/app'), '/app/data/input', '/app/data/output'
     if getattr(sys, 'frozen', False):
-        base = Path(getattr(sys, '_MEIPASS', '.'))
-        return 'frozen', base / 'app' / '.env', str(base / 'data' / 'input'), str(base / 'data' / 'output')
-    return 'development', Path(__file__).parent.parent / '.env', 'data/input', 'data/output'
+        base = Path(getattr(sys, '_MEIPASS', '.')) / 'app'
+        return 'frozen', base, str(base / 'data' / 'input'), str(base / 'data' / 'output')
+    return 'development', Path(__file__).parent.parent, 'data/input', 'data/output'
 
 
-environment, env_file, input_folder, output_folder = _detect_environment()
+environment, app_base, input_folder, output_folder = _detect_environment()
+
+app_version = (app_base / 'main' / 'VERSION').read_text().strip()
 
 
 class Settings(BaseSettings):
     """Settings to configure the API."""
 
     app_title: str = 'carmenda-deduce-engine'
+    app_version: str = app_version
     host: str = 'localhost'
     port: int = 8001
     debug: bool = False
@@ -37,7 +40,7 @@ class Settings(BaseSettings):
     m2m_hash: str = ''
     input_folder: str = input_folder
     output_folder: str = output_folder
-    model_config = SettingsConfigDict(env_file=env_file)
+    model_config = SettingsConfigDict(env_file=app_base / '.env')
 
 
 settings = Settings()
