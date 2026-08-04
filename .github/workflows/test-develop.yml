@@ -19,6 +19,6 @@ on:
 
 jobs:
   tests:
-    uses: Carmenda-nl/carmenda-workflows/.github/workflows/python-tests.yml@main
+    uses: Carmenda-nl/carmenda-workflows/.github/workflows/python/tests.yml@main
     with:
       working-directory: app
