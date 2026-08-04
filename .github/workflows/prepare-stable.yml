@@ -1,6 +1,6 @@
 # GitHub Actions workflow
 # This workflow prepares the stable version before merging develop into main.
-# It strips the -beta suffix from _version.py and CHANGELOG.md on develop.
+# It strips the -beta suffix from the VERSION file and CHANGELOG.md on develop.
 #
 # Triggered on:
 #   - PR from develop to main is opened/updated -> prepare changelog & version file
@@ -9,7 +9,7 @@ name: Prepare stable version
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
 
 permissions:
   contents: write
@@ -21,4 +21,4 @@ jobs:
       github.event.pull_request.head.ref == 'develop'
     uses: Carmenda-nl/carmenda-workflows/.github/workflows/python-prepare-stable.yml@main
     with:
-      version-file: app/main/_version.py
+      version-file: app/main/VERSION

@@ -21,5 +21,5 @@ jobs:
     with:
       working-directory: app
       build-name: carmenda-deduce-engine
-      version-file: app/main/_version.py
+      version-file: app/main/VERSION
     secrets: inherit

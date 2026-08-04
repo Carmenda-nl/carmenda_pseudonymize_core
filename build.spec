@@ -9,15 +9,15 @@ import deduce
 from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 sys.path.insert(0, str(Path(SPECPATH) / 'app'))
-from main._version import __version__
 
+# Update paths to match current project structure
+app_path = Path(SPECPATH) / 'app'
+
+__version__ = (app_path / 'main' / 'VERSION').read_text().strip()
 print(f'\nEngine build: {__version__}\n')
 
 # Check build OS
 windows = sys.platform == 'win32'
-
-# Update paths to match current project structure
-app_path = Path(SPECPATH) / 'app'
 
 datas = []
 datas += copy_metadata('deduce')
