@@ -5,9 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.2-beta] - 2026-08-04
 
+### Changed
+
+- Version to v2.0.2-beta
+- Cleanup dublicates
+- Update workflow paths
+
 ### Fixed
 
 - Version file not properly promoted to stable
+- Regex build wheels not loaded
+- Version still reports beta after promoting to stable
+- Workflows must be defined at the top level
 
 ## [2.0.1] - 2026-08-03
 
