@@ -1,4 +1,5 @@
 # GitHub Actions workflow
+#
 # This workflow includes jobs for linting, type checking, and testing the Python codebase.
 # A coverage report will be uploaded as an artifact after tests run.
 #
