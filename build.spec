@@ -26,6 +26,8 @@ datas += copy_metadata('uvicorn')
 datas += copy_metadata('pydantic')
 datas += copy_metadata('pydantic-settings')
 datas += copy_metadata('polars')
+datas += copy_metadata('fastexcel')
+datas += copy_metadata('xlsxwriter')
 
 # Add the app directory selectively
 excluded_items = {
@@ -83,9 +85,13 @@ hiddenimports = ['_ssl', '_hashlib']
 
 tmp_ret = collect_all('deduce')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('fastapi')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('fastexcel')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('polars')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('fastapi')
+tmp_ret = collect_all('xlsxwriter')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('uvicorn')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]

@@ -5,7 +5,7 @@
 
 APP_DIR := app
 
-.PHONY: help run lint format test typecheck check
+.PHONY: help run lint format test typecheck check build
 
 help:
 	@echo --------------------------------
@@ -17,6 +17,7 @@ help:
 	@echo   make test             Run the test suite
 	@echo   make typecheck        Run mypy type checks
 	@echo   make check            Run all checks
+	@echo   make build            Build the executable with PyInstaller
 
 run:
 	cd $(APP_DIR) && uv run python run.py
@@ -33,4 +34,8 @@ typecheck:
 test:
 	cd $(APP_DIR) && uv run pytest
 
-check: format lint typecheck test
+check:
+	format lint typecheck test
+
+build:
+	cd $(APP_DIR) && uv run --group build pyinstaller ../build.spec --noconfirm
