@@ -50,8 +50,12 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
     df = load_datafile(file, tracker=tracker)
 
     if df is not None:
-        input_cols_dict = dict(column.strip().split('=') for column in input_cols.split(','))
-        report_cols = [value.strip() for key, value in input_cols_dict.items() if key.startswith('report')]
+        input_cols_dict = {}
+
+        for column in input_cols.split(','):
+            partitioned = column.partition('=')
+            input_cols_dict[partitioned[0].strip()] = partitioned[2]
+        report_cols = [value for key, value in input_cols_dict.items() if key.startswith('report')]
 
         report_order = {
             report_key: index
@@ -62,7 +66,7 @@ def process_data(file: str, datakey: str, input_cols: str, tracker: ProgressTrac
             if key == 'clientname'
             else f'processed_report_{report_order[key]}'
             if key in report_order
-            else value.strip()
+            else value
             for key, value in input_cols_dict.items()
         ]
 
