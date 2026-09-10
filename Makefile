@@ -5,6 +5,8 @@
 
 APP_DIR := app
 
+export PYTHONDONTWRITEBYTECODE := 1
+
 .PHONY: help run lint format test typecheck check build
 
 help:
@@ -34,8 +36,7 @@ typecheck:
 test:
 	cd $(APP_DIR) && uv run pytest
 
-check:
-	format lint typecheck test
+check: format lint typecheck test
 
 build:
 	cd $(APP_DIR) && uv run --group build pyinstaller ../build.spec --noconfirm
