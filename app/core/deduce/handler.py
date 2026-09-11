@@ -147,7 +147,7 @@ class DeduceHandler:
 
         return merged_result
 
-    def _deidentify_batch(self, batch: pl.Series) -> pl.Series:
+    def _deidentify_batch(self, batch: pl.Series, **_kwargs: object) -> pl.Series:
         """Collect a batch of report texts and process them per row, while tracking progress."""
         results = []
 
